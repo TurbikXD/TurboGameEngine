@@ -1,0 +1,46 @@
+{
+	"sources" : 
+	[
+		{
+			"file" : "C:/Users/rocco/CLionProjects/TurboGameEngine/build/debug/_deps/glfw-subbuild/CMakeFiles/glfw-populate"
+		},
+		{
+			"file" : "C:/Users/rocco/CLionProjects/TurboGameEngine/build/debug/_deps/glfw-subbuild/CMakeFiles/1abeb67a1b57e5c7ade8b6df4f3f1967/glfw-populate.rule"
+		},
+		{
+			"file" : "C:/Users/rocco/CLionProjects/TurboGameEngine/build/debug/_deps/glfw-subbuild/CMakeFiles/22a51402aeb4af5c40ebfa5e1cfe4066/glfw-populate-complete.rule"
+		},
+		{
+			"file" : "C:/Users/rocco/CLionProjects/TurboGameEngine/build/debug/_deps/glfw-subbuild/CMakeFiles/4b4e64d2a699ed9b54e1a6c29740cfb6/glfw-populate-build.rule"
+		},
+		{
+			"file" : "C:/Users/rocco/CLionProjects/TurboGameEngine/build/debug/_deps/glfw-subbuild/CMakeFiles/4b4e64d2a699ed9b54e1a6c29740cfb6/glfw-populate-configure.rule"
+		},
+		{
+			"file" : "C:/Users/rocco/CLionProjects/TurboGameEngine/build/debug/_deps/glfw-subbuild/CMakeFiles/4b4e64d2a699ed9b54e1a6c29740cfb6/glfw-populate-download.rule"
+		},
+		{
+			"file" : "C:/Users/rocco/CLionProjects/TurboGameEngine/build/debug/_deps/glfw-subbuild/CMakeFiles/4b4e64d2a699ed9b54e1a6c29740cfb6/glfw-populate-install.rule"
+		},
+		{
+			"file" : "C:/Users/rocco/CLionProjects/TurboGameEngine/build/debug/_deps/glfw-subbuild/CMakeFiles/4b4e64d2a699ed9b54e1a6c29740cfb6/glfw-populate-mkdir.rule"
+		},
+		{
+			"file" : "C:/Users/rocco/CLionProjects/TurboGameEngine/build/debug/_deps/glfw-subbuild/CMakeFiles/4b4e64d2a699ed9b54e1a6c29740cfb6/glfw-populate-patch.rule"
+		},
+		{
+			"file" : "C:/Users/rocco/CLionProjects/TurboGameEngine/build/debug/_deps/glfw-subbuild/CMakeFiles/4b4e64d2a699ed9b54e1a6c29740cfb6/glfw-populate-test.rule"
+		},
+		{
+			"file" : "C:/Users/rocco/CLionProjects/TurboGameEngine/build/debug/_deps/glfw-subbuild/CMakeFiles/4b4e64d2a699ed9b54e1a6c29740cfb6/glfw-populate-update.rule"
+		}
+	],
+	"target" : 
+	{
+		"labels" : 
+		[
+			"glfw-populate"
+		],
+		"name" : "glfw-populate"
+	}
+}

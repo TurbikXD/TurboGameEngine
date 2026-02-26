@@ -1,0 +1,15 @@
+{
+	"InstallScripts" : 
+	[
+		"C:/Users/rocco/CLionProjects/TurboGameEngine/build/release/cmake_install.cmake",
+		"C:/Users/rocco/CLionProjects/TurboGameEngine/build/release/_deps/glfw-build/cmake_install.cmake",
+		"C:/Users/rocco/CLionProjects/TurboGameEngine/build/release/_deps/glfw-build/src/cmake_install.cmake",
+		"C:/Users/rocco/CLionProjects/TurboGameEngine/build/release/_deps/glm-build/cmake_install.cmake",
+		"C:/Users/rocco/CLionProjects/TurboGameEngine/build/release/_deps/glm-build/glm/cmake_install.cmake",
+		"C:/Users/rocco/CLionProjects/TurboGameEngine/build/release/_deps/spdlog-build/cmake_install.cmake",
+		"C:/Users/rocco/CLionProjects/TurboGameEngine/build/release/_deps/nlohmann_json-build/cmake_install.cmake",
+		"C:/Users/rocco/CLionProjects/TurboGameEngine/build/release/_deps/vulkan_headers-build/cmake_install.cmake",
+		"C:/Users/rocco/CLionProjects/TurboGameEngine/build/release/tools/shader_compiler/cmake_install.cmake"
+	],
+	"Parallel" : false
+}

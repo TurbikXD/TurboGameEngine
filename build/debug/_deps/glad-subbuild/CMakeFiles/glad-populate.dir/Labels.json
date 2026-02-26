@@ -1,0 +1,46 @@
+{
+	"sources" : 
+	[
+		{
+			"file" : "C:/Users/rocco/CLionProjects/TurboGameEngine/build/debug/_deps/glad-subbuild/CMakeFiles/glad-populate"
+		},
+		{
+			"file" : "C:/Users/rocco/CLionProjects/TurboGameEngine/build/debug/_deps/glad-subbuild/CMakeFiles/83097e11875b7de93482e429cb21089c/glad-populate.rule"
+		},
+		{
+			"file" : "C:/Users/rocco/CLionProjects/TurboGameEngine/build/debug/_deps/glad-subbuild/CMakeFiles/3305fc27103af00e73e7b6b251089879/glad-populate-complete.rule"
+		},
+		{
+			"file" : "C:/Users/rocco/CLionProjects/TurboGameEngine/build/debug/_deps/glad-subbuild/CMakeFiles/b63065afb10eeba3d619f70e201f5750/glad-populate-build.rule"
+		},
+		{
+			"file" : "C:/Users/rocco/CLionProjects/TurboGameEngine/build/debug/_deps/glad-subbuild/CMakeFiles/b63065afb10eeba3d619f70e201f5750/glad-populate-configure.rule"
+		},
+		{
+			"file" : "C:/Users/rocco/CLionProjects/TurboGameEngine/build/debug/_deps/glad-subbuild/CMakeFiles/b63065afb10eeba3d619f70e201f5750/glad-populate-download.rule"
+		},
+		{
+			"file" : "C:/Users/rocco/CLionProjects/TurboGameEngine/build/debug/_deps/glad-subbuild/CMakeFiles/b63065afb10eeba3d619f70e201f5750/glad-populate-install.rule"
+		},
+		{
+			"file" : "C:/Users/rocco/CLionProjects/TurboGameEngine/build/debug/_deps/glad-subbuild/CMakeFiles/b63065afb10eeba3d619f70e201f5750/glad-populate-mkdir.rule"
+		},
+		{
+			"file" : "C:/Users/rocco/CLionProjects/TurboGameEngine/build/debug/_deps/glad-subbuild/CMakeFiles/b63065afb10eeba3d619f70e201f5750/glad-populate-patch.rule"
+		},
+		{
+			"file" : "C:/Users/rocco/CLionProjects/TurboGameEngine/build/debug/_deps/glad-subbuild/CMakeFiles/b63065afb10eeba3d619f70e201f5750/glad-populate-test.rule"
+		},
+		{
+			"file" : "C:/Users/rocco/CLionProjects/TurboGameEngine/build/debug/_deps/glad-subbuild/CMakeFiles/b63065afb10eeba3d619f70e201f5750/glad-populate-update.rule"
+		}
+	],
+	"target" : 
+	{
+		"labels" : 
+		[
+			"glad-populate"
+		],
+		"name" : "glad-populate"
+	}
+}

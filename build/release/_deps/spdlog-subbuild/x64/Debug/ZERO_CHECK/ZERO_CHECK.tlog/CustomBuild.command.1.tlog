@@ -1,0 +1,10 @@
+^C:\USERS\ROCCO\CLIONPROJECTS\TURBOGAMEENGINE\BUILD\RELEASE\_DEPS\SPDLOG-SUBBUILD\CMAKEFILES\47E40197112640C7DE85CB1874423AFC\GENERATE.STAMP.RULE
+setlocal
+"C:\Program Files\CMake\bin\cmake.exe" -SC:/Users/rocco/CLionProjects/TurboGameEngine/build/release/_deps/spdlog-subbuild -BC:/Users/rocco/CLionProjects/TurboGameEngine/build/release/_deps/spdlog-subbuild --check-stamp-list CMakeFiles/generate.stamp.list --vs-solution-file C:/Users/rocco/CLionProjects/TurboGameEngine/build/release/_deps/spdlog-subbuild/spdlog-populate.sln
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd

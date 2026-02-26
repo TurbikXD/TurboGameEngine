@@ -1,0 +1,44 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="17.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <CustomBuild Include="C:\Users\rocco\CLionProjects\TurboGameEngine\build\release\_deps\glfw-subbuild\CMakeFiles\7035002f1bb9eab2a28e609440391de1\glfw-populate-mkdir.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\rocco\CLionProjects\TurboGameEngine\build\release\_deps\glfw-subbuild\CMakeFiles\7035002f1bb9eab2a28e609440391de1\glfw-populate-download.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\rocco\CLionProjects\TurboGameEngine\build\release\_deps\glfw-subbuild\CMakeFiles\7035002f1bb9eab2a28e609440391de1\glfw-populate-update.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\rocco\CLionProjects\TurboGameEngine\build\release\_deps\glfw-subbuild\CMakeFiles\7035002f1bb9eab2a28e609440391de1\glfw-populate-patch.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\rocco\CLionProjects\TurboGameEngine\build\release\_deps\glfw-subbuild\CMakeFiles\7035002f1bb9eab2a28e609440391de1\glfw-populate-configure.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\rocco\CLionProjects\TurboGameEngine\build\release\_deps\glfw-subbuild\CMakeFiles\7035002f1bb9eab2a28e609440391de1\glfw-populate-build.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\rocco\CLionProjects\TurboGameEngine\build\release\_deps\glfw-subbuild\CMakeFiles\7035002f1bb9eab2a28e609440391de1\glfw-populate-install.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\rocco\CLionProjects\TurboGameEngine\build\release\_deps\glfw-subbuild\CMakeFiles\7035002f1bb9eab2a28e609440391de1\glfw-populate-test.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\rocco\CLionProjects\TurboGameEngine\build\release\_deps\glfw-subbuild\CMakeFiles\aed1b6fa463079f3ca8c6f66d1441905\glfw-populate-complete.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\rocco\CLionProjects\TurboGameEngine\build\release\_deps\glfw-subbuild\CMakeFiles\4d74cd862f29994de286a3f9c97230c7\glfw-populate.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\rocco\CLionProjects\TurboGameEngine\build\release\_deps\glfw-subbuild\CMakeLists.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="C:\Users\rocco\CLionProjects\TurboGameEngine\build\release\_deps\glfw-subbuild\CMakeFiles\glfw-populate" />
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="CMake Rules">
+      <UniqueIdentifier>{5B5CE709-4CB2-38FA-AD12-AC401194083C}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>

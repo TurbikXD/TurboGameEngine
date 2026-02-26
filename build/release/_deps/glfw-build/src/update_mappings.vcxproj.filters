@@ -1,0 +1,24 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="17.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <CustomBuild Include="C:\Users\rocco\CLionProjects\TurboGameEngine\build\release\CMakeFiles\2ce4cae7f601c1303a3358699a8790ae\update_mappings.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\rocco\CLionProjects\TurboGameEngine\build\release\_deps\glfw-src\src\CMakeLists.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="C:\Users\rocco\CLionProjects\TurboGameEngine\build\release\_deps\glfw-src\src\mappings.h.in">
+      <Filter>Header Files</Filter>
+    </None>
+    <None Include="C:\Users\rocco\CLionProjects\TurboGameEngine\build\release\_deps\glfw-src\CMake\GenerateMappings.cmake" />
+    <None Include="C:\Users\rocco\CLionProjects\TurboGameEngine\build\release\_deps\glfw-build\src\CMakeFiles\update_mappings" />
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="CMake Rules">
+      <UniqueIdentifier>{F25054BF-9B92-31C3-94EC-5248820F94DE}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files">
+      <UniqueIdentifier>{0BA8E637-1060-30FA-A41B-A6986AEF434F}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>

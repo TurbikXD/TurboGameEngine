@@ -1,0 +1,14 @@
+# Target labels
+ glad-populate
+# Source files and their labels
+C:/Users/rocco/CLionProjects/TurboGameEngine/build/release/_deps/glad-subbuild/CMakeFiles/glad-populate
+C:/Users/rocco/CLionProjects/TurboGameEngine/build/release/_deps/glad-subbuild/CMakeFiles/6b75e5aefab16bda0f1bc4aa51c44b70/glad-populate.rule
+C:/Users/rocco/CLionProjects/TurboGameEngine/build/release/_deps/glad-subbuild/CMakeFiles/aa1c577a3d1e9d75f4a2f57628b2fa58/glad-populate-complete.rule
+C:/Users/rocco/CLionProjects/TurboGameEngine/build/release/_deps/glad-subbuild/CMakeFiles/46936468ba5384cf4aa9275e8b65d549/glad-populate-build.rule
+C:/Users/rocco/CLionProjects/TurboGameEngine/build/release/_deps/glad-subbuild/CMakeFiles/46936468ba5384cf4aa9275e8b65d549/glad-populate-configure.rule
+C:/Users/rocco/CLionProjects/TurboGameEngine/build/release/_deps/glad-subbuild/CMakeFiles/46936468ba5384cf4aa9275e8b65d549/glad-populate-download.rule
+C:/Users/rocco/CLionProjects/TurboGameEngine/build/release/_deps/glad-subbuild/CMakeFiles/46936468ba5384cf4aa9275e8b65d549/glad-populate-install.rule
+C:/Users/rocco/CLionProjects/TurboGameEngine/build/release/_deps/glad-subbuild/CMakeFiles/46936468ba5384cf4aa9275e8b65d549/glad-populate-mkdir.rule
+C:/Users/rocco/CLionProjects/TurboGameEngine/build/release/_deps/glad-subbuild/CMakeFiles/46936468ba5384cf4aa9275e8b65d549/glad-populate-patch.rule
+C:/Users/rocco/CLionProjects/TurboGameEngine/build/release/_deps/glad-subbuild/CMakeFiles/46936468ba5384cf4aa9275e8b65d549/glad-populate-test.rule
+C:/Users/rocco/CLionProjects/TurboGameEngine/build/release/_deps/glad-subbuild/CMakeFiles/46936468ba5384cf4aa9275e8b65d549/glad-populate-update.rule

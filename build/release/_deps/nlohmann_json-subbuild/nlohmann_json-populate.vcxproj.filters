@@ -1,0 +1,44 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="17.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <CustomBuild Include="C:\Users\rocco\CLionProjects\TurboGameEngine\build\release\_deps\nlohmann_json-subbuild\CMakeFiles\f08220462935be2aad6731e5eb681a14\nlohmann_json-populate-mkdir.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\rocco\CLionProjects\TurboGameEngine\build\release\_deps\nlohmann_json-subbuild\CMakeFiles\f08220462935be2aad6731e5eb681a14\nlohmann_json-populate-download.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\rocco\CLionProjects\TurboGameEngine\build\release\_deps\nlohmann_json-subbuild\CMakeFiles\f08220462935be2aad6731e5eb681a14\nlohmann_json-populate-update.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\rocco\CLionProjects\TurboGameEngine\build\release\_deps\nlohmann_json-subbuild\CMakeFiles\f08220462935be2aad6731e5eb681a14\nlohmann_json-populate-patch.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\rocco\CLionProjects\TurboGameEngine\build\release\_deps\nlohmann_json-subbuild\CMakeFiles\f08220462935be2aad6731e5eb681a14\nlohmann_json-populate-configure.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\rocco\CLionProjects\TurboGameEngine\build\release\_deps\nlohmann_json-subbuild\CMakeFiles\f08220462935be2aad6731e5eb681a14\nlohmann_json-populate-build.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\rocco\CLionProjects\TurboGameEngine\build\release\_deps\nlohmann_json-subbuild\CMakeFiles\f08220462935be2aad6731e5eb681a14\nlohmann_json-populate-install.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\rocco\CLionProjects\TurboGameEngine\build\release\_deps\nlohmann_json-subbuild\CMakeFiles\f08220462935be2aad6731e5eb681a14\nlohmann_json-populate-test.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\rocco\CLionProjects\TurboGameEngine\build\release\_deps\nlohmann_json-subbuild\CMakeFiles\a476d2212abb6d029c29a2a88f515adf\nlohmann_json-populate-complete.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\rocco\CLionProjects\TurboGameEngine\build\release\_deps\nlohmann_json-subbuild\CMakeFiles\5ced5604201a2f9469ce77ee40eed949\nlohmann_json-populate.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\rocco\CLionProjects\TurboGameEngine\build\release\_deps\nlohmann_json-subbuild\CMakeLists.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="C:\Users\rocco\CLionProjects\TurboGameEngine\build\release\_deps\nlohmann_json-subbuild\CMakeFiles\nlohmann_json-populate" />
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="CMake Rules">
+      <UniqueIdentifier>{2E0A9F21-FCEB-3A2A-9DEB-E1CEF132D343}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>

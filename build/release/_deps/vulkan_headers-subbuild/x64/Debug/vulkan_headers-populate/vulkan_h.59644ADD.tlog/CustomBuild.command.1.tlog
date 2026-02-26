@@ -1,0 +1,150 @@
+^C:\USERS\ROCCO\CLIONPROJECTS\TURBOGAMEENGINE\BUILD\RELEASE\_DEPS\VULKAN_HEADERS-SUBBUILD\CMAKEFILES\D6394BA43FA24D24EDFE9F5143015E4F\VULKAN_HEADERS-POPULATE-MKDIR.RULE
+setlocal
+"C:\Program Files\CMake\bin\cmake.exe" -Dcfgdir=/Debug -P C:/Users/rocco/CLionProjects/TurboGameEngine/build/release/_deps/vulkan_headers-subbuild/vulkan_headers-populate-prefix/tmp/vulkan_headers-populate-mkdirs.cmake
+if %errorlevel% neq 0 goto :cmEnd
+"C:\Program Files\CMake\bin\cmake.exe" -E touch C:/Users/rocco/CLionProjects/TurboGameEngine/build/release/_deps/vulkan_headers-subbuild/vulkan_headers-populate-prefix/src/vulkan_headers-populate-stamp/Debug/vulkan_headers-populate-mkdir
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd
+^C:\USERS\ROCCO\CLIONPROJECTS\TURBOGAMEENGINE\BUILD\RELEASE\_DEPS\VULKAN_HEADERS-SUBBUILD\CMAKEFILES\D6394BA43FA24D24EDFE9F5143015E4F\VULKAN_HEADERS-POPULATE-DOWNLOAD.RULE
+setlocal
+cd C:\Users\rocco\CLionProjects\TurboGameEngine\build\release\_deps
+if %errorlevel% neq 0 goto :cmEnd
+C:
+if %errorlevel% neq 0 goto :cmEnd
+"C:\Program Files\CMake\bin\cmake.exe" -DCMAKE_MESSAGE_LOG_LEVEL=VERBOSE -P C:/Users/rocco/CLionProjects/TurboGameEngine/build/release/_deps/vulkan_headers-subbuild/vulkan_headers-populate-prefix/tmp/vulkan_headers-populate-gitclone.cmake
+if %errorlevel% neq 0 goto :cmEnd
+"C:\Program Files\CMake\bin\cmake.exe" -E touch C:/Users/rocco/CLionProjects/TurboGameEngine/build/release/_deps/vulkan_headers-subbuild/vulkan_headers-populate-prefix/src/vulkan_headers-populate-stamp/Debug/vulkan_headers-populate-download
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd
+^C:\USERS\ROCCO\CLIONPROJECTS\TURBOGAMEENGINE\BUILD\RELEASE\_DEPS\VULKAN_HEADERS-SUBBUILD\CMAKEFILES\D6394BA43FA24D24EDFE9F5143015E4F\VULKAN_HEADERS-POPULATE-UPDATE.RULE
+setlocal
+cd C:\Users\rocco\CLionProjects\TurboGameEngine\build\release\_deps\vulkan_headers-src
+if %errorlevel% neq 0 goto :cmEnd
+C:
+if %errorlevel% neq 0 goto :cmEnd
+"C:\Program Files\CMake\bin\cmake.exe" -Dcan_fetch=YES -DCMAKE_MESSAGE_LOG_LEVEL=VERBOSE -P C:/Users/rocco/CLionProjects/TurboGameEngine/build/release/_deps/vulkan_headers-subbuild/vulkan_headers-populate-prefix/tmp/vulkan_headers-populate-gitupdate.cmake
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd
+^C:\USERS\ROCCO\CLIONPROJECTS\TURBOGAMEENGINE\BUILD\RELEASE\_DEPS\VULKAN_HEADERS-SUBBUILD\CMAKEFILES\D6394BA43FA24D24EDFE9F5143015E4F\VULKAN_HEADERS-POPULATE-PATCH.RULE
+setlocal
+"C:\Program Files\CMake\bin\cmake.exe" -E echo_append
+if %errorlevel% neq 0 goto :cmEnd
+"C:\Program Files\CMake\bin\cmake.exe" -E touch C:/Users/rocco/CLionProjects/TurboGameEngine/build/release/_deps/vulkan_headers-subbuild/vulkan_headers-populate-prefix/src/vulkan_headers-populate-stamp/Debug/vulkan_headers-populate-patch
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd
+^C:\USERS\ROCCO\CLIONPROJECTS\TURBOGAMEENGINE\BUILD\RELEASE\_DEPS\VULKAN_HEADERS-SUBBUILD\CMAKEFILES\D6394BA43FA24D24EDFE9F5143015E4F\VULKAN_HEADERS-POPULATE-CONFIGURE.RULE
+setlocal
+cd C:\Users\rocco\CLionProjects\TurboGameEngine\build\release\_deps\vulkan_headers-build
+if %errorlevel% neq 0 goto :cmEnd
+C:
+if %errorlevel% neq 0 goto :cmEnd
+"C:\Program Files\CMake\bin\cmake.exe" -E echo_append
+if %errorlevel% neq 0 goto :cmEnd
+"C:\Program Files\CMake\bin\cmake.exe" -E touch C:/Users/rocco/CLionProjects/TurboGameEngine/build/release/_deps/vulkan_headers-subbuild/vulkan_headers-populate-prefix/src/vulkan_headers-populate-stamp/Debug/vulkan_headers-populate-configure
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd
+^C:\USERS\ROCCO\CLIONPROJECTS\TURBOGAMEENGINE\BUILD\RELEASE\_DEPS\VULKAN_HEADERS-SUBBUILD\CMAKEFILES\D6394BA43FA24D24EDFE9F5143015E4F\VULKAN_HEADERS-POPULATE-BUILD.RULE
+setlocal
+cd C:\Users\rocco\CLionProjects\TurboGameEngine\build\release\_deps\vulkan_headers-build
+if %errorlevel% neq 0 goto :cmEnd
+C:
+if %errorlevel% neq 0 goto :cmEnd
+"C:\Program Files\CMake\bin\cmake.exe" -E echo_append
+if %errorlevel% neq 0 goto :cmEnd
+"C:\Program Files\CMake\bin\cmake.exe" -E touch C:/Users/rocco/CLionProjects/TurboGameEngine/build/release/_deps/vulkan_headers-subbuild/vulkan_headers-populate-prefix/src/vulkan_headers-populate-stamp/Debug/vulkan_headers-populate-build
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd
+^C:\USERS\ROCCO\CLIONPROJECTS\TURBOGAMEENGINE\BUILD\RELEASE\_DEPS\VULKAN_HEADERS-SUBBUILD\CMAKEFILES\D6394BA43FA24D24EDFE9F5143015E4F\VULKAN_HEADERS-POPULATE-INSTALL.RULE
+setlocal
+cd C:\Users\rocco\CLionProjects\TurboGameEngine\build\release\_deps\vulkan_headers-build
+if %errorlevel% neq 0 goto :cmEnd
+C:
+if %errorlevel% neq 0 goto :cmEnd
+"C:\Program Files\CMake\bin\cmake.exe" -E echo_append
+if %errorlevel% neq 0 goto :cmEnd
+"C:\Program Files\CMake\bin\cmake.exe" -E touch C:/Users/rocco/CLionProjects/TurboGameEngine/build/release/_deps/vulkan_headers-subbuild/vulkan_headers-populate-prefix/src/vulkan_headers-populate-stamp/Debug/vulkan_headers-populate-install
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd
+^C:\USERS\ROCCO\CLIONPROJECTS\TURBOGAMEENGINE\BUILD\RELEASE\_DEPS\VULKAN_HEADERS-SUBBUILD\CMAKEFILES\D6394BA43FA24D24EDFE9F5143015E4F\VULKAN_HEADERS-POPULATE-TEST.RULE
+setlocal
+cd C:\Users\rocco\CLionProjects\TurboGameEngine\build\release\_deps\vulkan_headers-build
+if %errorlevel% neq 0 goto :cmEnd
+C:
+if %errorlevel% neq 0 goto :cmEnd
+"C:\Program Files\CMake\bin\cmake.exe" -E echo_append
+if %errorlevel% neq 0 goto :cmEnd
+"C:\Program Files\CMake\bin\cmake.exe" -E touch C:/Users/rocco/CLionProjects/TurboGameEngine/build/release/_deps/vulkan_headers-subbuild/vulkan_headers-populate-prefix/src/vulkan_headers-populate-stamp/Debug/vulkan_headers-populate-test
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd
+^C:\USERS\ROCCO\CLIONPROJECTS\TURBOGAMEENGINE\BUILD\RELEASE\_DEPS\VULKAN_HEADERS-SUBBUILD\CMAKEFILES\E374EF3B853017CF8392FFD7E4854810\VULKAN_HEADERS-POPULATE-COMPLETE.RULE
+setlocal
+"C:\Program Files\CMake\bin\cmake.exe" -E make_directory C:/Users/rocco/CLionProjects/TurboGameEngine/build/release/_deps/vulkan_headers-subbuild/CMakeFiles/Debug
+if %errorlevel% neq 0 goto :cmEnd
+"C:\Program Files\CMake\bin\cmake.exe" -E touch C:/Users/rocco/CLionProjects/TurboGameEngine/build/release/_deps/vulkan_headers-subbuild/CMakeFiles/Debug/vulkan_headers-populate-complete
+if %errorlevel% neq 0 goto :cmEnd
+"C:\Program Files\CMake\bin\cmake.exe" -E touch C:/Users/rocco/CLionProjects/TurboGameEngine/build/release/_deps/vulkan_headers-subbuild/vulkan_headers-populate-prefix/src/vulkan_headers-populate-stamp/Debug/vulkan_headers-populate-done
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd
+^C:\USERS\ROCCO\CLIONPROJECTS\TURBOGAMEENGINE\BUILD\RELEASE\_DEPS\VULKAN_HEADERS-SUBBUILD\CMAKEFILES\37654DD194D53A6BD5A0AAACA4F408A7\VULKAN_HEADERS-POPULATE.RULE
+setlocal
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd
+^C:\USERS\ROCCO\CLIONPROJECTS\TURBOGAMEENGINE\BUILD\RELEASE\_DEPS\VULKAN_HEADERS-SUBBUILD\CMAKELISTS.TXT
+setlocal
+"C:\Program Files\CMake\bin\cmake.exe" -SC:/Users/rocco/CLionProjects/TurboGameEngine/build/release/_deps/vulkan_headers-subbuild -BC:/Users/rocco/CLionProjects/TurboGameEngine/build/release/_deps/vulkan_headers-subbuild --check-stamp-file C:/Users/rocco/CLionProjects/TurboGameEngine/build/release/_deps/vulkan_headers-subbuild/CMakeFiles/generate.stamp
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd

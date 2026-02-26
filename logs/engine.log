@@ -1,0 +1,101 @@
+[2026-02-17 01:21:51.138] [info] [engine] Logger initialized
+[2026-02-17 01:21:51.139] [info] [engine] Application init started
+[2026-02-17 01:21:51.139] [info] [engine] Config file 'config.json' not found, using defaults
+[2026-02-17 01:21:51.418] [info] [engine] OpenGL context initialized: 3.3.0 NVIDIA 591.86
+[2026-02-17 01:21:51.418] [info] [engine] Renderer initialized with backend OpenGL
+[2026-02-17 01:21:51.479] [info] [engine] StateStack push
+[2026-02-17 01:21:51.479] [info] [engine] Entered MenuState (Press Enter to start)
+[2026-02-17 01:21:51.479] [info] [engine] Application init complete, backend=OpenGL
+[2026-02-17 01:21:52.505] [info] [engine] Frame dt stats: avg=15.288ms min=0.467ms max=16.901ms samples=66
+[2026-02-17 01:21:53.506] [info] [engine] Frame dt stats: avg=16.406ms min=0.705ms max=17.482ms samples=61
+[2026-02-17 01:21:54.507] [info] [engine] Frame dt stats: avg=16.141ms min=0.428ms max=17.236ms samples=62
+[2026-02-17 01:21:55.508] [info] [engine] Frame dt stats: avg=16.407ms min=0.483ms max=17.461ms samples=61
+[2026-02-17 01:21:56.508] [info] [engine] Frame dt stats: avg=16.679ms min=15.262ms max=18.111ms samples=60
+[2026-02-17 01:21:57.509] [info] [engine] Frame dt stats: avg=16.680ms min=15.945ms max=17.590ms samples=60
+[2026-02-17 01:21:58.510] [info] [engine] Frame dt stats: avg=15.164ms min=0.371ms max=16.890ms samples=66
+[2026-02-17 01:21:59.511] [info] [engine] Frame dt stats: avg=16.680ms min=16.096ms max=17.493ms samples=60
+[2026-02-17 01:22:00.511] [info] [engine] Frame dt stats: avg=16.681ms min=15.075ms max=18.080ms samples=60
+[2026-02-17 01:22:01.512] [info] [engine] Frame dt stats: avg=16.680ms min=16.038ms max=17.348ms samples=60
+[2026-02-17 01:22:02.497] [info] [engine] Frame dt stats: avg=16.141ms min=0.441ms max=17.160ms samples=62
+[2026-02-17 01:22:03.514] [info] [engine] Frame dt stats: avg=16.142ms min=0.859ms max=17.197ms samples=62
+[2026-02-17 01:22:04.515] [info] [engine] Frame dt stats: avg=16.684ms min=16.416ms max=16.945ms samples=60
+[2026-02-17 01:22:05.515] [info] [engine] Frame dt stats: avg=16.676ms min=16.093ms max=17.167ms samples=60
+[2026-02-17 01:22:06.516] [info] [engine] Frame dt stats: avg=16.680ms min=16.360ms max=16.938ms samples=60
+[2026-02-17 01:22:07.517] [info] [engine] Frame dt stats: avg=16.680ms min=14.989ms max=18.486ms samples=60
+[2026-02-17 01:22:08.518] [info] [engine] Frame dt stats: avg=16.680ms min=16.275ms max=17.077ms samples=60
+[2026-02-17 01:22:09.519] [info] [engine] Frame dt stats: avg=15.637ms min=0.583ms max=17.379ms samples=64
+[2026-02-17 01:22:10.519] [info] [engine] Frame dt stats: avg=16.142ms min=0.123ms max=16.938ms samples=62
+[2026-02-17 01:22:11.520] [info] [engine] Frame dt stats: avg=15.887ms min=0.849ms max=17.353ms samples=63
+[2026-02-17 01:22:12.521] [info] [engine] Frame dt stats: avg=16.679ms min=0.401ms max=36.298ms samples=60
+[2026-02-17 01:22:13.522] [info] [engine] Frame dt stats: avg=16.691ms min=8.311ms max=21.928ms samples=60
+[2026-02-17 01:22:14.522] [info] [engine] Frame dt stats: avg=15.890ms min=0.233ms max=17.702ms samples=63
+[2026-02-17 01:22:15.523] [info] [engine] Frame dt stats: avg=16.131ms min=0.522ms max=17.496ms samples=62
+[2026-02-17 01:22:16.524] [info] [engine] Frame dt stats: avg=16.676ms min=2.257ms max=36.833ms samples=60
+[2026-02-17 01:22:17.525] [info] [engine] Frame dt stats: avg=16.686ms min=16.148ms max=17.128ms samples=60
+[2026-02-17 01:22:18.526] [info] [engine] Frame dt stats: avg=16.414ms min=0.116ms max=40.839ms samples=61
+[2026-02-17 01:22:19.543] [info] [engine] Frame dt stats: avg=16.136ms min=0.695ms max=17.804ms samples=63
+[2026-02-17 01:22:20.544] [info] [engine] Frame dt stats: avg=16.680ms min=14.997ms max=18.743ms samples=60
+[2026-02-17 01:22:21.545] [info] [engine] Frame dt stats: avg=18.882ms min=2.165ms max=107.459ms samples=53
+[2026-02-17 01:22:22.545] [info] [engine] Frame dt stats: avg=16.407ms min=0.444ms max=17.640ms samples=61
+[2026-02-17 01:22:23.546] [info] [engine] Frame dt stats: avg=15.912ms min=0.316ms max=17.975ms samples=63
+[2026-02-17 01:22:24.564] [info] [engine] Frame dt stats: avg=16.653ms min=15.042ms max=17.955ms samples=61
+[2026-02-17 01:22:25.565] [info] [engine] Frame dt stats: avg=16.679ms min=14.269ms max=19.468ms samples=60
+[2026-02-17 01:22:26.512] [info] [engine] Quit event received
+[2026-02-17 01:22:26.512] [info] [engine] Application shutdown started
+[2026-02-17 01:22:26.512] [info] [engine] Exited MenuState
+[2026-02-17 01:22:26.512] [info] [engine] Renderer shutdown complete
+[2026-02-17 01:22:26.547] [info] [engine] Application shutdown complete
+[2026-02-17 01:22:26.548] [info] [engine] Logger shutdown
+[2026-02-17 01:25:03.923] [info] [engine] Logger initialized
+[2026-02-17 01:25:03.923] [info] [engine] Application init started
+[2026-02-17 01:25:03.923] [info] [engine] Config file 'config.json' not found, using defaults
+[2026-02-17 01:25:04.185] [info] [engine] OpenGL context initialized: 3.3.0 NVIDIA 591.86
+[2026-02-17 01:25:04.185] [info] [engine] Renderer initialized with backend OpenGL
+[2026-02-17 01:25:04.187] [info] [engine] StateStack push
+[2026-02-17 01:25:04.187] [info] [engine] Entered MenuState (Press Enter to start)
+[2026-02-17 01:25:04.187] [info] [engine] Application init complete, backend=OpenGL
+[2026-02-17 01:25:05.208] [info] [engine] Frame dt stats: avg=15.689ms min=0.453ms max=17.195ms samples=64
+[2026-02-17 01:25:06.208] [info] [engine] Frame dt stats: avg=16.677ms min=15.915ms max=17.514ms samples=60
+[2026-02-17 01:25:07.209] [info] [engine] Frame dt stats: avg=16.409ms min=1.347ms max=16.981ms samples=61
+[2026-02-17 01:25:08.210] [info] [engine] Frame dt stats: avg=16.677ms min=15.965ms max=17.245ms samples=60
+[2026-02-17 01:25:09.211] [info] [engine] Frame dt stats: avg=16.680ms min=16.277ms max=17.078ms samples=60
+[2026-02-17 01:25:10.211] [info] [engine] Frame dt stats: avg=16.679ms min=16.422ms max=17.166ms samples=60
+[2026-02-17 01:25:11.212] [info] [engine] Frame dt stats: avg=16.409ms min=0.295ms max=17.542ms samples=61
+[2026-02-17 01:25:12.213] [info] [engine] Frame dt stats: avg=15.637ms min=0.942ms max=17.082ms samples=64
+[2026-02-17 01:25:13.214] [info] [engine] Frame dt stats: avg=15.165ms min=0.521ms max=34.494ms samples=66
+[2026-02-17 01:25:14.215] [info] [engine] Frame dt stats: avg=16.690ms min=13.367ms max=20.497ms samples=60
+[2026-02-17 01:25:15.216] [info] [engine] Frame dt stats: avg=16.673ms min=15.095ms max=17.930ms samples=60
+[2026-02-17 01:25:16.216] [info] [engine] Frame dt stats: avg=16.673ms min=15.550ms max=17.805ms samples=60
+[2026-02-17 01:25:17.217] [info] [engine] Frame dt stats: avg=16.407ms min=0.711ms max=19.399ms samples=61
+[2026-02-17 01:25:18.218] [info] [engine] Frame dt stats: avg=16.406ms min=0.382ms max=17.692ms samples=61
+[2026-02-17 01:25:19.219] [info] [engine] Frame dt stats: avg=16.682ms min=15.942ms max=17.357ms samples=60
+[2026-02-17 01:25:20.219] [info] [engine] Frame dt stats: avg=16.678ms min=0.540ms max=36.075ms samples=60
+[2026-02-17 01:25:21.221] [info] [engine] Frame dt stats: avg=15.641ms min=0.283ms max=36.505ms samples=64
+[2026-02-17 01:25:22.221] [info] [engine] Frame dt stats: avg=16.677ms min=12.022ms max=23.522ms samples=60
+[2026-02-17 01:25:22.661] [info] [engine] Quit event received
+[2026-02-17 01:25:22.661] [info] [engine] Application shutdown started
+[2026-02-17 01:25:22.661] [info] [engine] Exited MenuState
+[2026-02-17 01:25:22.661] [info] [engine] Renderer shutdown complete
+[2026-02-17 01:25:22.688] [info] [engine] Application shutdown complete
+[2026-02-17 01:25:22.688] [info] [engine] Logger shutdown
+[2026-02-17 01:26:56.441] [info] [engine] Logger initialized
+[2026-02-17 01:26:56.441] [info] [engine] Application init started
+[2026-02-17 01:26:56.441] [info] [engine] Config file 'config.json' not found, using defaults
+[2026-02-17 01:26:56.715] [info] [engine] OpenGL context initialized: 3.3.0 NVIDIA 591.86
+[2026-02-17 01:26:56.715] [info] [engine] Renderer initialized with backend OpenGL
+[2026-02-17 01:26:56.717] [info] [engine] StateStack push
+[2026-02-17 01:26:56.717] [info] [engine] Entered MenuState (Press Enter to start)
+[2026-02-17 01:26:56.717] [info] [engine] Application init complete, backend=OpenGL
+[2026-02-17 01:26:57.747] [info] [engine] Frame dt stats: avg=15.826ms min=0.295ms max=17.265ms samples=64
+[2026-02-17 01:26:58.747] [info] [engine] Frame dt stats: avg=16.679ms min=16.202ms max=17.135ms samples=60
+[2026-02-17 01:26:59.748] [info] [engine] Frame dt stats: avg=16.681ms min=15.948ms max=17.384ms samples=60
+[2026-02-17 01:27:00.749] [info] [engine] Frame dt stats: avg=16.678ms min=16.272ms max=17.094ms samples=60
+[2026-02-17 01:27:01.750] [info] [engine] Frame dt stats: avg=16.693ms min=1.422ms max=38.422ms samples=60
+[2026-02-17 01:27:02.751] [info] [engine] Frame dt stats: avg=15.386ms min=0.120ms max=19.121ms samples=65
+[2026-02-17 01:27:03.751] [info] [engine] Frame dt stats: avg=16.680ms min=15.365ms max=17.918ms samples=60
+[2026-02-17 01:27:04.605] [info] [engine] Quit event received
+[2026-02-17 01:27:04.605] [info] [engine] Application shutdown started
+[2026-02-17 01:27:04.605] [info] [engine] Exited MenuState
+[2026-02-17 01:27:04.605] [info] [engine] Renderer shutdown complete
+[2026-02-17 01:27:04.633] [info] [engine] Application shutdown complete
+[2026-02-17 01:27:04.633] [info] [engine] Logger shutdown

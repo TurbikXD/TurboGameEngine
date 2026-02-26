@@ -1,0 +1,44 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="17.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <CustomBuild Include="C:\Users\rocco\CLionProjects\TurboGameEngine\build\debug\_deps\spdlog-subbuild\CMakeFiles\18711c04fb180279dc058ae01aa0e013\spdlog-populate-mkdir.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\rocco\CLionProjects\TurboGameEngine\build\debug\_deps\spdlog-subbuild\CMakeFiles\18711c04fb180279dc058ae01aa0e013\spdlog-populate-download.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\rocco\CLionProjects\TurboGameEngine\build\debug\_deps\spdlog-subbuild\CMakeFiles\18711c04fb180279dc058ae01aa0e013\spdlog-populate-update.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\rocco\CLionProjects\TurboGameEngine\build\debug\_deps\spdlog-subbuild\CMakeFiles\18711c04fb180279dc058ae01aa0e013\spdlog-populate-patch.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\rocco\CLionProjects\TurboGameEngine\build\debug\_deps\spdlog-subbuild\CMakeFiles\18711c04fb180279dc058ae01aa0e013\spdlog-populate-configure.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\rocco\CLionProjects\TurboGameEngine\build\debug\_deps\spdlog-subbuild\CMakeFiles\18711c04fb180279dc058ae01aa0e013\spdlog-populate-build.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\rocco\CLionProjects\TurboGameEngine\build\debug\_deps\spdlog-subbuild\CMakeFiles\18711c04fb180279dc058ae01aa0e013\spdlog-populate-install.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\rocco\CLionProjects\TurboGameEngine\build\debug\_deps\spdlog-subbuild\CMakeFiles\18711c04fb180279dc058ae01aa0e013\spdlog-populate-test.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\rocco\CLionProjects\TurboGameEngine\build\debug\_deps\spdlog-subbuild\CMakeFiles\8e40ee45d0777917c093f4801bc7e5b3\spdlog-populate-complete.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\rocco\CLionProjects\TurboGameEngine\build\debug\_deps\spdlog-subbuild\CMakeFiles\73a4864802ab988194c256ad623b4690\spdlog-populate.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\rocco\CLionProjects\TurboGameEngine\build\debug\_deps\spdlog-subbuild\CMakeLists.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="C:\Users\rocco\CLionProjects\TurboGameEngine\build\debug\_deps\spdlog-subbuild\CMakeFiles\spdlog-populate" />
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="CMake Rules">
+      <UniqueIdentifier>{9927CE41-C931-3618-93FD-C87C59BD00F8}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>

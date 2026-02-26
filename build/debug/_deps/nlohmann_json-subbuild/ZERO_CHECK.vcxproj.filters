@@ -1,0 +1,13 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="17.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <CustomBuild Include="C:\Users\rocco\CLionProjects\TurboGameEngine\build\debug\_deps\nlohmann_json-subbuild\CMakeFiles\ab4d7c98edb762e1c4e6eaba7dbb5dc6\generate.stamp.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="CMake Rules">
+      <UniqueIdentifier>{E0812B72-1DC9-3A33-A83E-652886190BF3}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>

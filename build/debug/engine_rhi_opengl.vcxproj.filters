@@ -1,0 +1,37 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="17.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="C:\Users\rocco\CLionProjects\TurboGameEngine\engine\rhi_opengl\GLDevice.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\rocco\CLionProjects\TurboGameEngine\engine\rhi_opengl\GLSwapchain.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\rocco\CLionProjects\TurboGameEngine\engine\rhi_opengl\GLCommandBuffer.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\rocco\CLionProjects\TurboGameEngine\engine\rhi_opengl\GLPipeline.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\rocco\CLionProjects\TurboGameEngine\engine\rhi_opengl\GLResources.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\rocco\CLionProjects\TurboGameEngine\engine\rhi_opengl\GLShader.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\rocco\CLionProjects\TurboGameEngine\engine\rhi_opengl\GLUtils.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="C:\Users\rocco\CLionProjects\TurboGameEngine\CMakeLists.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <Natvis Include="C:\Users\rocco\CLionProjects\TurboGameEngine\build\debug\_deps\nlohmann_json-src\nlohmann_json.natvis" />
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{5053EB48-EEA5-36A6-9B81-CDB073746FF5}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>
