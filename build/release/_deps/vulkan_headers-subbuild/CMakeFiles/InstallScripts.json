@@ -1,7 +1,0 @@
-{
-	"InstallScripts" : 
-	[
-		"C:/Users/rocco/CLionProjects/TurboGameEngine/build/release/_deps/vulkan_headers-subbuild/cmake_install.cmake"
-	],
-	"Parallel" : false
-}

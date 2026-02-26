@@ -1,3 +1,0 @@
-C:/Users/rocco/CLionProjects/TurboGameEngine/build/debug/_deps/vulkan_headers-subbuild/CMakeFiles/vulkan_headers-populate.dir
-C:/Users/rocco/CLionProjects/TurboGameEngine/build/debug/_deps/vulkan_headers-subbuild/CMakeFiles/ALL_BUILD.dir
-C:/Users/rocco/CLionProjects/TurboGameEngine/build/debug/_deps/vulkan_headers-subbuild/CMakeFiles/ZERO_CHECK.dir

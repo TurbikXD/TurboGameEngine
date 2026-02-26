@@ -1,3 +1,0 @@
-C:/Users/rocco/CLionProjects/TurboGameEngine/build/release/_deps/glad-subbuild/CMakeFiles/glad-populate.dir
-C:/Users/rocco/CLionProjects/TurboGameEngine/build/release/_deps/glad-subbuild/CMakeFiles/ALL_BUILD.dir
-C:/Users/rocco/CLionProjects/TurboGameEngine/build/release/_deps/glad-subbuild/CMakeFiles/ZERO_CHECK.dir

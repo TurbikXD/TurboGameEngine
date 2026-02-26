@@ -1,7 +1,0 @@
-{
-	"InstallScripts" : 
-	[
-		"C:/Users/rocco/CLionProjects/TurboGameEngine/build/debug/_deps/spdlog-subbuild/cmake_install.cmake"
-	],
-	"Parallel" : false
-}
