@@ -1,5 +1,7 @@
 #pragma once
 
+#include <string>
+
 #include "engine/game/IGameState.h"
 #include "engine/renderer/Transform2D.h"
 
@@ -7,7 +9,7 @@ namespace engine::game {
 
 class MenuState final : public IGameState {
 public:
-    explicit MenuState(StateStack& stack);
+    explicit MenuState(StateStack& stack, std::string sampleMode);
 
     void onEnter() override;
     void onExit() override;
@@ -17,6 +19,7 @@ public:
 
 private:
     renderer::Transform2D m_transform{};
+    std::string m_sampleMode;
 };
 
 } // namespace engine::game

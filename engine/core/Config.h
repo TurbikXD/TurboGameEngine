@@ -11,6 +11,13 @@ struct EngineConfig final {
     int height{720};
     std::string title{"TurboGameEngine"};
     bool vsync{true};
+    std::string diligentDevice{
+#if defined(_WIN32)
+        "d3d12"
+#else
+        "vk"
+#endif
+    };
     std::array<float, 4> clearColor{0.10F, 0.10F, 0.16F, 1.0F};
     std::string initialState{"menu"};
 };

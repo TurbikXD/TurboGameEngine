@@ -1,7 +1,8 @@
 #pragma once
 
+#include "engine/ecs/render_system.h"
+#include "engine/ecs/world.h"
 #include "engine/game/IGameState.h"
-#include "engine/renderer/Transform2D.h"
 
 namespace engine::game {
 
@@ -16,10 +17,15 @@ public:
     void render(renderer::Renderer& renderer) override;
 
 private:
-    renderer::Transform2D m_transform{};
-    float m_moveSpeed{0.8F};
-    float m_rotationSpeed{1.8F};
-    float m_scaleSpeed{0.7F};
+    void setupScene(renderer::Renderer& renderer);
+
+    ecs::World m_world{};
+    ecs::RenderSystem m_renderSystem{};
+    ecs::EntityId m_animatedEntity{ecs::kInvalidEntity};
+    double m_elapsedSeconds{0.0};
+    bool m_sceneInitialized{false};
+    float m_moveSpeed{1.5F};
+    float m_rotationSpeed{1.3F};
 };
 
 } // namespace engine::game

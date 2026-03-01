@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstddef>
+#include <cstdint>
 
 #include "engine/rhi/Types.h"
 
@@ -17,6 +18,9 @@ public:
 class IImage {
 public:
     virtual ~IImage() = default;
+    virtual std::uint32_t width() const = 0;
+    virtual std::uint32_t height() const = 0;
+    virtual ResourceHandle handle() const = 0;
 };
 
 class IImageView {

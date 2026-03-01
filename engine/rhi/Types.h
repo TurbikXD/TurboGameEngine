@@ -13,7 +13,8 @@ namespace engine::rhi {
 enum class BackendType : std::uint8_t {
     OpenGL = 0,
     Vulkan,
-    D3D12
+    D3D12,
+    Diligent
 };
 
 enum class BufferUsage : std::uint8_t {
@@ -29,6 +30,15 @@ enum class ShaderStage : std::uint32_t {
 
 enum class PrimitiveTopology : std::uint8_t {
     TriangleList = 0
+};
+
+enum class VertexLayout : std::uint8_t {
+    Position2Color3 = 0,
+    Position3Normal3Uv2
+};
+
+enum class ImageFormat : std::uint8_t {
+    RGBA8 = 0
 };
 
 enum class ResourceState : std::uint8_t {
@@ -100,6 +110,7 @@ struct BarrierDesc final {
 struct DeviceCreateDesc final {
     platform::Window* window{nullptr};
     bool enableValidation{false};
+    std::string diligentDeviceType{"auto"};
 };
 
 struct SwapchainDesc final {
@@ -116,7 +127,15 @@ struct RenderPassDesc final {
 struct BufferDesc final {
     std::size_t size{0};
     BufferUsage usage{BufferUsage::Vertex};
+    VertexLayout vertexLayout{VertexLayout::Position2Color3};
     bool dynamic{false};
+};
+
+struct ImageDesc final {
+    std::uint32_t width{0};
+    std::uint32_t height{0};
+    ImageFormat format{ImageFormat::RGBA8};
+    bool generateMipmaps{false};
 };
 
 struct ShaderModuleDesc final {

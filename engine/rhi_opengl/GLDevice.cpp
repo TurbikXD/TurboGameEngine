@@ -80,6 +80,10 @@ std::unique_ptr<IBuffer> GLDevice::createBuffer(const BufferDesc& desc, const vo
     return std::make_unique<GLBuffer>(desc, initialData);
 }
 
+std::unique_ptr<IImage> GLDevice::createImage(const ImageDesc& desc, const void* initialData) {
+    return std::make_unique<GLImage>(desc, initialData);
+}
+
 std::unique_ptr<IShaderModule> GLDevice::createShaderModule(const ShaderModuleDesc& desc) {
     try {
         const std::string source = readTextFile(desc.path);

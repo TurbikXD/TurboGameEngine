@@ -31,6 +31,11 @@ std::unique_ptr<IBuffer> DxDevice::createBuffer(const BufferDesc& desc, const vo
     return std::make_unique<DxBufferResource>(desc);
 }
 
+std::unique_ptr<IImage> DxDevice::createImage(const ImageDesc& desc, const void* initialData) {
+    (void)initialData;
+    return std::make_unique<DxImageResource>(desc);
+}
+
 std::unique_ptr<IShaderModule> DxDevice::createShaderModule(const ShaderModuleDesc& desc) {
     return std::make_unique<DxShaderModuleResource>(desc);
 }

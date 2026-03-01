@@ -9,6 +9,7 @@ namespace engine::rhi {
 
 class IGraphicsPipeline;
 class IBuffer;
+class IImage;
 class IBindGroup;
 
 class ICommandBuffer {
@@ -27,6 +28,7 @@ public:
     virtual void bindPipeline(IGraphicsPipeline& pipeline) = 0;
     virtual void bindVertexBuffer(IBuffer& buffer) = 0;
     virtual void bindIndexBuffer(IBuffer& buffer) = 0;
+    virtual void bindImage(std::uint32_t slot, IImage& image) = 0;
     virtual void bindBindGroup(std::uint32_t slot, IBindGroup& bindGroup) = 0;
     virtual void pushConstants(const void* data, std::size_t size) = 0;
 

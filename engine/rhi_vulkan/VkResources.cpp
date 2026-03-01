@@ -17,4 +17,19 @@ ResourceHandle VkBufferResource::handle() const {
     return m_handle;
 }
 
+VkImageResource::VkImageResource(const ImageDesc& desc)
+    : m_width(desc.width), m_height(desc.height), m_handle(reinterpret_cast<ResourceHandle>(this)) {}
+
+std::uint32_t VkImageResource::width() const {
+    return m_width;
+}
+
+std::uint32_t VkImageResource::height() const {
+    return m_height;
+}
+
+ResourceHandle VkImageResource::handle() const {
+    return m_handle;
+}
+
 } // namespace engine::rhi::vk

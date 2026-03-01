@@ -10,6 +10,7 @@ namespace engine::rhi {
 class ICommandBuffer;
 class ISwapchain;
 class IBuffer;
+class IImage;
 class IShaderModule;
 class IPipelineLayout;
 class IGraphicsPipeline;
@@ -33,6 +34,7 @@ public:
     virtual std::unique_ptr<ISwapchain> createSwapchain(const SwapchainDesc& desc) = 0;
     virtual std::unique_ptr<ICommandBuffer> createCommandBuffer() = 0;
     virtual std::unique_ptr<IBuffer> createBuffer(const BufferDesc& desc, const void* initialData) = 0;
+    virtual std::unique_ptr<IImage> createImage(const ImageDesc& desc, const void* initialData) = 0;
     virtual std::unique_ptr<IShaderModule> createShaderModule(const ShaderModuleDesc& desc) = 0;
     virtual std::unique_ptr<IPipelineLayout> createPipelineLayout() = 0;
     virtual std::unique_ptr<IGraphicsPipeline> createGraphicsPipeline(const GraphicsPipelineDesc& desc) = 0;

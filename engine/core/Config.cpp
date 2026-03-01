@@ -33,6 +33,7 @@ EngineConfig Config::load(std::string_view path) {
         config.height = jsonData.value("height", config.height);
         config.title = jsonData.value("title", config.title);
         config.vsync = jsonData.value("vsync", config.vsync);
+        config.diligentDevice = jsonData.value("diligentDevice", config.diligentDevice);
         config.initialState = jsonData.value("initialState", config.initialState);
 
         if (jsonData.contains("clearColor") && jsonData["clearColor"].is_array() &&

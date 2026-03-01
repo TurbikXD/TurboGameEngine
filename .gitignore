@@ -1,5 +1,6 @@
 # Build directories
 build/
+b/
 cmake-build-*/
 out/
 
@@ -40,6 +41,16 @@ install_manifest.txt
 
 # Logs
 logs/*.log
+*.log
+
+# Local cache/temp
+*.tmp
+*.temp
+*.bak
+*.orig
+__pycache__/
+.pytest_cache/
+.cache/
 
 # OS files
 Thumbs.db

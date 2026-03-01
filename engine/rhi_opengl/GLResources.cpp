@@ -22,7 +22,10 @@ GLenum bufferUsageToTarget(BufferUsage usage) {
 } // namespace
 
 GLBuffer::GLBuffer(const BufferDesc& desc, const void* initialData)
-    : m_size(desc.size), m_usage(desc.usage), m_handle(reinterpret_cast<ResourceHandle>(this)) {
+    : m_size(desc.size),
+      m_usage(desc.usage),
+      m_vertexLayout(desc.vertexLayout),
+      m_handle(reinterpret_cast<ResourceHandle>(this)) {
     const GLenum target = bufferUsageToTarget(desc.usage);
     const GLenum drawUsage = desc.dynamic ? GL_DYNAMIC_DRAW : GL_STATIC_DRAW;
 
@@ -51,8 +54,63 @@ ResourceHandle GLBuffer::handle() const {
     return m_handle;
 }
 
+VertexLayout GLBuffer::vertexLayout() const {
+    return m_vertexLayout;
+}
+
 std::uint32_t GLBuffer::id() const {
     return m_bufferId;
+}
+
+GLImage::GLImage(const ImageDesc& desc, const void* initialData)
+    : m_width(desc.width),
+      m_height(desc.height),
+      m_handle(reinterpret_cast<ResourceHandle>(this)) {
+    glGenTextures(1, &m_textureId);
+    glBindTexture(GL_TEXTURE_2D, m_textureId);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, desc.generateMipmaps ? GL_LINEAR_MIPMAP_LINEAR : GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+    glTexImage2D(
+        GL_TEXTURE_2D,
+        0,
+        GL_RGBA8,
+        static_cast<GLsizei>(desc.width),
+        static_cast<GLsizei>(desc.height),
+        0,
+        GL_RGBA,
+        GL_UNSIGNED_BYTE,
+        initialData);
+
+    if (desc.generateMipmaps) {
+        glGenerateMipmap(GL_TEXTURE_2D);
+    }
+    glBindTexture(GL_TEXTURE_2D, 0);
+}
+
+GLImage::~GLImage() {
+    if (m_textureId != 0) {
+        glDeleteTextures(1, &m_textureId);
+        m_textureId = 0;
+    }
+}
+
+std::uint32_t GLImage::width() const {
+    return m_width;
+}
+
+std::uint32_t GLImage::height() const {
+    return m_height;
+}
+
+ResourceHandle GLImage::handle() const {
+    return m_handle;
+}
+
+std::uint32_t GLImage::id() const {
+    return m_textureId;
 }
 
 } // namespace engine::rhi::gl

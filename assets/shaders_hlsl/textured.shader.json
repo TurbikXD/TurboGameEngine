@@ -1,0 +1,4 @@
+{
+  "vertex": "assets/shaders_hlsl/textured.vert.hlsl",
+  "fragment": "assets/shaders_hlsl/textured.frag.hlsl"
+}

@@ -84,12 +84,32 @@ void GLCommandBuffer::bindVertexBuffer(IBuffer& buffer) {
 
     glBindVertexArray(m_vaoId);
     glBindBuffer(GL_ARRAY_BUFFER, glBuffer->id());
+    glDisableVertexAttribArray(0);
+    glDisableVertexAttribArray(1);
+    glDisableVertexAttribArray(2);
 
-    constexpr GLsizei stride = static_cast<GLsizei>(sizeof(float) * 5);
-    glEnableVertexAttribArray(0);
-    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, stride, nullptr);
-    glEnableVertexAttribArray(1);
-    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, stride, reinterpret_cast<const void*>(sizeof(float) * 2));
+    switch (glBuffer->vertexLayout()) {
+        case VertexLayout::Position2Color3: {
+            constexpr GLsizei stride = static_cast<GLsizei>(sizeof(float) * 5);
+            glEnableVertexAttribArray(0);
+            glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, stride, nullptr);
+            glEnableVertexAttribArray(1);
+            glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, stride, reinterpret_cast<const void*>(sizeof(float) * 2));
+            break;
+        }
+        case VertexLayout::Position3Normal3Uv2: {
+            constexpr GLsizei stride = static_cast<GLsizei>(sizeof(float) * 8);
+            glEnableVertexAttribArray(0);
+            glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, stride, nullptr);
+            glEnableVertexAttribArray(1);
+            glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, stride, reinterpret_cast<const void*>(sizeof(float) * 3));
+            glEnableVertexAttribArray(2);
+            glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, stride, reinterpret_cast<const void*>(sizeof(float) * 6));
+            break;
+        }
+        default:
+            break;
+    }
 }
 
 void GLCommandBuffer::bindIndexBuffer(IBuffer& buffer) {
@@ -100,6 +120,24 @@ void GLCommandBuffer::bindIndexBuffer(IBuffer& buffer) {
     glBindVertexArray(m_vaoId);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, glBuffer->id());
     m_indexBufferBound = true;
+}
+
+void GLCommandBuffer::bindImage(std::uint32_t slot, IImage& image) {
+    auto* glImage = dynamic_cast<GLImage*>(&image);
+    if (glImage == nullptr) {
+        return;
+    }
+
+    glActiveTexture(GL_TEXTURE0 + slot);
+    glBindTexture(GL_TEXTURE_2D, glImage->id());
+
+    if (m_boundPipeline == nullptr) {
+        return;
+    }
+    const GLint location = m_boundPipeline->textureUniformLocation();
+    if (location >= 0) {
+        glUniform1i(location, static_cast<GLint>(slot));
+    }
 }
 
 void GLCommandBuffer::bindBindGroup(std::uint32_t slot, IBindGroup& bindGroup) {
@@ -117,6 +155,13 @@ void GLCommandBuffer::pushConstants(const void* data, std::size_t size) {
     const GLint location = m_boundPipeline->transformUniformLocation();
     if (location >= 0) {
         glUniformMatrix4fv(location, 1, GL_FALSE, &matrix[0][0]);
+    }
+
+    const GLint tintLocation = m_boundPipeline->tintUniformLocation();
+    if (tintLocation >= 0 && size >= sizeof(glm::mat4) + sizeof(glm::vec4)) {
+        glm::vec4 tint(1.0F);
+        std::memcpy(&tint, reinterpret_cast<const std::uint8_t*>(data) + sizeof(glm::mat4), sizeof(glm::vec4));
+        glUniform4fv(tintLocation, 1, &tint[0]);
     }
 }
 

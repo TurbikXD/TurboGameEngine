@@ -9,26 +9,25 @@
     {
       "name": "debug",
       "displayName": "Debug",
-      "description": "Debug build with OpenGL backend by default",
+      "description": "Debug build with DiligentEngine renderer",
       "generator": "Visual Studio 17 2022",
       "architecture": "x64",
-      "binaryDir": "${sourceDir}/build/debug",
+      "binaryDir": "C:/tge/dbg",
       "cacheVariables": {
-        "ENGINE_BACKEND": "opengl",
-        "ENGINE_ENABLE_VULKAN": "ON"
+        "ENGINE_BACKEND": "diligent",
+        "ENGINE_BUILD_DILIGENT_SAMPLES": "ON"
       }
     },
     {
       "name": "release",
       "displayName": "Release",
-      "description": "Release build with OpenGL backend by default",
+      "description": "Release build with DiligentEngine renderer",
       "generator": "Visual Studio 17 2022",
       "architecture": "x64",
-      "binaryDir": "${sourceDir}/build/release",
+      "binaryDir": "C:/tge/rel",
       "cacheVariables": {
-        "CMAKE_CONFIGURATION_TYPES": "Release",
-        "ENGINE_BACKEND": "opengl",
-        "ENGINE_ENABLE_VULKAN": "ON"
+        "ENGINE_BACKEND": "diligent",
+        "ENGINE_BUILD_DILIGENT_SAMPLES": "ON"
       }
     }
   ],

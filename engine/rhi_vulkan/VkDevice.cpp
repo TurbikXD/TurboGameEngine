@@ -31,6 +31,11 @@ std::unique_ptr<IBuffer> VkDevice::createBuffer(const BufferDesc& desc, const vo
     return std::make_unique<VkBufferResource>(desc);
 }
 
+std::unique_ptr<IImage> VkDevice::createImage(const ImageDesc& desc, const void* initialData) {
+    (void)initialData;
+    return std::make_unique<VkImageResource>(desc);
+}
+
 std::unique_ptr<IShaderModule> VkDevice::createShaderModule(const ShaderModuleDesc& desc) {
     return std::make_unique<VkShaderModuleResource>(desc);
 }

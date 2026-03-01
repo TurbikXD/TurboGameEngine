@@ -26,6 +26,7 @@ public:
     std::unique_ptr<ISwapchain> createSwapchain(const SwapchainDesc& desc) override;
     std::unique_ptr<ICommandBuffer> createCommandBuffer() override;
     std::unique_ptr<IBuffer> createBuffer(const BufferDesc& desc, const void* initialData) override;
+    std::unique_ptr<IImage> createImage(const ImageDesc& desc, const void* initialData) override;
     std::unique_ptr<IShaderModule> createShaderModule(const ShaderModuleDesc& desc) override;
     std::unique_ptr<IPipelineLayout> createPipelineLayout() override;
     std::unique_ptr<IGraphicsPipeline> createGraphicsPipeline(const GraphicsPipelineDesc& desc) override;

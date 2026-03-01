@@ -19,10 +19,14 @@ public:
 
     std::uint32_t programId() const;
     int transformUniformLocation() const;
+    int tintUniformLocation() const;
+    int textureUniformLocation() const;
 
 private:
     std::uint32_t m_programId{0};
     int m_transformUniformLocation{-1};
+    int m_tintUniformLocation{-1};
+    int m_textureUniformLocation{-1};
 };
 
 } // namespace engine::rhi::gl

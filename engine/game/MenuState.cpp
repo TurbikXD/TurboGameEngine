@@ -1,6 +1,7 @@
 #include "engine/game/MenuState.h"
 
 #include <memory>
+#include <utility>
 
 #include "engine/core/Log.h"
 #include "engine/game/GameplayState.h"
@@ -9,10 +10,12 @@
 
 namespace engine::game {
 
-MenuState::MenuState(StateStack& stack) : IGameState(stack) {}
+MenuState::MenuState(StateStack& stack, std::string sampleMode) :
+    IGameState(stack),
+    m_sampleMode(std::move(sampleMode)) {}
 
 void MenuState::onEnter() {
-    ENGINE_LOG_INFO("Entered MenuState (Press Enter to start)");
+    ENGINE_LOG_INFO("Entered MenuState (Press Enter to start). Diligent device='{}'", m_sampleMode);
 }
 
 void MenuState::onExit() {

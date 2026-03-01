@@ -32,6 +32,11 @@ void DxCommandBuffer::bindIndexBuffer(IBuffer& buffer) {
     (void)buffer;
 }
 
+void DxCommandBuffer::bindImage(std::uint32_t slot, IImage& image) {
+    (void)slot;
+    (void)image;
+}
+
 void DxCommandBuffer::bindBindGroup(std::uint32_t slot, IBindGroup& bindGroup) {
     (void)slot;
     (void)bindGroup;

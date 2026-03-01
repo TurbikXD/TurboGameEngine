@@ -15,6 +15,7 @@ public:
     void bindPipeline(IGraphicsPipeline& pipeline) override;
     void bindVertexBuffer(IBuffer& buffer) override;
     void bindIndexBuffer(IBuffer& buffer) override;
+    void bindImage(std::uint32_t slot, IImage& image) override;
     void bindBindGroup(std::uint32_t slot, IBindGroup& bindGroup) override;
     void pushConstants(const void* data, std::size_t size) override;
     void draw(std::uint32_t vertexCount, std::uint32_t firstVertex) override;

@@ -1,0 +1,4 @@
+{
+  "vertex": "assets/shaders_gl/textured.vert",
+  "fragment": "assets/shaders_gl/textured.frag"
+}
