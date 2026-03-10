@@ -438,6 +438,7 @@ void Application::renderWorkspaceUi(const double frameDtSeconds) {
         if (m_workspaceMode == WorkspaceMode::EngineStates) {
             ImGui::TextUnformatted("Engine state controls:");
             ImGui::BulletText("Menu: Enter -> Gameplay");
+            ImGui::BulletText("Gameplay: Left/Right -> Move logo cube");
             ImGui::BulletText("Gameplay: Esc -> Pause");
             ImGui::BulletText("Pause: Esc -> Resume");
         } else if (m_workspaceMode == WorkspaceMode::Tutorial01HelloTriangle) {

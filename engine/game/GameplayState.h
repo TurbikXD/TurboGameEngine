@@ -21,10 +21,10 @@ private:
 
     ecs::World m_world{};
     ecs::RenderSystem m_renderSystem{};
-    ecs::EntityId m_animatedEntity{ecs::kInvalidEntity};
+    ecs::EntityId m_playerEntity{ecs::kInvalidEntity};
     double m_elapsedSeconds{0.0};
     bool m_sceneInitialized{false};
-    float m_moveSpeed{1.5F};
+    float m_moveSpeed{3.4F};
     float m_rotationSpeed{1.3F};
 };
 

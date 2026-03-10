@@ -1136,8 +1136,14 @@ std::unique_ptr<IGraphicsPipeline> DiligentDevice::createGraphicsPipeline(const 
     createInfo.GraphicsPipeline.RTVFormats[0] = m_impl->swapChain->GetDesc().ColorBufferFormat;
     createInfo.GraphicsPipeline.DSVFormat = m_impl->swapChain->GetDesc().DepthBufferFormat;
     createInfo.GraphicsPipeline.PrimitiveTopology = toDiligentTopology(desc.topology);
-    createInfo.GraphicsPipeline.RasterizerDesc.CullMode = Diligent::CULL_MODE_NONE;
-    createInfo.GraphicsPipeline.DepthStencilDesc.DepthEnable = Diligent::False;
+
+    const bool isMeshPipeline = vertexLayout == VertexLayout::Position3Normal3Uv2;
+    createInfo.GraphicsPipeline.RasterizerDesc.CullMode =
+        isMeshPipeline ? Diligent::CULL_MODE_BACK : Diligent::CULL_MODE_NONE;
+    createInfo.GraphicsPipeline.DepthStencilDesc.DepthEnable = isMeshPipeline ? Diligent::True : Diligent::False;
+    createInfo.GraphicsPipeline.DepthStencilDesc.DepthWriteEnable =
+        isMeshPipeline ? Diligent::True : Diligent::False;
+    createInfo.GraphicsPipeline.DepthStencilDesc.DepthFunc = Diligent::COMPARISON_FUNC_LESS_EQUAL;
     createInfo.pVS = vertexShader->nativeShader();
     createInfo.pPS = fragmentShader->nativeShader();
 

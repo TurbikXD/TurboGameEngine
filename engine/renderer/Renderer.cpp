@@ -737,6 +737,22 @@ const resources::ResourceManager& Renderer::resourceManager() const {
     return m_resourceManager;
 }
 
+rhi::Extent2D Renderer::frameExtent() const {
+    if (m_swapchain) {
+        return m_swapchain->extent();
+    }
+
+    rhi::Extent2D fallback{};
+    if (m_window != nullptr) {
+        fallback.width = static_cast<std::uint32_t>(m_window->width());
+        fallback.height = static_cast<std::uint32_t>(m_window->height());
+        return fallback;
+    }
+
+    fallback.width = 1280;
+    fallback.height = 720;
+    return fallback;
+}
 void Renderer::registerShaderForHotReload(
     const std::string& cacheKey,
     const std::shared_ptr<resources::ShaderProgram>& program,

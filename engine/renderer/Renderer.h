@@ -76,6 +76,7 @@ public:
     std::shared_ptr<resources::ShaderProgram> loadShaderProgram(const std::string& path);
     resources::ResourceManager& resourceManager();
     const resources::ResourceManager& resourceManager() const;
+    [[nodiscard]] rhi::Extent2D frameExtent() const;
     void pollHotReload();
     void endFrame();
     void onResize(std::uint32_t width, std::uint32_t height);
