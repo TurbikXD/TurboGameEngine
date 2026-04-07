@@ -78,13 +78,29 @@ constexpr std::string_view kVsConstantsName = "Constants";
 constexpr std::string_view kPsConstantsName = "PixelConstants";
 constexpr std::string_view kTextureName = "g_Texture";
 
-struct DiligentPushConstants final {
-    float transform[16]{
+struct DiligentVertexConstants final {
+    float modelViewProjection[16]{
         1.0F, 0.0F, 0.0F, 0.0F,
         0.0F, 1.0F, 0.0F, 0.0F,
         0.0F, 0.0F, 1.0F, 0.0F,
         0.0F, 0.0F, 0.0F, 1.0F};
+    float model[16]{
+        1.0F, 0.0F, 0.0F, 0.0F,
+        0.0F, 1.0F, 0.0F, 0.0F,
+        0.0F, 0.0F, 1.0F, 0.0F,
+        0.0F, 0.0F, 0.0F, 1.0F};
+    float uvScaleBias[4]{1.0F, 1.0F, 0.0F, 0.0F};
+};
+
+struct DiligentPixelConstants final {
     float tint[4]{1.0F, 1.0F, 1.0F, 1.0F};
+    float lightDirection[4]{-0.45F, -0.8F, 0.35F, 0.0F};
+    float ambientColor[4]{0.47F, 0.5F, 0.58F, 0.18F};
+};
+
+struct DiligentPushConstants final {
+    DiligentVertexConstants vertex{};
+    DiligentPixelConstants pixel{};
 };
 
 std::string toLower(std::string value) {
@@ -312,12 +328,26 @@ public:
         DiligentPushConstants constants{};
         if (data != nullptr && size > 0U) {
             const auto* bytes = static_cast<const std::byte*>(data);
-            if (size >= sizeof(constants.transform)) {
-                std::memcpy(constants.transform, bytes, sizeof(constants.transform));
-            }
-            if (size >= sizeof(constants.transform) + sizeof(constants.tint)) {
-                std::memcpy(constants.tint, bytes + sizeof(constants.transform), sizeof(constants.tint));
-            }
+            const auto copyChunk = [&](void* destination, const std::size_t destinationSize, const std::size_t offset) {
+                if (offset >= size) {
+                    return;
+                }
+                const std::size_t bytesToCopy = std::min(destinationSize, size - offset);
+                std::memcpy(destination, bytes + offset, bytesToCopy);
+            };
+
+            std::size_t offset = 0U;
+            copyChunk(constants.vertex.modelViewProjection, sizeof(constants.vertex.modelViewProjection), offset);
+            offset += sizeof(constants.vertex.modelViewProjection);
+            copyChunk(constants.vertex.model, sizeof(constants.vertex.model), offset);
+            offset += sizeof(constants.vertex.model);
+            copyChunk(constants.vertex.uvScaleBias, sizeof(constants.vertex.uvScaleBias), offset);
+            offset += sizeof(constants.vertex.uvScaleBias);
+            copyChunk(constants.pixel.tint, sizeof(constants.pixel.tint), offset);
+            offset += sizeof(constants.pixel.tint);
+            copyChunk(constants.pixel.lightDirection, sizeof(constants.pixel.lightDirection), offset);
+            offset += sizeof(constants.pixel.lightDirection);
+            copyChunk(constants.pixel.ambientColor, sizeof(constants.pixel.ambientColor), offset);
         }
 
         if (m_transformBuffer) {
@@ -329,8 +359,8 @@ public:
             if (mappedTransform != nullptr) {
                 std::memcpy(
                     static_cast<std::byte*>(mappedTransform),
-                    constants.transform,
-                    sizeof(constants.transform));
+                    &constants.vertex,
+                    sizeof(constants.vertex));
             }
         }
 
@@ -343,8 +373,8 @@ public:
             if (mappedTint != nullptr) {
                 std::memcpy(
                     static_cast<std::byte*>(mappedTint),
-                    constants.tint,
-                    sizeof(constants.tint));
+                    &constants.pixel,
+                    sizeof(constants.pixel));
             }
         }
     }
@@ -1140,6 +1170,7 @@ std::unique_ptr<IGraphicsPipeline> DiligentDevice::createGraphicsPipeline(const 
     const bool isMeshPipeline = vertexLayout == VertexLayout::Position3Normal3Uv2;
     createInfo.GraphicsPipeline.RasterizerDesc.CullMode =
         isMeshPipeline ? Diligent::CULL_MODE_BACK : Diligent::CULL_MODE_NONE;
+    createInfo.GraphicsPipeline.RasterizerDesc.FrontCounterClockwise = Diligent::True;
     createInfo.GraphicsPipeline.DepthStencilDesc.DepthEnable = isMeshPipeline ? Diligent::True : Diligent::False;
     createInfo.GraphicsPipeline.DepthStencilDesc.DepthWriteEnable =
         isMeshPipeline ? Diligent::True : Diligent::False;
@@ -1174,9 +1205,9 @@ std::unique_ptr<IGraphicsPipeline> DiligentDevice::createGraphicsPipeline(const 
         samplerDesc.MinFilter = Diligent::FILTER_TYPE_LINEAR;
         samplerDesc.MagFilter = Diligent::FILTER_TYPE_LINEAR;
         samplerDesc.MipFilter = Diligent::FILTER_TYPE_LINEAR;
-        samplerDesc.AddressU = Diligent::TEXTURE_ADDRESS_CLAMP;
-        samplerDesc.AddressV = Diligent::TEXTURE_ADDRESS_CLAMP;
-        samplerDesc.AddressW = Diligent::TEXTURE_ADDRESS_CLAMP;
+        samplerDesc.AddressU = Diligent::TEXTURE_ADDRESS_WRAP;
+        samplerDesc.AddressV = Diligent::TEXTURE_ADDRESS_WRAP;
+        samplerDesc.AddressW = Diligent::TEXTURE_ADDRESS_WRAP;
         immutableSampler.ShaderStages = Diligent::SHADER_TYPE_PIXEL;
         immutableSampler.SamplerOrTextureName = kTextureName.data();
         immutableSampler.Desc = samplerDesc;
@@ -1193,14 +1224,14 @@ std::unique_ptr<IGraphicsPipeline> DiligentDevice::createGraphicsPipeline(const 
 
     Diligent::BufferDesc transformDesc{};
     transformDesc.Name = "Turbo VS Constants";
-    transformDesc.Size = sizeof(float) * 16U;
+    transformDesc.Size = sizeof(DiligentVertexConstants);
     transformDesc.BindFlags = Diligent::BIND_UNIFORM_BUFFER;
     transformDesc.Usage = Diligent::USAGE_DYNAMIC;
     transformDesc.CPUAccessFlags = Diligent::CPU_ACCESS_WRITE;
 
     Diligent::BufferDesc tintDesc{};
     tintDesc.Name = "Turbo PS Constants";
-    tintDesc.Size = sizeof(float) * 4U;
+    tintDesc.Size = sizeof(DiligentPixelConstants);
     tintDesc.BindFlags = Diligent::BIND_UNIFORM_BUFFER;
     tintDesc.Usage = Diligent::USAGE_DYNAMIC;
     tintDesc.CPUAccessFlags = Diligent::CPU_ACCESS_WRITE;

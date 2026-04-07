@@ -39,6 +39,26 @@ void StateStack::render(renderer::Renderer& renderer) {
     }
 }
 
+void StateStack::renderUi(renderer::Renderer& renderer) {
+    for (const auto& state : m_stack) {
+        if (auto* uiState = dynamic_cast<IGameStateUi*>(state.get())) {
+            uiState->renderUi(renderer);
+        }
+    }
+}
+
+void StateStack::setWindow(platform::Window* window) {
+    m_window = window;
+}
+
+platform::Window* StateStack::window() {
+    return m_window;
+}
+
+const platform::Window* StateStack::window() const {
+    return m_window;
+}
+
 void StateStack::applyPendingChanges() {
     for (auto& pending : m_pending) {
         switch (pending.action) {

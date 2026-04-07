@@ -21,6 +21,8 @@ public:
     int height() const override;
     void setTitle(const std::string& title) override;
     void setVSync(bool enabled) override;
+    void setCursorMode(CursorMode mode) override;
+    [[nodiscard]] CursorMode cursorMode() const override;
     bool hasOpenGLContext() const override;
     void setEventCallback(EventCallback callback) override;
 
@@ -34,6 +36,7 @@ private:
     int m_width{0};
     int m_height{0};
     bool m_hasOpenGLContext{false};
+    CursorMode m_cursorMode{CursorMode::Normal};
 };
 
 } // namespace engine::platform

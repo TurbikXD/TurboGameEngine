@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 3.24)
 
 project(TurboGameEngine VERSION 0.1.0 LANGUAGES C CXX)
+enable_testing()
 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
@@ -64,12 +65,33 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(nlohmann_json)
 
 FetchContent_Declare(
-    tinyobjloader
-    GIT_REPOSITORY https://github.com/tinyobjloader/tinyobjloader.git
-    GIT_TAG v2.0.0rc13
+    assimp
+    GIT_REPOSITORY https://github.com/assimp/assimp.git
+    GIT_TAG v5.4.3
     UPDATE_DISCONNECTED ON
 )
-FetchContent_MakeAvailable(tinyobjloader)
+if(DEFINED BUILD_SHARED_LIBS)
+    set(_ENGINE_PREV_BUILD_SHARED_LIBS "${BUILD_SHARED_LIBS}")
+    set(_ENGINE_HAD_BUILD_SHARED_LIBS TRUE)
+else()
+    set(_ENGINE_HAD_BUILD_SHARED_LIBS FALSE)
+endif()
+set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
+set(ASSIMP_NO_EXPORT ON CACHE BOOL "" FORCE)
+set(ASSIMP_BUILD_ASSIMP_TOOLS OFF CACHE BOOL "" FORCE)
+set(ASSIMP_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(ASSIMP_INSTALL OFF CACHE BOOL "" FORCE)
+set(ASSIMP_WARNINGS_AS_ERRORS OFF CACHE BOOL "" FORCE)
+set(ASSIMP_BUILD_ALL_IMPORTERS_BY_DEFAULT OFF CACHE BOOL "" FORCE)
+set(ASSIMP_BUILD_OBJ_IMPORTER ON CACHE BOOL "" FORCE)
+FetchContent_MakeAvailable(assimp)
+if(_ENGINE_HAD_BUILD_SHARED_LIBS)
+    set(BUILD_SHARED_LIBS "${_ENGINE_PREV_BUILD_SHARED_LIBS}" CACHE BOOL "" FORCE)
+else()
+    unset(BUILD_SHARED_LIBS CACHE)
+endif()
+unset(_ENGINE_PREV_BUILD_SHARED_LIBS)
+unset(_ENGINE_HAD_BUILD_SHARED_LIBS)
 
 FetchContent_Declare(
     stb
@@ -95,6 +117,7 @@ set(DILIGENT_BUILD_SAMPLES_TESTS OFF CACHE BOOL "" FORCE)
 set(DILIGENT_BUILD_TOOLS_INCLUDE_TEST OFF CACHE BOOL "" FORCE)
 set(DILIGENT_BUILD_FX_INCLUDE_TEST OFF CACHE BOOL "" FORCE)
 set(DILIGENT_BUILD_SAMPLES_INCLUDE_TEST OFF CACHE BOOL "" FORCE)
+set(SPIRV_WERROR OFF CACHE BOOL "" FORCE)
 if(WIN32)
     set(DILIGENT_LOAD_PIX_EVENT_RUNTIME ON CACHE BOOL "" FORCE)
 endif()
@@ -105,6 +128,41 @@ else()
 endif()
 
 add_subdirectory("${DILIGENT_ENGINE_DIR}")
+
+set(ENGINE_SPIRV_TOOLS_SOURCE_DIR
+    "${DILIGENT_ENGINE_DIR}/DiligentCore/ThirdParty/SPIRV-Tools/source")
+
+# CLion probes compiler flags using temp files outside the original source tree.
+# SPIRV-Tools relies on relative /FI precompiled-header includes, so expose the
+# corresponding source folders explicitly to keep IDE reloads from failing.
+function(engine_fix_spirv_tools_pch_includes target_name)
+    if(TARGET ${target_name})
+        target_include_directories(${target_name} PRIVATE ${ARGN})
+    endif()
+endfunction()
+
+engine_fix_spirv_tools_pch_includes(
+    SPIRV-Tools-shared
+    "${ENGINE_SPIRV_TOOLS_SOURCE_DIR}"
+)
+engine_fix_spirv_tools_pch_includes(
+    SPIRV-Tools-static
+    "${ENGINE_SPIRV_TOOLS_SOURCE_DIR}"
+)
+engine_fix_spirv_tools_pch_includes(
+    SPIRV-Tools-opt
+    "${ENGINE_SPIRV_TOOLS_SOURCE_DIR}"
+    "${ENGINE_SPIRV_TOOLS_SOURCE_DIR}/opt"
+)
+engine_fix_spirv_tools_pch_includes(
+    SPIRV-Tools-reduce
+    "${ENGINE_SPIRV_TOOLS_SOURCE_DIR}"
+    "${ENGINE_SPIRV_TOOLS_SOURCE_DIR}/reduce"
+)
+
+if(MSVC AND TARGET SPIRV-Tools-opt)
+    target_compile_options(SPIRV-Tools-opt PRIVATE /wd4717 /wd5232 /MP1)
+endif()
 
 function(set_engine_warnings target_name)
     if(MSVC)
@@ -220,10 +278,21 @@ add_library(engine_renderer STATIC
     engine/resources/resource_manager.cpp
     engine/resources/loaders.cpp
     engine/ecs/render_system.cpp
+    engine/ecs/transform_utils.cpp
+    engine/ecs/collision_utils.cpp
 )
 target_include_directories(engine_renderer PUBLIC "${ENGINE_ROOT_INCLUDE_DIR}")
-target_include_directories(engine_renderer PRIVATE "${tinyobjloader_SOURCE_DIR}" "${stb_SOURCE_DIR}")
-target_link_libraries(engine_renderer PUBLIC engine_core engine_rhi glm::glm nlohmann_json::nlohmann_json)
+target_include_directories(engine_renderer PRIVATE "${stb_SOURCE_DIR}")
+target_link_libraries(
+    engine_renderer
+    PUBLIC
+        engine_core
+        engine_rhi
+        glm::glm
+        nlohmann_json::nlohmann_json
+    PRIVATE
+        assimp::assimp
+)
 if(TARGET Diligent-Imgui)
     target_link_libraries(engine_renderer PRIVATE Diligent-Imgui)
 endif()
@@ -239,7 +308,10 @@ set_engine_warnings(engine_renderer)
 
 add_library(engine_game STATIC
     engine/ecs/world.cpp
+    engine/ecs/physics_system.cpp
+    engine/ecs/debug_render_system.cpp
     engine/game/StateStack.cpp
+    engine/game/FreeCameraController.cpp
     engine/game/MenuState.cpp
     engine/game/GameplayState.cpp
     engine/game/PauseState.cpp
@@ -257,6 +329,14 @@ target_compile_definitions(app PRIVATE ENGINE_BACKEND_NAME="diligent")
 target_link_libraries(app PRIVATE engine_core engine_platform engine_renderer engine_game)
 set_engine_warnings(app)
 copy_pix_runtime_dll(app)
+
+add_executable(engine_physics_tests
+    tests/PhysicsSystemTests.cpp
+)
+target_include_directories(engine_physics_tests PRIVATE "${ENGINE_ROOT_INCLUDE_DIR}")
+target_link_libraries(engine_physics_tests PRIVATE engine_core engine_platform engine_renderer engine_game)
+set_engine_warnings(engine_physics_tests)
+add_test(NAME engine_physics_tests COMMAND engine_physics_tests)
 
 if(COMMAND copy_required_dlls)
     copy_required_dlls(app)

@@ -1,6 +1,10 @@
 # Build directories
 build/
 b/
+b2/
+b3/
+b4/
+build_verify/
 cmake-build-*/
 out/
 
@@ -17,6 +21,7 @@ install_manifest.txt
 .idea/
 .vscode/
 *.iml
+CMakeUserPresets.json
 
 # Visual Studio files
 .vs/
@@ -42,6 +47,8 @@ install_manifest.txt
 # Logs
 logs/*.log
 *.log
+app_stdout*.txt
+app_stderr*.txt
 
 # Local cache/temp
 *.tmp

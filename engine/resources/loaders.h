@@ -14,7 +14,7 @@ struct ShaderProgramSource final {
     bool descriptorIsFile{false};
 };
 
-bool loadObjMeshData(const std::string& path, MeshData& outMeshData, std::string* errorMessage = nullptr);
+bool loadMeshData(const std::string& path, MeshData& outMeshData, std::string* errorMessage = nullptr);
 bool loadTextureDataRgba8(const std::string& path, TextureData& outTextureData, std::string* errorMessage = nullptr);
 bool loadShaderProgramSource(
     const std::string& descriptor,

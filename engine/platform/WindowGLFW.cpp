@@ -21,6 +21,26 @@ KeyCode mapKey(int glfwKey) {
             return KeyCode::Enter;
         case GLFW_KEY_ESCAPE:
             return KeyCode::Escape;
+        case GLFW_KEY_W:
+            return KeyCode::W;
+        case GLFW_KEY_A:
+            return KeyCode::A;
+        case GLFW_KEY_S:
+            return KeyCode::S;
+        case GLFW_KEY_D:
+            return KeyCode::D;
+        case GLFW_KEY_Q:
+            return KeyCode::Q;
+        case GLFW_KEY_E:
+            return KeyCode::E;
+        case GLFW_KEY_SPACE:
+            return KeyCode::Space;
+        case GLFW_KEY_LEFT_SHIFT:
+            return KeyCode::LeftShift;
+        case GLFW_KEY_RIGHT_SHIFT:
+            return KeyCode::RightShift;
+        case GLFW_KEY_F1:
+            return KeyCode::F1;
         case GLFW_KEY_LEFT:
             return KeyCode::Left;
         case GLFW_KEY_RIGHT:
@@ -169,6 +189,18 @@ WindowGLFW::WindowGLFW(const WindowDesc& desc) : m_width(desc.width), m_height(d
         event.mouseY = y;
         self->dispatch(event);
     });
+
+    glfwSetScrollCallback(m_window, [](GLFWwindow* window, double xOffset, double yOffset) {
+        auto* self = static_cast<WindowGLFW*>(glfwGetWindowUserPointer(window));
+        if (self == nullptr) {
+            return;
+        }
+        Event event{};
+        event.type = EventType::MouseScrolled;
+        event.scrollX = xOffset;
+        event.scrollY = yOffset;
+        self->dispatch(event);
+    });
 }
 
 WindowGLFW::~WindowGLFW() {
@@ -217,6 +249,32 @@ void WindowGLFW::setVSync(bool enabled) {
         glfwMakeContextCurrent(m_window);
         glfwSwapInterval(enabled ? 1 : 0);
     }
+}
+
+void WindowGLFW::setCursorMode(const CursorMode mode) {
+    if (m_window == nullptr) {
+        return;
+    }
+
+    int glfwCursorMode = GLFW_CURSOR_NORMAL;
+    switch (mode) {
+        case CursorMode::Normal:
+            glfwCursorMode = GLFW_CURSOR_NORMAL;
+            break;
+        case CursorMode::Hidden:
+            glfwCursorMode = GLFW_CURSOR_HIDDEN;
+            break;
+        case CursorMode::Disabled:
+            glfwCursorMode = GLFW_CURSOR_DISABLED;
+            break;
+    }
+
+    glfwSetInputMode(m_window, GLFW_CURSOR, glfwCursorMode);
+    m_cursorMode = mode;
+}
+
+CursorMode WindowGLFW::cursorMode() const {
+    return m_cursorMode;
 }
 
 bool WindowGLFW::hasOpenGLContext() const {

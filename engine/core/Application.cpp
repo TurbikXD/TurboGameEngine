@@ -262,6 +262,7 @@ bool Application::init() {
 
     platform::Input::reset();
     m_window->setEventCallback([this](const platform::Event& event) { onEvent(event); });
+    m_stateStack.setWindow(m_window.get());
 
     if (!m_renderer.init(*m_window, m_backend, m_config.vsync, m_config.diligentDevice)) {
         ENGINE_LOG_ERROR("Renderer failed to initialize");
@@ -299,6 +300,7 @@ int Application::run() {
     TimeStatsAggregator stats(1.0);
 
     while (m_running && m_window && !m_window->shouldClose()) {
+        platform::InputManager::beginFrame();
         m_window->pollEvents();
         pollRuntimeHotReload();
 
@@ -356,6 +358,7 @@ void Application::shutdown() {
     m_running = false;
     m_stateStack.clear();
     m_stateStack.applyPendingChanges();
+    m_stateStack.setWindow(nullptr);
     m_tutorial03Mesh.reset();
     m_tutorial03Texture.reset();
     m_tutorial03Shader.reset();
@@ -432,15 +435,22 @@ void Application::renderWorkspaceUi(const double frameDtSeconds) {
                 kWorkspaceItems.data(),
                 static_cast<int>(kWorkspaceItems.size()))) {
             m_workspaceMode = static_cast<WorkspaceMode>(selectedMode);
+            if (m_window != nullptr && m_workspaceMode != WorkspaceMode::EngineStates) {
+                m_window->setCursorMode(platform::CursorMode::Normal);
+            }
             ENGINE_LOG_INFO("Workspace mode switched to '{}'", workspaceModeLabel(m_workspaceMode));
         }
 
         if (m_workspaceMode == WorkspaceMode::EngineStates) {
             ImGui::TextUnformatted("Engine state controls:");
             ImGui::BulletText("Menu: Enter -> Gameplay");
-            ImGui::BulletText("Gameplay: Left/Right -> Move logo cube");
+            ImGui::BulletText("Gameplay: Hold Right Mouse + WASDQE for UE-style camera");
+            ImGui::BulletText("Gameplay: Mouse Wheel adjusts move speed, Shift boosts fly speed");
+            ImGui::BulletText("Gameplay: Start physics from UI, Space launches the striker");
+            ImGui::BulletText("Gameplay: F1 toggles collider debug");
             ImGui::BulletText("Gameplay: Esc -> Pause");
             ImGui::BulletText("Pause: Esc -> Resume");
+            m_stateStack.renderUi(m_renderer);
         } else if (m_workspaceMode == WorkspaceMode::Tutorial01HelloTriangle) {
             ImGui::TextWrapped("Renders a rotating triangle using the engine pipeline (Tutorial01-style).");
         } else if (m_workspaceMode == WorkspaceMode::Tutorial03Texturing) {
@@ -507,7 +517,8 @@ void Application::renderTutorial01HelloTriangle() {
 void Application::renderTutorial03Texturing(const double frameDtSeconds) {
     (void)frameDtSeconds;
     ensureTutorial03Resources();
-    if (!m_tutorial03Mesh || !m_tutorial03Texture || !m_tutorial03Shader) {
+    if (!m_tutorial03Mesh || !m_tutorial03Texture || !m_tutorial03Shader || !m_tutorial03Mesh->isReady() ||
+        !m_tutorial03Texture->isReady() || !m_tutorial03Shader->isReady()) {
         m_renderer.drawTestPrimitive(renderer::Transform2D{});
         return;
     }
@@ -528,7 +539,8 @@ void Application::renderTutorial03Texturing(const double frameDtSeconds) {
             *m_tutorial03Mesh,
             *m_tutorial03Shader,
             *m_tutorial03Texture,
-            projection * model,
+            model,
+            projection,
             glm::vec4(1.0F, 1.0F, 1.0F, 1.0F));
     }
 }
@@ -738,8 +750,9 @@ const char* Application::workspaceModeLabel(const WorkspaceMode mode) {
 }
 
 void Application::onEvent(const platform::Event& event) {
-    platform::Input::onEvent(event);
+    platform::InputManager::onEvent(event);
     m_renderer.onEvent(event);
+    platform::InputManager::setCaptureState(m_renderer.wantsKeyboardCapture(), m_renderer.wantsMouseCapture());
 
     if (event.type == platform::EventType::Quit) {
         ENGINE_LOG_INFO("Quit event received");
@@ -754,8 +767,12 @@ void Application::onEvent(const platform::Event& event) {
     const bool isMouseEvent = event.type == platform::EventType::MouseMoved ||
                               event.type == platform::EventType::MouseButtonPressed ||
                               event.type == platform::EventType::MouseButtonReleased;
+    const bool gameplayLookOverride =
+        m_workspaceMode == WorkspaceMode::EngineStates &&
+        platform::InputManager::isMouseButtonDownRaw(platform::MouseButton::Right);
     const bool consumedByImGui =
-        (isKeyboardEvent && m_renderer.wantsKeyboardCapture()) || (isMouseEvent && m_renderer.wantsMouseCapture());
+        !gameplayLookOverride &&
+        ((isKeyboardEvent && m_renderer.wantsKeyboardCapture()) || (isMouseEvent && m_renderer.wantsMouseCapture()));
 
     if (m_workspaceMode == WorkspaceMode::EngineStates && !consumedByImGui) {
         m_stateStack.handleEvent(event);

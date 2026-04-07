@@ -1,0 +1,764 @@
+% !TeX program = xelatex
+\documentclass[a4paper,14pt]{extarticle}
+
+% ---------- GOST-like layout ----------
+\usepackage[a4paper,left=30mm,right=10mm,top=20mm,bottom=20mm]{geometry}
+\usepackage{setspace}
+\onehalfspacing
+\setlength{\parindent}{1.25cm}
+\setlength{\parskip}{0pt}
+\usepackage{indentfirst}
+\usepackage[protrusion=false,expansion=false]{microtype}
+
+% ---------- Fonts / language ----------
+\usepackage{fontspec}
+\setmainfont{Times New Roman}
+\setmonofont{Courier New}
+\usepackage{polyglossia}
+\setdefaultlanguage{russian}
+\setotherlanguage{english}
+\newfontfamily\cyrillicfont{Times New Roman}
+\newfontfamily\cyrillicfonttt{Courier New}
+
+% ---------- Math / tables / graphics ----------
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{caption}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,calc}
+
+\renewcommand{\figurename}{Рисунок}
+\renewcommand{\tablename}{Таблица}
+\captionsetup{labelsep=endash,justification=centering}
+
+% ---------- Hyperlinks ----------
+\usepackage[hidelinks]{hyperref}
+\usepackage{xurl}
+\urlstyle{tt}
+\DeclareRobustCommand{\code}[1]{\nolinkurl{#1}}
+
+% Better line breaking
+\pretolerance=1000
+\tolerance=2000
+\setlength{\emergencystretch}{2em}
+\hbadness=10000
+
+% ---------- Listings ----------
+\usepackage{xcolor}
+\usepackage{listings}
+\renewcommand{\lstlistingname}{Листинг}
+\lstset{
+  basicstyle=\fontsize{10}{12}\ttfamily,
+  keywordstyle=\bfseries,
+  commentstyle=\itshape,
+  stringstyle=\itshape,
+  numbers=left,
+  numberstyle=\tiny,
+  stepnumber=1,
+  numbersep=8pt,
+  tabsize=2,
+  breaklines=true,
+  breakatwhitespace=false,
+  showstringspaces=false,
+  frame=single,
+  rulecolor=\color{black},
+  xleftmargin=12pt,
+  framexleftmargin=12pt
+}
+
+\lstdefinelanguage{cmake}{
+  morekeywords={cmake_minimum_required,project,set,add_library,add_executable,target_link_libraries,target_compile_definitions,option,if,elseif,else,endif,find_package,include,FetchContent_Declare,FetchContent_MakeAvailable,add_subdirectory},
+  sensitive=true,
+  morecomment=[l]{\#},
+  morestring=[b]"
+}
+\lstdefinelanguage{json}{
+  morestring=[b]",
+  showstringspaces=false,
+  morecomment=[l]{//}
+}
+
+\begin{document}
+
+\pagenumbering{gobble}
+\begin{titlepage}
+\begin{center}
+\large
+САНКТ-ПЕТЕРБУРГСКИЙ НАЦИОНАЛЬНЫЙ\\
+ИССЛЕДОВАТЕЛЬСКИЙ УНИВЕРСИТЕТ\\
+ИНФОРМАЦИОННЫХ ТЕХНОЛОГИЙ, МЕХАНИКИ И ОПТИКИ\\
+
+\vfill
+\textbf{ОТЧЁТ}\par
+по дисциплине \textbf{«Архитектура игровых движков»}\\[2mm]
+\textbf{«Интеграция физики и системы ввода с визуальной отладкой»}\\[10mm]
+
+\vfill
+\begin{flushright}
+\begin{tabular}{@{}l@{\quad}l@{}}
+Студент: & Тереховский Арсений Дмитриевич\\
+Группа: & J3300\\
+\end{tabular}
+\end{flushright}
+
+\vfill
+Санкт-Петербург\\
+2026\,г.
+\end{center}
+\end{titlepage}
+
+\newpage
+\pagenumbering{arabic}
+\setcounter{page}{2}
+\tableofcontents
+\newpage
+
+\section{Введение}
+Практическое занятие №4 посвящено интеграции физической подсистемы и системы ввода в существующий каркас игрового движка, построенный в предыдущих работах. В рамках задания необходимо было расширить ECS-архитектуру компонентами физики, реализовать обновление тел под действием гравитации, добавить обработку коллизий, систему событий столкновений, визуальную отладку коллайдеров и управление 3D-камерой.
+
+В актуальной версии \textit{TurboGameEngine} эта задача решена на базе модулей \code{engine/ecs}, \code{engine/platform}, \code{engine/game} и \code{engine/renderer}. Рендеринг выполняется через \texttt{RenderAdapter} и backend на \texttt{Diligent Engine}, физическая симуляция работает поверх ECS-компонент \texttt{Transform}/\texttt{Rigidbody}/\texttt{Collider}, а пользовательский ввод обрабатывается через \texttt{platform::InputManager} и контроллер свободной камеры.
+
+\section{Постановка задачи}
+\subsection{Цель и задачи}
+Согласно выданному заданию, необходимо:
+\begin{enumerate}
+  \item разработать компоненты \texttt{Rigidbody} и \texttt{Collider} с поддержкой AABB и сферы;
+  \item реализовать \texttt{PhysicsSystem}, выполняющую применение гравитации, интегрирование движения, детектирование и разрешение коллизий;
+  \item создать \texttt{InputManager} для унифицированной работы с клавиатурой и мышью;
+  \item добавить систему событий столкновений;
+  \item обеспечить debug-отрисовку коллайдеров через \texttt{RenderAdapter};
+  \item реализовать управление 3D-камерой с помощью ввода;
+  \item продемонстрировать работу физики и ввода на 3D-сцене.
+\end{enumerate}
+
+\subsection{Что реализовано в текущем проекте}
+Минимальные требования задания не только выполнены, но и расширены:
+\begin{itemize}
+  \item помимо AABB-AABB реализованы пересечения \texttt{Sphere-Sphere} и \texttt{AABB-Sphere};
+  \item система разрешения столкновений использует не только position correction, но и импульсную модель с трением и коэффициентом восстановления;
+  \item добавлены sleeping тел и grid broadphase для снижения количества пар коллизий;
+  \item debug-визуализация поддерживает как AABB, так и сферические коллайдеры;
+  \item демо-сцена содержит управляемую камеру, динамические кубы, пирамиды и шары.
+\end{itemize}
+
+\section{Архитектура решения}
+\subsection{Место подсистем физики и ввода в движке}
+Физика и ввод встроены в уже существующий игровой цикл следующим образом: \texttt{Application} принимает платформенные события, передаёт их в \texttt{InputManager} и рендерер, затем активное состояние \texttt{GameplayState} использует накопленное состояние ввода для управления камерой и запуском демонстрации. На каждом шаге обновления вызывается \texttt{PhysicsSystem}, а затем сцена отрисовывается обычной \texttt{RenderSystem} и, при необходимости, \texttt{DebugRenderSystem}.
+
+\begin{figure}[H]
+\centering
+\resizebox{\linewidth}{!}{%
+\begin{tikzpicture}[
+  node distance=10mm and 10mm,
+  box/.style={draw, rounded corners=2pt, align=center, minimum height=10mm, text width=37mm},
+  wide/.style={draw, rounded corners=2pt, align=center, minimum height=10mm, text width=46mm},
+  arr/.style={-Latex, thick}
+]
+\node[wide] (app) {\textbf{Application}\\poll events / state stack / frame loop};
+\node[box, below left=12mm and 2mm of app] (input) {\textbf{InputManager}\\клавиатура, мышь, scroll, capture};
+\node[box, below right=12mm and 2mm of app] (state) {\textbf{GameplayState}\\камера, запуск сцены, ImGui};
+
+\node[box, below=12mm of state, xshift=-24mm] (physics) {\textbf{PhysicsSystem}\\gravity, collision, impulses};
+\node[box, right=10mm of physics] (events) {\textbf{EventBus}\\CollisionEnter/Stay/Exit};
+\node[box, below=12mm of physics] (render) {\textbf{RenderSystem}\\основная отрисовка};
+\node[box, right=10mm of render] (debug) {\textbf{DebugRenderSystem}\\AABB / sphere rings};
+\node[wide, below=12mm of debug, xshift=-22mm] (adapter) {\textbf{RenderAdapter / Renderer}\\drawMesh, drawDebugAabb, Diligent backend};
+
+\draw[arr] (app) -- (input);
+\draw[arr] (app) -- (state);
+\draw[arr] (state) -- (physics);
+\draw[arr] (physics) -- (events);
+\draw[arr] (state) |- (render);
+\draw[arr] (state) |- (debug);
+\draw[arr] (render) -- (adapter);
+\draw[arr] (debug) -- (adapter);
+\draw[arr] (input.east) -| (state.west);
+\end{tikzpicture}
+}
+\caption{Поток данных между подсистемами ввода, физики и рендера}
+\label{fig:pz4-arch}
+\end{figure}
+
+\subsection{Диаграмма ключевых компонентов и систем}
+На уровне ECS данные представлены простыми компонентами, а логика сосредоточена в системах. В текущей работе центральными элементами стали \texttt{Rigidbody}, \texttt{Collider}, \texttt{PhysicsSystem}, \texttt{DebugRenderSystem} и \texttt{FreeCameraController}.
+
+\begin{figure}[H]
+\centering
+\resizebox{\linewidth}{!}{%
+\begin{tikzpicture}[
+  node distance=10mm and 12mm,
+  cls/.style={draw, rounded corners=2pt, align=left, minimum height=12mm, text width=46mm},
+  rel/.style={-Latex, thick}
+]
+\node[cls] (tr) {\textbf{Transform}\\position\\rotationEulerRadians\\scale};
+\node[cls, right=of tr] (rb) {\textbf{Rigidbody}\\velocity, acceleration\\mass, inverseMass\\damping, restitution, friction\\sleeping flags};
+\node[cls, right=of rb] (col) {\textbf{Collider}\\type: AABB / Sphere\\offset\\halfExtents / radius};
+
+\node[cls, below=of tr] (cam) {\textbf{Camera}\\FOV, near/far plane\\active flag};
+\node[cls, below=of rb] (phys) {\textbf{PhysicsSystem}\\integrateBody()\\buildBroadphasePairs()\\resolveCollision()\\event dispatch};
+\node[cls, below=of col] (dbg) {\textbf{DebugRenderSystem}\\draw AABB\\draw sphere rings};
+
+\node[cls, below=of phys] (inp) {\textbf{InputManager}\\raw/captured states\\mouse delta\\scroll delta};
+\node[cls, left=of inp] (fcc) {\textbf{FreeCameraController}\\mouse look\\WASDQE fly movement};
+\node[cls, right=of inp] (eb) {\textbf{EventBus}\\CollisionEnter\\CollisionStay\\CollisionExit};
+
+\draw[rel] (rb) -- (phys);
+\draw[rel] (col) -- (phys);
+\draw[rel] (tr) -- (phys);
+\draw[rel] (col) -- (dbg);
+\draw[rel] (tr) -- (dbg);
+\draw[rel] (inp) -- (fcc);
+\draw[rel] (cam) -- (fcc);
+\draw[rel] (phys) -- (eb);
+\end{tikzpicture}
+}
+\caption{Ключевые компоненты и системы ПЗ4}
+\label{fig:pz4-class}
+\end{figure}
+
+\section{Реализация ключевых модулей}
+\subsection{Компоненты Rigidbody и Collider}
+Физические свойства объекта собраны в компоненте \texttt{Rigidbody}. В отличие от минимального варианта из методички, текущая реализация содержит не только линейную скорость и массу, но и угловую скорость, накопленные силы, демпфирование, коэффициенты трения и восстановления, а также поддержку ``засыпания'' тел. Компонент \texttt{Collider} поддерживает два типа коллайдеров --- \texttt{Aabb} и \texttt{Sphere}.
+
+\begin{lstlisting}[language=C++,caption={Компоненты \code{Rigidbody} и \code{Collider}}]
+struct Rigidbody final {
+    glm::vec3 velocity{0.0F};
+    glm::vec3 acceleration{0.0F};
+    glm::vec3 accumulatedForce{0.0F};
+    glm::vec3 angularVelocity{0.0F};
+    glm::vec3 accumulatedTorque{0.0F};
+    float mass{1.0F};
+    float inverseMass{1.0F};
+    float linearDamping{0.08F};
+    float angularDamping{0.6F};
+    float restitution{0.06F};
+    float friction{0.7F};
+    float sleepTimer{0.0F};
+    bool useGravity{true};
+    bool isStatic{false};
+    bool isKinematic{false};
+    bool canSleep{true};
+    bool isSleeping{false};
+};
+
+enum class ColliderType : std::uint8_t {
+    Aabb = 0,
+    Sphere
+};
+
+struct Collider final {
+    ColliderType type{ColliderType::Aabb};
+    glm::vec3 offset{0.0F};
+    AabbCollider aabb{};
+    SphereCollider sphere{};
+    bool enabled{true};
+};
+\end{lstlisting}
+
+\subsection{Преобразование коллайдера в мировое пространство}
+Поскольку ECS хранит коллайдер в локальных координатах сущности, перед детекцией столкновений необходимо получить мировой объём. Для AABB используется абсолютная матрица поворота-масштаба, чтобы получить world-space half-extents; для сферы берётся максимальный масштаб по осям.
+
+\begin{lstlisting}[language=C++,caption={Перевод локального \code{Collider} в мировой объём}]
+bool computeWorldColliderShape(
+    const World& world,
+    const EntityId entity,
+    const Collider& collider,
+    WorldColliderShape& outShape) {
+    const glm::mat4 worldMatrix = computeWorldMatrix(world, entity);
+    const glm::vec3 worldCenter = transformPoint(worldMatrix, collider.offset);
+
+    switch (collider.type) {
+        case ColliderType::Aabb: {
+            const glm::mat3 absBasis = absoluteRotationScale(worldMatrix);
+            const glm::vec3 worldHalfExtents = absBasis * collider.aabb.halfExtents;
+            outShape.aabb.min = worldCenter - worldHalfExtents;
+            outShape.aabb.max = worldCenter + worldHalfExtents;
+            return true;
+        }
+        case ColliderType::Sphere: {
+            const glm::vec3 worldScale = extractWorldScale(worldMatrix);
+            const float scale = std::max(worldScale.x, std::max(worldScale.y, worldScale.z));
+            outShape.sphere.center = worldCenter;
+            outShape.sphere.radius = collider.sphere.radius * scale;
+            return outShape.sphere.radius > 0.0F;
+        }
+    }
+
+    return false;
+}
+\end{lstlisting}
+
+\subsection{Обнаружение коллизий}
+Задание требовало минимум AABB-AABB, однако в проекте были добавлены также \texttt{Sphere-Sphere} и \texttt{AABB-Sphere}. Для коробок используется классическая проверка overlap по осям с вычислением минимальной глубины проникновения и нормали разделения.
+
+\begin{lstlisting}[language=C++,caption={Проверка пересечения двух мировых AABB}]
+bool intersectAabbAabb(
+    EntityId entityA,
+    const WorldAabb& aabbA,
+    EntityId entityB,
+    const WorldAabb& aabbB,
+    CollisionContact& outContact) {
+    const glm::vec3 overlap = glm::min(aabbA.max, aabbB.max) -
+                              glm::max(aabbA.min, aabbB.min);
+    if (overlap.x <= 0.0F || overlap.y <= 0.0F || overlap.z <= 0.0F) {
+        return false;
+    }
+
+    const glm::vec3 centerDelta = aabbB.center() - aabbA.center();
+    outContact = CollisionContact{};
+    outContact.entityA = entityA;
+    outContact.entityB = entityB;
+    outContact.contactPoint =
+        (glm::max(aabbA.min, aabbB.min) + glm::min(aabbA.max, aabbB.max)) * 0.5F;
+
+    if (overlap.x <= overlap.y && overlap.x <= overlap.z) {
+        outContact.penetrationDepth = overlap.x;
+        outContact.normal = glm::vec3(centerDelta.x < 0.0F ? -1.0F : 1.0F, 0.0F, 0.0F);
+        return true;
+    }
+    if (overlap.y <= overlap.z) {
+        outContact.penetrationDepth = overlap.y;
+        outContact.normal = glm::vec3(0.0F, centerDelta.y < 0.0F ? -1.0F : 1.0F, 0.0F);
+        return true;
+    }
+
+    outContact.penetrationDepth = overlap.z;
+    outContact.normal = glm::vec3(0.0F, 0.0F, centerDelta.z < 0.0F ? -1.0F : 1.0F);
+    return true;
+}
+\end{lstlisting}
+
+Такой контакт затем передаётся в фазу разрешения столкновения. Наличие \texttt{contactPoint}, \texttt{normal} и \texttt{penetrationDepth} позволило перейти от простого отталкивания к более реалистичному импульсному отклику.
+
+\subsection{Интегрирование движения и гравитации}
+Физический шаг начинается с интегрирования динамических тел. Если для тела включён флаг \texttt{useGravity}, к ускорению добавляется постоянный вектор \texttt{gravity}. После этого обновляется линейная и угловая скорость, применяется демпфирование, ограничение максимальной скорости и изменение трансформации.
+
+\begin{lstlisting}[language=C++,caption={Интегрирование тела с учётом гравитации и демпфирования}]
+void integrateBody(
+    Transform& transform,
+    Rigidbody& rigidbody,
+    const Collider* collider,
+    const PhysicsSystem::Settings& settings,
+    const float dtSeconds) {
+    if (rigidbody.isStatic || rigidbody.isKinematic || rigidbody.inverseMass <= 0.0F) {
+        rigidbody.accumulatedForce = glm::vec3(0.0F);
+        rigidbody.accumulatedTorque = glm::vec3(0.0F);
+        rigidbody.velocity = glm::vec3(0.0F);
+        rigidbody.angularVelocity = glm::vec3(0.0F);
+        return;
+    }
+
+    glm::vec3 totalAcceleration = rigidbody.acceleration;
+    if (rigidbody.useGravity) {
+        totalAcceleration += settings.gravity;
+    }
+    totalAcceleration += rigidbody.accumulatedForce * rigidbody.inverseMass;
+
+    rigidbody.velocity += totalAcceleration * dtSeconds;
+    rigidbody.velocity *= 1.0F / (1.0F + rigidbody.linearDamping * dtSeconds);
+
+    const glm::mat3 inverseInertia =
+        worldInverseInertiaTensor(transform, collider, rigidbody);
+    rigidbody.angularVelocity += inverseInertia * rigidbody.accumulatedTorque * dtSeconds;
+    rigidbody.angularVelocity *= 1.0F / (1.0F + rigidbody.angularDamping * dtSeconds);
+
+    transform.position += rigidbody.velocity * dtSeconds;
+    transform.rotationEulerRadians += rigidbody.angularVelocity * dtSeconds;
+    rigidbody.accumulatedForce = glm::vec3(0.0F);
+    rigidbody.accumulatedTorque = glm::vec3(0.0F);
+}
+\end{lstlisting}
+
+По сравнению с минимальной схемой из методички здесь дополнительно учитываются угловая динамика, мировая матрица инерции и стабилизация численно неустойчивых значений.
+
+\subsection{Разрешение столкновений}
+После построения потенциальных пар \texttt{PhysicsSystem} выполняет несколько solver-итераций. Для каждого контакта сначала проводится мягкая position correction, затем вычисляется нормальный импульс с учётом массы и коэффициента восстановления, а после этого --- тангенциальный импульс трения.
+
+\begin{lstlisting}[language=C++,caption={Разрешение столкновения: correction + impulse + friction}]
+void resolveCollision(BodyProxy& bodyA, BodyProxy& bodyB, const CollisionContact& contact) {
+    constexpr float kPenetrationSlop = 0.01F;
+    constexpr float kCorrectionPercent = 0.34F;
+    constexpr float kBounceSpeedThreshold = 1.15F;
+
+    const float inverseMassA = effectiveInverseMass(bodyA.rigidbody);
+    const float inverseMassB = effectiveInverseMass(bodyB.rigidbody);
+    const float inverseMassSum = inverseMassA + inverseMassB;
+
+    if (inverseMassSum > 0.0F) {
+        const float correctionDepth =
+            std::max(contact.penetrationDepth - kPenetrationSlop, 0.0F);
+        const glm::vec3 correction = contact.normal *
+                                     (correctionDepth * kCorrectionPercent);
+        if (bodyA.transform != nullptr && inverseMassA > 0.0F) {
+            bodyA.transform->position -= correction * (inverseMassA / inverseMassSum);
+        }
+        if (bodyB.transform != nullptr && inverseMassB > 0.0F) {
+            bodyB.transform->position += correction * (inverseMassB / inverseMassSum);
+        }
+    }
+
+    const glm::vec3 relativeVelocity =
+        velocityAtPoint(bodyB, contact.contactPoint) -
+        velocityAtPoint(bodyA, contact.contactPoint);
+    const float closingSpeed = glm::dot(relativeVelocity, contact.normal);
+    if (closingSpeed >= 0.0F) {
+        return;
+    }
+
+    float restitution = 0.5F * (bodyA.rigidbody->restitution + bodyB.rigidbody->restitution);
+    if (-closingSpeed < kBounceSpeedThreshold) {
+        restitution = 0.0F;
+    }
+    ...
+}
+\end{lstlisting}
+
+Это решение выглядит сложнее, чем ``простейшее отталкивание'' из задания, но даёт заметно более правдоподобное поведение объектов: различающуюся реакцию лёгких и тяжёлых тел, вращение при смещённом ударе и катание сфер по поверхности.
+
+\subsection{Broadphase, sleeping и публикация событий}
+Для предотвращения полного перебора всех пар на сцене используется простое пространственное разбиение по трёхмерной сетке (\texttt{broadphaseCellSize}). После расчёта коллизий система сравнивает текущий набор контактов с предыдущим кадром и публикует события \texttt{CollisionEnter}, \texttt{CollisionStay} и \texttt{CollisionExit} в общий \texttt{EventBus}.
+
+\begin{lstlisting}[language=C++,caption={Обновление \code{PhysicsSystem}: broadphase, solver, события}]
+void PhysicsSystem::update(World& world, const double dt, core::EventBus& eventBus) {
+    world.forEach<Transform, Rigidbody>([&](EntityId entity, Transform& transform, Rigidbody& rigidbody) {
+        integrateBody(transform, rigidbody, world.getComponent<Collider>(entity), m_settings, dtSeconds);
+    });
+
+    std::vector<BodyProxy> bodies;
+    world.forEach<Transform, Collider>([&](EntityId entity, Transform& transform, Collider& collider) {
+        BodyProxy proxy{};
+        proxy.entity = entity;
+        proxy.transform = &transform;
+        proxy.rigidbody = world.getComponent<Rigidbody>(entity);
+        proxy.collider = &collider;
+        if (!computeWorldColliderShape(world, entity, collider, proxy.worldShape)) {
+            return;
+        }
+        proxy.worldBounds = computeWorldBounds(proxy.worldShape);
+        bodies.push_back(proxy);
+    });
+
+    const std::vector<PotentialPair> potentialPairs =
+        buildBroadphasePairs(bodies, m_settings.broadphaseCellSize);
+
+    for (std::size_t iteration = 0; iteration < m_settings.solverIterations; ++iteration) {
+        for (const PotentialPair& potentialPair : potentialPairs) {
+            CollisionContact contact{};
+            if (!intersectColliders(..., contact)) {
+                continue;
+            }
+            resolveCollision(bodyA, bodyB, contact);
+        }
+    }
+
+    for (const auto& [pair, contact] : frameContacts) {
+        if (m_activeContacts.find(pair) == m_activeContacts.end()) {
+            eventBus.publish(CollisionEnterEvent{contact});
+        } else {
+            eventBus.publish(CollisionStayEvent{contact});
+        }
+    }
+}
+\end{lstlisting}
+
+В сравнении с минимальным вариантом задания добавление broadphase и sleeping позволило значительно уменьшить просадки FPS при массовом спавне объектов в демонстрационной сцене.
+
+\subsection{Система событий столкновений}
+Событийная подсистема реализована как лёгкий \texttt{EventBus} поверх \texttt{std::function} и \texttt{type\_index}. Такой подход хорошо подходит учебному движку: он не требует сложной иерархии сообщений, но даёт типобезопасную подписку и публикацию.
+
+\begin{lstlisting}[language=C++,caption={Структуры событий и шаблонный \code{EventBus}}]
+struct CollisionEnterEvent final { CollisionContact contact; };
+struct CollisionStayEvent final  { CollisionContact contact; };
+struct CollisionExitEvent final  { CollisionContact contact; };
+
+template <class T, class Func>
+void EventBus::subscribe(Func&& handler) {
+    auto typedHandler = std::function<void(const T&)>(std::forward<Func>(handler));
+    m_handlers[typeid(T)].emplace_back(
+        [wrapped = std::move(typedHandler)](const void* rawEvent) {
+            wrapped(*static_cast<const T*>(rawEvent));
+        });
+}
+
+template <class T>
+void EventBus::publish(const T& event) const {
+    const auto it = m_handlers.find(typeid(T));
+    if (it == m_handlers.end()) {
+        return;
+    }
+    for (const auto& handler : it->second) {
+        handler(&event);
+    }
+}
+\end{lstlisting}
+
+В \texttt{GameplayState} эти события используются для обновления счётчиков столкновений и вывода отладочного текста в ImGui-панель.
+
+\subsection{InputManager и управление камерой}
+Ввод вынесен в \texttt{platform::InputManager}. Он хранит текущее и предыдущее состояние клавиш/кнопок, дельту мыши, прокрутку колеса и флаги захвата ввода интерфейсом. Дополнительно предусмотрены ``raw'' методы, игнорирующие ImGui-capture, что было важно для возврата управления камерой без лишнего клика по окну.
+
+\begin{lstlisting}[language=C++,caption={Обновление \code{InputManager} по событиям окна}]
+void InputManager::onEvent(const Event& event) {
+    switch (event.type) {
+        case EventType::KeyPressed:
+            s_currentKeyStates[static_cast<std::size_t>(event.key)] = true;
+            break;
+        case EventType::KeyReleased:
+            s_currentKeyStates[static_cast<std::size_t>(event.key)] = false;
+            break;
+        case EventType::MouseButtonPressed:
+            s_currentMouseStates[static_cast<std::size_t>(event.mouseButton)] = true;
+            break;
+        case EventType::MouseButtonReleased:
+            s_currentMouseStates[static_cast<std::size_t>(event.mouseButton)] = false;
+            break;
+        case EventType::MouseMoved:
+            s_mouseDeltaX += event.mouseX - s_mouseX;
+            s_mouseDeltaY += event.mouseY - s_mouseY;
+            s_mouseX = event.mouseX;
+            s_mouseY = event.mouseY;
+            break;
+        case EventType::MouseScrolled:
+            s_scrollDeltaX += event.scrollX;
+            s_scrollDeltaY += event.scrollY;
+            break;
+        default:
+            break;
+    }
+}
+\end{lstlisting}
+
+Поверх \texttt{InputManager} реализован \texttt{FreeCameraController}, работающий в стиле fly-camera: мышь вращает камеру при удержании правой кнопки, клавиши \texttt{WASDQE} двигают её в пространстве, а \texttt{Shift} ускоряет полёт.
+
+\begin{lstlisting}[language=C++,caption={Обновление свободной камеры}]
+void FreeCameraController::update(
+    Transform& transform,
+    double dt,
+    bool flyModeActive,
+    bool mouseLookActive) {
+    if (mouseLookActive) {
+        const auto [deltaX, deltaY] = platform::InputManager::mouseDeltaRaw();
+        transform.rotationEulerRadians.y += static_cast<float>(deltaX) * m_settings.mouseSensitivity;
+        transform.rotationEulerRadians.x -= static_cast<float>(deltaY) * m_settings.mouseSensitivity;
+        transform.rotationEulerRadians.x = std::clamp(
+            transform.rotationEulerRadians.x,
+            -m_settings.pitchLimitRadians,
+            m_settings.pitchLimitRadians);
+    }
+
+    const float yaw = transform.rotationEulerRadians.y;
+    const glm::vec3 forward(std::sin(yaw), 0.0F, std::cos(yaw));
+    const glm::vec3 worldUp(0.0F, 1.0F, 0.0F);
+    const glm::vec3 right = glm::normalize(glm::cross(forward, worldUp));
+
+    glm::vec3 movement(0.0F);
+    if (platform::InputManager::isKeyDownRaw(platform::KeyCode::W)) movement += forward;
+    if (platform::InputManager::isKeyDownRaw(platform::KeyCode::S)) movement -= forward;
+    if (platform::InputManager::isKeyDownRaw(platform::KeyCode::A)) movement -= right;
+    if (platform::InputManager::isKeyDownRaw(platform::KeyCode::D)) movement += right;
+    if (platform::InputManager::isKeyDownRaw(platform::KeyCode::E)) movement += worldUp;
+    if (platform::InputManager::isKeyDownRaw(platform::KeyCode::Q)) movement -= worldUp;
+    ...
+}
+\end{lstlisting}
+
+Особый момент интеграции с интерфейсом: в \texttt{Application::onEvent()} добавлен \texttt{gameplayLookOverride}, благодаря которому удержание правой кнопки мыши снова передаёт управление gameplay даже после взаимодействия с ImGui.
+
+\subsection{Debug-визуализация коллайдеров}
+Для AABB используется отрисовка каркаса через \texttt{Renderer::drawDebugAabb()}, а для сфер --- три кольца по осям. Это решение оказалось визуально чище, чем полупрозрачная заливка или второй solid mesh поверх сферы.
+
+\begin{lstlisting}[language=C++,caption={DebugRenderSystem для AABB и сферических коллайдеров}]
+void DebugRenderSystem::render(
+    World& world,
+    renderer::RenderAdapter& renderer,
+    const glm::mat4& viewProjectionMatrix) {
+    world.forEach<Transform, Collider>([&](EntityId entity, Transform& transform, Collider& collider) {
+        WorldColliderShape worldShape{};
+        if (!computeWorldColliderShape(world, entity, collider, worldShape)) {
+            return;
+        }
+
+        const WorldAabb bounds = computeWorldBounds(worldShape);
+        const auto* rigidbody = world.getComponent<Rigidbody>(entity);
+        const glm::vec4 color =
+            (rigidbody != nullptr && rigidbody->isDynamic())
+                ? glm::vec4(0.25F, 0.95F, 0.45F, 1.0F)
+                : glm::vec4(0.95F, 0.7F, 0.2F, 1.0F);
+
+        if (worldShape.type == ColliderType::Sphere) {
+            drawDebugSphereRings(renderer, worldShape.sphere, viewProjectionMatrix, color);
+            return;
+        }
+
+        renderer.drawDebugAabb(bounds.min, bounds.max, viewProjectionMatrix, color);
+    });
+}
+\end{lstlisting}
+
+В актуальной версии движка переключение режима отладочной визуализации привязано к клавише \texttt{F1}, а не к \texttt{F3}. Это решение отражено и в ImGui-панели, и в логике \texttt{GameplayState}.
+
+\subsection{Демонстрационная сцена и отладочный UI}
+Для проверки работы всех подсистем создана отдельная crash-sandbox сцена. Она включает пол, стены, колонны, ``ворота'' из кубов, ряд домино, заднюю пирамидальную группу, тяжёлый страйкер и отдельную сферу. Через ImGui можно запускать симуляцию, перезапускать сцену, спавнить каскад объектов, менять гравитацию, число solver-итераций и размер broadphase-сетки.
+
+\begin{lstlisting}[language=C++,caption={Ключевые элементы \code{GameplayState::renderUi()}}]
+ImGui::TextUnformatted("Interactive crash sandbox");
+ImGui::TextUnformatted("Hold RMB + WASDQE for UE-style fly camera");
+ImGui::TextUnformatted("Mouse wheel changes speed, Shift boosts movement, Space launches striker");
+ImGui::TextUnformatted("F1 toggles collider debug. Scene stays posed until physics starts.");
+
+if (!m_simulationRunning) {
+    if (ImGui::Button("Start Physics")) {
+        startSimulation();
+    }
+} else if (ImGui::Button("Pause Physics")) {
+    pauseSimulation();
+}
+if (ImGui::Button("Reset Scene")) {
+    resetDemoScene();
+}
+if (ImGui::Button("Launch Striker")) {
+    launchStriker();
+}
+if (ImGui::Button("Drop Wave")) {
+    spawnDropWave();
+}
+
+ImGui::Text("Bodies / sleeping / broadphase pairs: %zu / %zu / %zu",
+    m_physicsSystem.bodyCount(),
+    m_physicsSystem.sleepingBodyCount(),
+    m_physicsSystem.broadphasePairCount());
+\end{lstlisting}
+
+Именно эта сцена использовалась как основной стенд для экспериментальной проверки устойчивости физики, качества управления камерой и визуальной отладки.
+
+\subsection{Автоматические тесты}
+Помимо ручной проверки в приложении, для физики добавлен отдельный тестовый таргет \texttt{engine\_physics\_tests}. Он проверяет посадку коробки на пол, зависимость разлёта от массы, появление угловой скорости при смещённом ударе и корректное качение сферы.
+
+\begin{lstlisting}[language=C++,caption={Тест качения сферы по полу}]
+bool runSphereRollingTest() {
+    engine::ecs::World world;
+    engine::core::EventBus eventBus;
+    engine::ecs::PhysicsSystem physics;
+
+    const auto floor = spawnBox(world, glm::vec3(0.0F, -0.5F, 0.0F),
+                                glm::vec3(14.0F, 1.0F, 14.0F), true, 1.0F);
+    const auto sphere = spawnSphere(world, glm::vec3(-2.0F, 0.52F, 0.0F),
+                                    1.0F, false, 1.2F);
+    (void)floor;
+
+    auto* sphereBody = world.getComponent<engine::ecs::Rigidbody>(sphere);
+    auto* sphereTransform = world.getComponent<engine::ecs::Transform>(sphere);
+    sphereBody->velocity = glm::vec3(4.0F, 0.0F, 0.0F);
+
+    for (int step = 0; step < 180; ++step) {
+        physics.update(world, 1.0 / 60.0, eventBus);
+    }
+
+    return sphereTransform->position.x > 1.0F &&
+           std::abs(sphereTransform->position.y - 0.5F) < 0.12F &&
+           std::abs(sphereBody->angularVelocity.z) > 0.2F;
+}
+\end{lstlisting}
+
+\section{Результаты}
+\subsection{Функциональный результат}
+В результате выполнения работы движок демонстрирует:
+\begin{itemize}
+  \item работу компонентов \texttt{Rigidbody} и \texttt{Collider} внутри ECS;
+  \item применение гравитации и интегрирование линейного/углового движения;
+  \item обнаружение столкновений для AABB и сфер;
+  \item разрешение коллизий с учётом массы, восстановления и трения;
+  \item публикацию событий \texttt{CollisionEnter}, \texttt{CollisionStay}, \texttt{CollisionExit};
+  \item свободную 3D-камеру с управлением мышью и клавиатурой;
+  \item debug-отрисовку коллайдеров;
+  \item оптимизацию столкновений через broadphase grid и sleeping;
+  \item отдельные автоматические тесты физической подсистемы.
+\end{itemize}
+
+\subsection{Сопоставление с требованиями задания}
+\begin{table}[H]
+\centering
+\begin{tabular}{p{0.47\linewidth} p{0.43\linewidth}}
+\toprule
+\textbf{Требование задания} & \textbf{Реализация в проекте} \\
+\midrule
+\texttt{Rigidbody} и \texttt{Collider} & Реализованы, плюс угловая динамика, restitution, friction, sleeping \\
+\texttt{PhysicsSystem} с гравитацией и коллизиями & Реализована, расширена до импульсной модели и solver-итераций \\
+\texttt{InputManager} & Реализован в \code{engine/platform/Input.*}, поддерживает raw/captured input \\
+События столкновений & Реализованы через \texttt{EventBus} и события Enter/Stay/Exit \\
+Debug-отрисовка коллизий & Реализована для AABB и сферических коллайдеров \\
+Управление 3D-камерой & Реализовано через \texttt{FreeCameraController} и \texttt{GameplayState} \\
+Демо-сцена & Реализована crash-sandbox сцена с ImGui-параметрами и массовым спавном \\
+\bottomrule
+\end{tabular}
+\caption{Соответствие требованиям практического задания}
+\label{tab:requirements}
+\end{table}
+
+\subsection{Иллюстрации и проверка работоспособности}
+В репозитории отчёта не хранится фиксированный набор PNG-скриншотов для ПЗ4, поэтому в текстовой версии отчёта основной упор сделан на архитектуру, листинги и результаты автоматических тестов. При необходимости к печатной или финальной электронной версии можно добавить два актуальных скриншота:
+\begin{enumerate}
+  \item сцена в обычном режиме рендера;
+  \item сцена в режиме debug-отрисовки коллайдеров.
+\end{enumerate}
+
+С практической точки зрения работоспособность подтверждается следующими наблюдениями:
+\begin{itemize}
+  \item динамические тела падают на пол и больше не проникают сквозь него;
+  \item лёгкие объекты разлетаются сильнее тяжёлых;
+  \item смещённый удар создаёт угловую скорость;
+  \item сферы поддерживаются полом и катятся, накапливая вращение;
+  \item F1 корректно переключает визуализацию коллайдеров;
+  \item RMB + WASDQE обеспечивает стабильное управление камерой без дополнительного клика после ImGui.
+\end{itemize}
+
+\section{Возникшие трудности и способы их решения}
+\begin{itemize}
+  \item \textbf{Нестабильность простого отталкивания.} Базовый positional push выглядел неестественно и вызывал сильные разлёты. Решение --- добавить импульсную модель, трение, коэффициент восстановления и несколько solver-итераций.
+
+  \item \textbf{Просадки производительности при массовом спавне.} Полный перебор пар коллизий быстро становился узким местом. Решение --- broadphase grid, sleeping и бюджетированная очередь спавна в \texttt{GameplayState}.
+
+  \item \textbf{Конфликт ввода gameplay и ImGui.} После взаимодействия с UI приходилось повторно кликать по окну. Решение --- raw input path и \texttt{gameplayLookOverride} при удержании правой кнопки мыши.
+
+  \item \textbf{Наглядная визуализация сферических коллайдеров.} Сплошная отладочная сфера давала артефакты наложения. Решение --- отрисовка трёх тонких колец по осям.
+
+  \item \textbf{Корректное отображение катящейся сферы.} Ранний OBJ-меш сферы имел дефекты на полюсах. Решение --- переход на процедурную сферу в рендерере и синхронизация визуальной формы с коллайдером.
+\end{itemize}
+
+\section{Ответы на контрольные вопросы}
+\begin{enumerate}
+  \item \textbf{В чём разница между \texttt{OnCollision} и \texttt{OnTrigger} в контексте физики?}\\
+  \texttt{OnCollision} срабатывает при реальном физическом контакте, который влияет на позиции и скорости тел. \texttt{OnTrigger} обычно вызывается для ``проходного'' объёма: пересечение фиксируется, но импульсного разрешения и физического отталкивания не происходит.
+
+  \item \textbf{Почему для физики предпочтительнее фиксированный шаг обновления?}\\
+  Фиксированный шаг делает поведение симуляции стабильнее и предсказуемее. При переменном \textit{dt} скачки времени кадра могут приводить к нестабильным коллизиям, разной высоте прыжка и неповторяемым результатам симуляции.
+
+  \item \textbf{Как рассчитать силу гравитации, чтобы объекты падали с реалистичным ускорением?}\\
+  В упрощённой модели достаточно использовать постоянный вектор ускорения \(g = (0, -9.81, 0)\) м/с\(^2\) и каждый шаг обновлять скорость по формуле \(v = v + g \cdot dt\). Если нужна именно сила, то \(F = m \cdot g\).
+
+  \item \textbf{Какие существуют стратегии разрешения коллизий (\textit{position correction}, \textit{impulse-based})?}\\
+  \textit{Position correction} просто разводит пересёкшиеся тела по нормали контакта и удобна как минимальное решение. \textit{Impulse-based} дополнительно меняет скорости и вращение тел на основе массы, нормали контакта, восстановления и трения, поэтому даёт более правдоподобный результат.
+
+  \item \textbf{Как организовать маппинг действий (например, ``прыжок'') на разные клавиши?}\\
+  Обычно ввод делится на два слоя: низкоуровневый опрос устройств и уровень действий. На втором уровне действие \texttt{Jump} сопоставляется списку клавиш/кнопок, а геймплей код проверяет не конкретную клавишу, а действие. В текущем учебном проекте для простоты используется прямой опрос клавиш, но \texttt{InputManager} уже является хорошей базой для такого расширения.
+
+  \item \textbf{Для чего нужно пространственное разбиение при обнаружении коллизий?}\\
+  Оно уменьшает число потенциальных пар. Вместо проверки всех \(n(n-1)/2\) комбинаций движок сначала группирует объекты по ячейкам, а затем тестирует только локально близкие тела. Это критично при росте числа динамических объектов.
+
+  \item \textbf{Как преобразовать локальный AABB коллайдера в мировое пространство для отрисовки?}\\
+  Нужно взять мировую матрицу сущности, трансформировать центр коллайдера с учётом \texttt{offset}, затем вычислить мировые half-extents через абсолютную матрицу поворота-масштаба. После этого можно получить \texttt{min = center - extents} и \texttt{max = center + extents}.
+
+  \item \textbf{Какие недостатки имеет AABB по сравнению с OBB (Oriented Bounding Box)?}\\
+  AABB проста и быстра, но плохо описывает повернутые объекты: при вращении объём становится слишком большим и даёт ложные срабатывания. OBB точнее аппроксимирует ориентированные тела, но требует более сложной математики и дороже в вычислении.
+\end{enumerate}
+
+\section{Заключение}
+В ходе выполнения практической работы в движок была интегрирована полноценная подсистема базовой физики и современный слой обработки пользовательского ввода. На уровне ECS добавлены компоненты \texttt{Rigidbody}, \texttt{Collider} и \texttt{Camera}; реализована \texttt{PhysicsSystem}, выполняющая гравитацию, интегрирование движения, детектирование столкновений и их разрешение; создана визуальная отладка коллайдеров и свободная 3D-камера. Дополнительно проект был расширен поддержкой сферических коллайдеров, импульсной моделью отклика, broadphase-оптимизацией, sleeping тел и набором автоматических тестов. Полученная архитектура служит хорошей основой для следующих шагов развития движка: триггеров, более точных коллайдеров, constraint-системы и асинхронной физической симуляции.
+
+\subsection*{Репозиторий проекта на GitHub}
+\href{https://github.com/TurbikXD/TurboGameEngine}{https://github.com/TurbikXD/TurboGameEngine}.
+
+\end{document}

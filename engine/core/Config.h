@@ -18,7 +18,7 @@ struct EngineConfig final {
         "vk"
 #endif
     };
-    std::array<float, 4> clearColor{0.10F, 0.10F, 0.16F, 1.0F};
+    std::array<float, 4> clearColor{0.06F, 0.08F, 0.11F, 1.0F};
     std::string initialState{"menu"};
 };
 

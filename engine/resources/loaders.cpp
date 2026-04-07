@@ -1,18 +1,14 @@
 #include "engine/resources/loaders.h"
 
-#include <algorithm>
-#include <array>
 #include <cmath>
 #include <cstdint>
-#include <filesystem>
 #include <fstream>
 #include <string>
-#include <unordered_map>
 
+#include <assimp/Importer.hpp>
+#include <assimp/postprocess.h>
+#include <assimp/scene.h>
 #include <nlohmann/json.hpp>
-
-#define TINYOBJLOADER_IMPLEMENTATION
-#include <tiny_obj_loader.h>
 
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
@@ -22,42 +18,6 @@
 namespace engine::resources {
 
 namespace {
-
-struct VertexKey final {
-    int vertexIndex{-1};
-    int normalIndex{-1};
-    int texcoordIndex{-1};
-
-    [[nodiscard]] bool operator==(const VertexKey& other) const {
-        return vertexIndex == other.vertexIndex && normalIndex == other.normalIndex &&
-               texcoordIndex == other.texcoordIndex;
-    }
-};
-
-struct VertexKeyHash final {
-    std::size_t operator()(const VertexKey& key) const noexcept {
-        std::size_t seed = std::hash<int>{}(key.vertexIndex);
-        seed ^= std::hash<int>{}(key.normalIndex) + 0x9e3779b9 + (seed << 6U) + (seed >> 2U);
-        seed ^= std::hash<int>{}(key.texcoordIndex) + 0x9e3779b9 + (seed << 6U) + (seed >> 2U);
-        return seed;
-    }
-};
-
-glm::vec3 readVec3(const std::vector<float>& values, int index, glm::vec3 fallback) {
-    const std::size_t base = static_cast<std::size_t>(index) * 3U;
-    if (index < 0 || base + 2U >= values.size()) {
-        return fallback;
-    }
-    return glm::vec3(values[base], values[base + 1U], values[base + 2U]);
-}
-
-glm::vec2 readVec2(const std::vector<float>& values, int index, glm::vec2 fallback) {
-    const std::size_t base = static_cast<std::size_t>(index) * 2U;
-    if (index < 0 || base + 1U >= values.size()) {
-        return fallback;
-    }
-    return glm::vec2(values[base], values[base + 1U]);
-}
 
 void buildMissingNormals(MeshData& meshData) {
     if (meshData.indices.size() < 3U) {
@@ -95,38 +55,59 @@ void buildMissingNormals(MeshData& meshData) {
     }
 }
 
-} // namespace
-
-bool loadObjMeshData(const std::string& path, MeshData& outMeshData, std::string* errorMessage) {
-    tinyobj::attrib_t attrib;
-    std::vector<tinyobj::shape_t> shapes;
-    std::vector<tinyobj::material_t> materials;
-    std::string warnings;
-    std::string errors;
-
-    const auto parentPath = std::filesystem::path(path).parent_path();
-    const std::string materialBaseDir = parentPath.empty() ? std::string() : (parentPath.string() + "/");
-
-    const bool ok = tinyobj::LoadObj(
-        &attrib,
-        &shapes,
-        &materials,
-        &warnings,
-        &errors,
-        path.c_str(),
-        materialBaseDir.empty() ? nullptr : materialBaseDir.c_str(),
-        true);
-    (void)materials;
-
-    if (!warnings.empty()) {
-        if (errorMessage != nullptr) {
-            *errorMessage = warnings;
-        }
+void appendAssimpMesh(const aiMesh& sourceMesh, MeshData& outMeshData, bool& hasAnyNormals) {
+    if (sourceMesh.mVertices == nullptr || sourceMesh.mNumVertices == 0) {
+        return;
     }
 
-    if (!ok) {
+    const std::uint32_t baseVertex = static_cast<std::uint32_t>(outMeshData.vertices.size());
+    hasAnyNormals = hasAnyNormals || sourceMesh.HasNormals();
+
+    outMeshData.vertices.reserve(outMeshData.vertices.size() + sourceMesh.mNumVertices);
+    outMeshData.indices.reserve(outMeshData.indices.size() + static_cast<std::size_t>(sourceMesh.mNumFaces) * 3U);
+
+    for (unsigned int vertexIndex = 0; vertexIndex < sourceMesh.mNumVertices; ++vertexIndex) {
+        const aiVector3D& position = sourceMesh.mVertices[vertexIndex];
+        const aiVector3D normal =
+            sourceMesh.HasNormals() ? sourceMesh.mNormals[vertexIndex] : aiVector3D(0.0F, 0.0F, 1.0F);
+        const aiVector3D texCoord =
+            sourceMesh.HasTextureCoords(0) ? sourceMesh.mTextureCoords[0][vertexIndex] : aiVector3D(0.0F, 0.0F, 0.0F);
+
+        MeshVertex vertex{};
+        vertex.position = glm::vec3(position.x, position.y, position.z);
+        vertex.normal = glm::vec3(normal.x, normal.y, normal.z);
+        vertex.uv = glm::vec2(texCoord.x, texCoord.y);
+        outMeshData.vertices.push_back(vertex);
+    }
+
+    for (unsigned int faceIndex = 0; faceIndex < sourceMesh.mNumFaces; ++faceIndex) {
+        const aiFace& face = sourceMesh.mFaces[faceIndex];
+        if (face.mIndices == nullptr || face.mNumIndices != 3) {
+            continue;
+        }
+
+        outMeshData.indices.push_back(baseVertex + face.mIndices[0]);
+        outMeshData.indices.push_back(baseVertex + face.mIndices[1]);
+        outMeshData.indices.push_back(baseVertex + face.mIndices[2]);
+    }
+}
+
+} // namespace
+
+bool loadMeshData(const std::string& path, MeshData& outMeshData, std::string* errorMessage) {
+    Assimp::Importer importer;
+    constexpr unsigned int kImportFlags = aiProcess_Triangulate | aiProcess_JoinIdenticalVertices |
+                                          aiProcess_PreTransformVertices | aiProcess_GenSmoothNormals |
+                                          aiProcess_FlipUVs | aiProcess_SortByPType | aiProcess_ImproveCacheLocality |
+                                          aiProcess_FindInvalidData;
+
+    const aiScene* scene = importer.ReadFile(path, kImportFlags);
+    if (scene == nullptr || (scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE) != 0 || scene->mRootNode == nullptr) {
         if (errorMessage != nullptr) {
-            *errorMessage = errors.empty() ? "tinyobjloader failed to parse file" : errors;
+            const char* importerError = importer.GetErrorString();
+            *errorMessage = (importerError != nullptr && importerError[0] != '\0')
+                                ? importerError
+                                : "Assimp failed to parse mesh file";
         }
         return false;
     }
@@ -134,43 +115,38 @@ bool loadObjMeshData(const std::string& path, MeshData& outMeshData, std::string
     outMeshData.vertices.clear();
     outMeshData.indices.clear();
 
-    std::unordered_map<VertexKey, std::uint32_t, VertexKeyHash> vertexCache;
-    vertexCache.reserve(2048);
+    std::size_t totalVertexCount = 0;
+    std::size_t totalIndexCount = 0;
+    for (unsigned int meshIndex = 0; meshIndex < scene->mNumMeshes; ++meshIndex) {
+        const aiMesh* mesh = scene->mMeshes[meshIndex];
+        if (mesh == nullptr) {
+            continue;
+        }
+
+        totalVertexCount += mesh->mNumVertices;
+        for (unsigned int faceIndex = 0; faceIndex < mesh->mNumFaces; ++faceIndex) {
+            if (mesh->mFaces[faceIndex].mNumIndices == 3) {
+                totalIndexCount += 3U;
+            }
+        }
+    }
+
+    outMeshData.vertices.reserve(totalVertexCount);
+    outMeshData.indices.reserve(totalIndexCount);
 
     bool hasAnyNormals = false;
-    for (const auto& shape : shapes) {
-        for (const auto& index : shape.mesh.indices) {
-            VertexKey key{};
-            key.vertexIndex = index.vertex_index;
-            key.normalIndex = index.normal_index;
-            key.texcoordIndex = index.texcoord_index;
-
-            const auto cacheIt = vertexCache.find(key);
-            if (cacheIt != vertexCache.end()) {
-                outMeshData.indices.push_back(cacheIt->second);
-                continue;
-            }
-
-            MeshVertex vertex{};
-            vertex.position = readVec3(attrib.vertices, key.vertexIndex, glm::vec3(0.0F));
-            vertex.normal = readVec3(attrib.normals, key.normalIndex, glm::vec3(0.0F, 0.0F, 1.0F));
-            vertex.uv = readVec2(attrib.texcoords, key.texcoordIndex, glm::vec2(0.0F));
-            vertex.uv.y = 1.0F - vertex.uv.y;
-
-            if (key.normalIndex >= 0) {
-                hasAnyNormals = true;
-            }
-
-            const std::uint32_t newIndex = static_cast<std::uint32_t>(outMeshData.vertices.size());
-            outMeshData.vertices.push_back(vertex);
-            outMeshData.indices.push_back(newIndex);
-            vertexCache.emplace(key, newIndex);
+    for (unsigned int meshIndex = 0; meshIndex < scene->mNumMeshes; ++meshIndex) {
+        const aiMesh* mesh = scene->mMeshes[meshIndex];
+        if (mesh == nullptr) {
+            continue;
         }
+
+        appendAssimpMesh(*mesh, outMeshData, hasAnyNormals);
     }
 
     if (outMeshData.vertices.empty() || outMeshData.indices.empty()) {
         if (errorMessage != nullptr) {
-            *errorMessage = "OBJ mesh has no geometry";
+            *errorMessage = "Mesh file has no triangle geometry";
         }
         return false;
     }

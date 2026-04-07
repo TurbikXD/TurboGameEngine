@@ -4,6 +4,8 @@
 #include <string>
 
 #include <glm/mat4x4.hpp>
+#include <glm/vec2.hpp>
+#include <glm/vec3.hpp>
 #include <glm/vec4.hpp>
 
 #include "engine/ecs/components.h"
@@ -54,11 +56,37 @@ public:
     void drawMesh(
         const resources::Mesh& mesh,
         const resources::ShaderProgram& shader,
-        const resources::Texture& texture,
-        const glm::mat4& transformMatrix,
-        const glm::vec4& tint) {
+        const resources::Texture* texture,
+        const glm::mat4& modelMatrix,
+        const glm::mat4& viewProjectionMatrix,
+        const glm::vec4& tint,
+        const glm::vec2& uvScale = glm::vec2(1.0F, 1.0F)) {
         if (m_renderer != nullptr) {
-            m_renderer->drawMesh(mesh, shader, texture, transformMatrix, tint);
+            m_renderer->drawMesh(mesh, shader, texture, modelMatrix, viewProjectionMatrix, tint, uvScale);
+        }
+    }
+
+    void drawMesh(
+        const resources::Mesh& mesh,
+        const resources::ShaderProgram& shader,
+        const resources::Texture& texture,
+        const glm::mat4& modelMatrix,
+        const glm::mat4& viewProjectionMatrix,
+        const glm::vec4& tint,
+        const glm::vec2& uvScale = glm::vec2(1.0F, 1.0F)) {
+        if (m_renderer != nullptr) {
+            m_renderer->drawMesh(mesh, shader, texture, modelMatrix, viewProjectionMatrix, tint, uvScale);
+        }
+    }
+
+    void drawDebugAabb(
+        const glm::vec3& min,
+        const glm::vec3& max,
+        const glm::mat4& viewProjectionMatrix,
+        const glm::vec4& color,
+        const float lineThickness = 0.04F) {
+        if (m_renderer != nullptr) {
+            m_renderer->drawDebugAabb(min, max, viewProjectionMatrix, color, lineThickness);
         }
     }
 

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdint>
 #include <functional>
 #include <memory>
 #include <string>
@@ -14,6 +15,12 @@ struct WindowDesc final {
     std::string title{"TurboGameEngine"};
     bool useOpenGLContext{true};
     bool vsync{true};
+};
+
+enum class CursorMode : std::uint8_t {
+    Normal = 0,
+    Hidden,
+    Disabled
 };
 
 class Window {
@@ -34,6 +41,8 @@ public:
 
     virtual void setTitle(const std::string& title) = 0;
     virtual void setVSync(bool enabled) = 0;
+    virtual void setCursorMode(CursorMode mode) = 0;
+    [[nodiscard]] virtual CursorMode cursorMode() const = 0;
     virtual bool hasOpenGLContext() const = 0;
 
     virtual void setEventCallback(EventCallback callback) = 0;

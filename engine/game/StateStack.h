@@ -10,6 +10,10 @@ namespace engine::renderer {
 class Renderer;
 }
 
+namespace engine::platform {
+class Window;
+}
+
 namespace engine::game {
 
 class StateStack final {
@@ -24,6 +28,11 @@ public:
     void handleEvent(const platform::Event& event);
     void update(double dt);
     void render(renderer::Renderer& renderer);
+    void renderUi(renderer::Renderer& renderer);
+
+    void setWindow(platform::Window* window);
+    [[nodiscard]] platform::Window* window();
+    [[nodiscard]] const platform::Window* window() const;
 
     void applyPendingChanges();
     bool empty() const;
@@ -38,6 +47,7 @@ private:
 
     std::vector<std::unique_ptr<IGameState>> m_stack;
     std::vector<PendingChange> m_pending;
+    platform::Window* m_window{nullptr};
 };
 
 } // namespace engine::game

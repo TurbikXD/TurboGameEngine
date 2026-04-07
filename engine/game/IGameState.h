@@ -39,4 +39,10 @@ inline const StateStack& IGameState::stack() const {
     return m_stateStack;
 }
 
+class IGameStateUi {
+public:
+    virtual ~IGameStateUi() = default;
+    virtual void renderUi(renderer::Renderer& renderer) = 0;
+};
+
 } // namespace engine::game
