@@ -21,6 +21,16 @@ KeyCode mapKey(int glfwKey) {
             return KeyCode::Enter;
         case GLFW_KEY_ESCAPE:
             return KeyCode::Escape;
+        case GLFW_KEY_TAB:
+            return KeyCode::Tab;
+        case GLFW_KEY_BACKSPACE:
+            return KeyCode::Backspace;
+        case GLFW_KEY_DELETE:
+            return KeyCode::Delete;
+        case GLFW_KEY_HOME:
+            return KeyCode::Home;
+        case GLFW_KEY_END:
+            return KeyCode::End;
         case GLFW_KEY_W:
             return KeyCode::W;
         case GLFW_KEY_A:
@@ -33,6 +43,26 @@ KeyCode mapKey(int glfwKey) {
             return KeyCode::Q;
         case GLFW_KEY_E:
             return KeyCode::E;
+        case GLFW_KEY_F:
+            return KeyCode::F;
+        case GLFW_KEY_N:
+            return KeyCode::N;
+        case GLFW_KEY_O:
+            return KeyCode::O;
+        case GLFW_KEY_R:
+            return KeyCode::R;
+        case GLFW_KEY_Y:
+            return KeyCode::Y;
+        case GLFW_KEY_Z:
+            return KeyCode::Z;
+        case GLFW_KEY_LEFT_CONTROL:
+            return KeyCode::LeftControl;
+        case GLFW_KEY_RIGHT_CONTROL:
+            return KeyCode::RightControl;
+        case GLFW_KEY_LEFT_ALT:
+            return KeyCode::LeftAlt;
+        case GLFW_KEY_RIGHT_ALT:
+            return KeyCode::RightAlt;
         case GLFW_KEY_SPACE:
             return KeyCode::Space;
         case GLFW_KEY_LEFT_SHIFT:
@@ -199,6 +229,17 @@ WindowGLFW::WindowGLFW(const WindowDesc& desc) : m_width(desc.width), m_height(d
         event.type = EventType::MouseScrolled;
         event.scrollX = xOffset;
         event.scrollY = yOffset;
+        self->dispatch(event);
+    });
+
+    glfwSetCharCallback(m_window, [](GLFWwindow* window, unsigned int codepoint) {
+        auto* self = static_cast<WindowGLFW*>(glfwGetWindowUserPointer(window));
+        if (self == nullptr) {
+            return;
+        }
+        Event event{};
+        event.type = EventType::TextInput;
+        event.codepoint = codepoint;
         self->dispatch(event);
     });
 }

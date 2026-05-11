@@ -50,6 +50,16 @@ bool World::isAlive(EntityId entity) const {
     return m_entities[entity - 1].alive;
 }
 
+std::size_t World::aliveCount() const {
+    std::size_t count = 0;
+    for (const auto& entityRecord : m_entities) {
+        if (entityRecord.alive) {
+            ++count;
+        }
+    }
+    return count;
+}
+
 bool World::isValidEntityIndex(EntityId entity) const {
     return entity > 0 && static_cast<std::size_t>(entity - 1) < m_entities.size();
 }

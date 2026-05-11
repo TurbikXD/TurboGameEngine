@@ -19,7 +19,7 @@ struct EngineConfig final {
 #endif
     };
     std::array<float, 4> clearColor{0.06F, 0.08F, 0.11F, 1.0F};
-    std::string initialState{"menu"};
+    std::string initialState{"gameplay"};
 };
 
 class Config final {

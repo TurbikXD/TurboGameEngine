@@ -22,12 +22,16 @@ public:
     void clear();
 
     [[nodiscard]] bool isAlive(EntityId entity) const;
+    [[nodiscard]] std::size_t aliveCount() const;
 
     template <class T, class... Args>
     T& addComponent(EntityId entity, Args&&... args);
 
     template <class T>
     [[nodiscard]] bool hasComponent(EntityId entity) const;
+
+    template <class T>
+    void removeComponent(EntityId entity);
 
     template <class T>
     T* getComponent(EntityId entity);
@@ -37,6 +41,15 @@ public:
 
     template <class... Components, class Func>
     void forEach(Func&& func);
+
+    template <class... Components, class Func>
+    void forEach(Func&& func) const;
+
+    template <class Func>
+    void forEachEntity(Func&& func);
+
+    template <class Func>
+    void forEachEntity(Func&& func) const;
 
 private:
     struct EntityRecord final {
@@ -103,6 +116,15 @@ bool World::hasComponent(EntityId entity) const {
 }
 
 template <class T>
+void World::removeComponent(EntityId entity) {
+    auto* storage = getStorage<T>();
+    if (storage == nullptr) {
+        return;
+    }
+    storage->components.erase(entity);
+}
+
+template <class T>
 T* World::getComponent(EntityId entity) {
     auto* storage = getStorage<T>();
     if (storage == nullptr) {
@@ -149,6 +171,46 @@ void World::forEach(Func&& func) {
             continue;
         }
         func(entity, *getComponent<Components>(entity)...);
+    }
+}
+
+template <class... Components, class Func>
+void World::forEach(Func&& func) const {
+    static_assert(sizeof...(Components) > 0, "forEach requires at least one component type");
+
+    using FirstComponent = std::tuple_element_t<0, std::tuple<Components...>>;
+    const auto* primaryStorage = getStorage<FirstComponent>();
+    if (primaryStorage == nullptr) {
+        return;
+    }
+
+    for (const auto& [entity, ignored] : primaryStorage->components) {
+        (void)ignored;
+        if (!isAlive(entity)) {
+            continue;
+        }
+        if (!(hasComponent<Components>(entity) && ...)) {
+            continue;
+        }
+        func(entity, *getComponent<Components>(entity)...);
+    }
+}
+
+template <class Func>
+void World::forEachEntity(Func&& func) {
+    for (EntityId entity = 1; entity <= static_cast<EntityId>(m_entities.size()); ++entity) {
+        if (m_entities[entity - 1].alive) {
+            func(entity);
+        }
+    }
+}
+
+template <class Func>
+void World::forEachEntity(Func&& func) const {
+    for (EntityId entity = 1; entity <= static_cast<EntityId>(m_entities.size()); ++entity) {
+        if (m_entities[entity - 1].alive) {
+            func(entity);
+        }
     }
 }
 

@@ -34,6 +34,7 @@ CMakeUserPresets.json
 
 # MSVC/C++ artifacts
 *.obj
+!assets/models/*.obj
 *.pdb
 *.ilk
 *.idb

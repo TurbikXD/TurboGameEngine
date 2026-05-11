@@ -18,7 +18,9 @@ public:
     static bool isKeyDown(KeyCode key);
     static bool isKeyDownRaw(KeyCode key);
     static bool wasKeyPressed(KeyCode key);
+    static bool wasKeyPressedRaw(KeyCode key);
     static bool wasKeyReleased(KeyCode key);
+    static bool wasKeyReleasedRaw(KeyCode key);
     static bool IsKeyDown(const KeyCode key) {
         return isKeyDown(key);
     }
@@ -40,6 +42,7 @@ public:
     static std::pair<double, double> mousePosition();
     static std::pair<double, double> mouseDelta();
     static std::pair<double, double> mouseDeltaRaw();
+    static void resetMouseDelta();
     static std::pair<double, double> scrollDelta();
     static std::pair<double, double> GetMousePosition() {
         return mousePosition();

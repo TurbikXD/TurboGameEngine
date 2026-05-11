@@ -27,6 +27,10 @@
 #include "third_party/DiligentEngine/DiligentTools/Imgui/interface/ImGuiImplDiligent.hpp"
 #include "third_party/DiligentEngine/DiligentTools/ThirdParty/imgui/imgui.h"
 
+#ifndef ENGINE_SOURCE_ROOT
+#    define ENGINE_SOURCE_ROOT "."
+#endif
+
 namespace engine::renderer {
 
 namespace {
@@ -80,10 +84,44 @@ bool shaderTimestampsMatch(
 
 std::optional<ImGuiKey> toImGuiKey(const platform::KeyCode key) {
     switch (key) {
+        case platform::KeyCode::Tab:
+            return ImGuiKey_Tab;
+        case platform::KeyCode::Backspace:
+            return ImGuiKey_Backspace;
+        case platform::KeyCode::Delete:
+            return ImGuiKey_Delete;
+        case platform::KeyCode::Home:
+            return ImGuiKey_Home;
+        case platform::KeyCode::End:
+            return ImGuiKey_End;
         case platform::KeyCode::Enter:
             return ImGuiKey_Enter;
         case platform::KeyCode::Escape:
             return ImGuiKey_Escape;
+        case platform::KeyCode::W:
+            return ImGuiKey_W;
+        case platform::KeyCode::A:
+            return ImGuiKey_A;
+        case platform::KeyCode::S:
+            return ImGuiKey_S;
+        case platform::KeyCode::D:
+            return ImGuiKey_D;
+        case platform::KeyCode::Q:
+            return ImGuiKey_Q;
+        case platform::KeyCode::E:
+            return ImGuiKey_E;
+        case platform::KeyCode::F:
+            return ImGuiKey_F;
+        case platform::KeyCode::N:
+            return ImGuiKey_N;
+        case platform::KeyCode::O:
+            return ImGuiKey_O;
+        case platform::KeyCode::R:
+            return ImGuiKey_R;
+        case platform::KeyCode::Y:
+            return ImGuiKey_Y;
+        case platform::KeyCode::Z:
+            return ImGuiKey_Z;
         case platform::KeyCode::Left:
             return ImGuiKey_LeftArrow;
         case platform::KeyCode::Right:
@@ -92,8 +130,41 @@ std::optional<ImGuiKey> toImGuiKey(const platform::KeyCode key) {
             return ImGuiKey_UpArrow;
         case platform::KeyCode::Down:
             return ImGuiKey_DownArrow;
+        case platform::KeyCode::LeftShift:
+            return ImGuiKey_LeftShift;
+        case platform::KeyCode::RightShift:
+            return ImGuiKey_RightShift;
+        case platform::KeyCode::LeftControl:
+            return ImGuiKey_LeftCtrl;
+        case platform::KeyCode::RightControl:
+            return ImGuiKey_RightCtrl;
+        case platform::KeyCode::LeftAlt:
+            return ImGuiKey_LeftAlt;
+        case platform::KeyCode::RightAlt:
+            return ImGuiKey_RightAlt;
+        case platform::KeyCode::Space:
+            return ImGuiKey_Space;
         default:
             return std::nullopt;
+    }
+}
+
+void addImGuiModifierEvent(ImGuiIO& io, const platform::KeyCode key, const bool down) {
+    switch (key) {
+        case platform::KeyCode::LeftShift:
+        case platform::KeyCode::RightShift:
+            io.AddKeyEvent(ImGuiMod_Shift, down);
+            break;
+        case platform::KeyCode::LeftControl:
+        case platform::KeyCode::RightControl:
+            io.AddKeyEvent(ImGuiMod_Ctrl, down);
+            break;
+        case platform::KeyCode::LeftAlt:
+        case platform::KeyCode::RightAlt:
+            io.AddKeyEvent(ImGuiMod_Alt, down);
+            break;
+        default:
+            break;
     }
 }
 
@@ -107,6 +178,101 @@ int toImGuiMouseButton(const platform::MouseButton button) {
         default:
             return 2;
     }
+}
+
+void configureImGuiStyle() {
+    ImGuiStyle& style = ImGui::GetStyle();
+    style.WindowPadding = ImVec2(12.0F, 10.0F);
+    style.FramePadding = ImVec2(10.0F, 6.0F);
+    style.CellPadding = ImVec2(8.0F, 6.0F);
+    style.ItemSpacing = ImVec2(10.0F, 8.0F);
+    style.ItemInnerSpacing = ImVec2(8.0F, 6.0F);
+    style.IndentSpacing = 18.0F;
+    style.ScrollbarSize = 12.0F;
+    style.GrabMinSize = 10.0F;
+    style.WindowRounding = 8.0F;
+    style.ChildRounding = 8.0F;
+    style.FrameRounding = 6.0F;
+    style.PopupRounding = 6.0F;
+    style.ScrollbarRounding = 12.0F;
+    style.GrabRounding = 6.0F;
+    style.TabRounding = 6.0F;
+    style.WindowBorderSize = 1.0F;
+    style.ChildBorderSize = 1.0F;
+    style.FrameBorderSize = 1.0F;
+    style.PopupBorderSize = 1.0F;
+    style.WindowMenuButtonPosition = ImGuiDir_None;
+
+    ImVec4* colors = style.Colors;
+    colors[ImGuiCol_Text] = ImVec4(0.92F, 0.94F, 0.97F, 1.0F);
+    colors[ImGuiCol_TextDisabled] = ImVec4(0.52F, 0.57F, 0.64F, 1.0F);
+    colors[ImGuiCol_WindowBg] = ImVec4(0.09F, 0.11F, 0.14F, 0.98F);
+    colors[ImGuiCol_ChildBg] = ImVec4(0.11F, 0.13F, 0.17F, 0.94F);
+    colors[ImGuiCol_PopupBg] = ImVec4(0.11F, 0.13F, 0.17F, 0.98F);
+    colors[ImGuiCol_Border] = ImVec4(0.20F, 0.24F, 0.30F, 0.95F);
+    colors[ImGuiCol_BorderShadow] = ImVec4(0.0F, 0.0F, 0.0F, 0.0F);
+    colors[ImGuiCol_FrameBg] = ImVec4(0.13F, 0.16F, 0.20F, 1.0F);
+    colors[ImGuiCol_FrameBgHovered] = ImVec4(0.18F, 0.22F, 0.28F, 1.0F);
+    colors[ImGuiCol_FrameBgActive] = ImVec4(0.22F, 0.28F, 0.36F, 1.0F);
+    colors[ImGuiCol_TitleBg] = ImVec4(0.08F, 0.10F, 0.13F, 1.0F);
+    colors[ImGuiCol_TitleBgActive] = ImVec4(0.09F, 0.11F, 0.15F, 1.0F);
+    colors[ImGuiCol_MenuBarBg] = ImVec4(0.08F, 0.09F, 0.12F, 1.0F);
+    colors[ImGuiCol_ScrollbarBg] = ImVec4(0.08F, 0.09F, 0.11F, 1.0F);
+    colors[ImGuiCol_ScrollbarGrab] = ImVec4(0.24F, 0.29F, 0.37F, 1.0F);
+    colors[ImGuiCol_ScrollbarGrabHovered] = ImVec4(0.31F, 0.38F, 0.48F, 1.0F);
+    colors[ImGuiCol_ScrollbarGrabActive] = ImVec4(0.38F, 0.47F, 0.58F, 1.0F);
+    colors[ImGuiCol_CheckMark] = ImVec4(0.33F, 0.63F, 0.99F, 1.0F);
+    colors[ImGuiCol_SliderGrab] = ImVec4(0.27F, 0.56F, 0.94F, 1.0F);
+    colors[ImGuiCol_SliderGrabActive] = ImVec4(0.33F, 0.63F, 0.99F, 1.0F);
+    colors[ImGuiCol_Button] = ImVec4(0.15F, 0.19F, 0.24F, 1.0F);
+    colors[ImGuiCol_ButtonHovered] = ImVec4(0.20F, 0.28F, 0.40F, 1.0F);
+    colors[ImGuiCol_ButtonActive] = ImVec4(0.24F, 0.35F, 0.51F, 1.0F);
+    colors[ImGuiCol_Header] = ImVec4(0.16F, 0.22F, 0.31F, 1.0F);
+    colors[ImGuiCol_HeaderHovered] = ImVec4(0.22F, 0.31F, 0.44F, 1.0F);
+    colors[ImGuiCol_HeaderActive] = ImVec4(0.25F, 0.36F, 0.51F, 1.0F);
+    colors[ImGuiCol_Separator] = ImVec4(0.20F, 0.24F, 0.30F, 1.0F);
+    colors[ImGuiCol_SeparatorHovered] = ImVec4(0.28F, 0.39F, 0.56F, 1.0F);
+    colors[ImGuiCol_SeparatorActive] = ImVec4(0.33F, 0.48F, 0.69F, 1.0F);
+    colors[ImGuiCol_ResizeGrip] = ImVec4(0.27F, 0.56F, 0.94F, 0.20F);
+    colors[ImGuiCol_ResizeGripHovered] = ImVec4(0.33F, 0.63F, 0.99F, 0.67F);
+    colors[ImGuiCol_ResizeGripActive] = ImVec4(0.33F, 0.63F, 0.99F, 0.95F);
+    colors[ImGuiCol_Tab] = ImVec4(0.12F, 0.16F, 0.21F, 1.0F);
+    colors[ImGuiCol_TabHovered] = ImVec4(0.20F, 0.28F, 0.40F, 1.0F);
+    colors[ImGuiCol_TabActive] = ImVec4(0.16F, 0.24F, 0.34F, 1.0F);
+    colors[ImGuiCol_TabUnfocused] = ImVec4(0.10F, 0.13F, 0.17F, 1.0F);
+    colors[ImGuiCol_TabUnfocusedActive] = ImVec4(0.13F, 0.18F, 0.25F, 1.0F);
+    colors[ImGuiCol_PlotLines] = ImVec4(0.68F, 0.72F, 0.80F, 1.0F);
+    colors[ImGuiCol_PlotLinesHovered] = ImVec4(0.33F, 0.63F, 0.99F, 1.0F);
+    colors[ImGuiCol_PlotHistogram] = ImVec4(0.26F, 0.72F, 0.56F, 1.0F);
+    colors[ImGuiCol_PlotHistogramHovered] = ImVec4(0.37F, 0.84F, 0.66F, 1.0F);
+    colors[ImGuiCol_TableHeaderBg] = ImVec4(0.11F, 0.13F, 0.17F, 1.0F);
+    colors[ImGuiCol_TableBorderStrong] = ImVec4(0.22F, 0.27F, 0.34F, 1.0F);
+    colors[ImGuiCol_TableBorderLight] = ImVec4(0.16F, 0.19F, 0.24F, 1.0F);
+    colors[ImGuiCol_TableRowBg] = ImVec4(0.0F, 0.0F, 0.0F, 0.0F);
+    colors[ImGuiCol_TableRowBgAlt] = ImVec4(1.0F, 1.0F, 1.0F, 0.03F);
+    colors[ImGuiCol_TextSelectedBg] = ImVec4(0.25F, 0.41F, 0.64F, 0.45F);
+    colors[ImGuiCol_DragDropTarget] = ImVec4(0.33F, 0.63F, 0.99F, 0.90F);
+    colors[ImGuiCol_NavCursor] = ImVec4(0.33F, 0.63F, 0.99F, 1.0F);
+}
+
+void loadImGuiFonts(ImGuiIO& io) {
+    const std::filesystem::path fontPath =
+        std::filesystem::path(ENGINE_SOURCE_ROOT) / "third_party" / "DiligentEngine" / "DiligentTools" / "ThirdParty" /
+        "imgui" / "misc" / "fonts" / "Roboto-Medium.ttf";
+
+    std::error_code ec;
+    if (!std::filesystem::exists(fontPath, ec) || ec) {
+        return;
+    }
+
+    io.Fonts->Clear();
+    ImFontConfig config{};
+    config.OversampleH = 3;
+    config.OversampleV = 2;
+    config.PixelSnapH = false;
+
+    io.FontDefault = io.Fonts->AddFontFromFileTTF(fontPath.string().c_str(), 16.0F, &config);
+    io.Fonts->AddFontFromFileTTF(fontPath.string().c_str(), 20.0F, &config);
 }
 
 constexpr const char* kProceduralCubeMeshId = "__diligent_cube__";
@@ -414,8 +580,13 @@ bool Renderer::initializeImGui() {
     try {
         m_imgui = std::unique_ptr<Diligent::ImGuiImplDiligent, ImGuiImplDiligentDeleter>(
             new Diligent::ImGuiImplDiligent(Diligent::ImGuiDiligentCreateInfo{nativeDevice, nativeSwapChain->GetDesc()}));
-        ImGui::StyleColorsDark();
-        ImGui::GetIO().ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+        ImGuiIO& io = ImGui::GetIO();
+        io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+        io.ConfigWindowsMoveFromTitleBarOnly = true;
+        configureImGuiStyle();
+        loadImGuiFonts(io);
+        m_imgui->InvalidateDeviceObjects();
+        m_imgui->CreateDeviceObjects();
         ENGINE_LOG_INFO("ImGui layer initialized");
         return true;
     } catch (const std::exception& ex) {
@@ -829,12 +1000,20 @@ void Renderer::onEvent(const platform::Event& event) {
 
         case platform::EventType::KeyPressed:
         case platform::EventType::KeyReleased: {
+            const bool isDown = event.type == platform::EventType::KeyPressed;
             const auto key = toImGuiKey(event.key);
             if (key.has_value()) {
-                io.AddKeyEvent(*key, event.type == platform::EventType::KeyPressed);
+                io.AddKeyEvent(*key, isDown);
             }
+            addImGuiModifierEvent(io, event.key, isDown);
             break;
         }
+
+        case platform::EventType::TextInput:
+            if (event.codepoint != 0U) {
+                io.AddInputCharacter(event.codepoint);
+            }
+            break;
 
         default:
             break;

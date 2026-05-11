@@ -101,6 +101,17 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(stb)
 
+FetchContent_Declare(
+    imguizmo
+    GIT_REPOSITORY https://github.com/CedricGuillemet/ImGuizmo.git
+    GIT_TAG 664cf2d
+    UPDATE_DISCONNECTED ON
+)
+FetchContent_GetProperties(imguizmo)
+if(NOT imguizmo_POPULATED)
+    FetchContent_Populate(imguizmo)
+endif()
+
 set(DILIGENT_ENGINE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/third_party/DiligentEngine")
 if(NOT EXISTS "${DILIGENT_ENGINE_DIR}/CMakeLists.txt")
     message(FATAL_ERROR "DiligentEngine sources were not found at ${DILIGENT_ENGINE_DIR}. Clone with submodules or run: git submodule update --init --recursive")
@@ -185,6 +196,11 @@ function(copy_pix_runtime_dll target_name)
         return()
     endif()
 
+    get_target_property(_target_type ${target_name} TYPE)
+    if(NOT _target_type MATCHES "^(EXECUTABLE|STATIC_LIBRARY|SHARED_LIBRARY|MODULE_LIBRARY)$")
+        return()
+    endif()
+
     get_target_property(_target_source_dir ${target_name} SOURCE_DIR)
     if(_target_source_dir STREQUAL CMAKE_CURRENT_SOURCE_DIR)
         add_custom_command(TARGET ${target_name} POST_BUILD
@@ -213,6 +229,8 @@ copy_pix_runtime_dll(Diligent-RenderStatePackager)
 get_pix_copy_helper_target_name(Diligent-RenderStatePackager DILIGENT_RENDER_STATE_PACKAGER_PIX_COPY_TARGET)
 
 set(ENGINE_ROOT_INCLUDE_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
+file(TO_CMAKE_PATH "${CMAKE_CURRENT_SOURCE_DIR}" ENGINE_SOURCE_ROOT_CMAKE_PATH)
+file(TO_CMAKE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/engine/game/ImGuizmoCompat.h" ENGINE_IMGUIZMO_COMPAT_HEADER_CMAKE_PATH)
 
 add_library(engine_core STATIC
     engine/core/Log.cpp
@@ -283,6 +301,7 @@ add_library(engine_renderer STATIC
 )
 target_include_directories(engine_renderer PUBLIC "${ENGINE_ROOT_INCLUDE_DIR}")
 target_include_directories(engine_renderer PRIVATE "${stb_SOURCE_DIR}")
+target_compile_definitions(engine_renderer PUBLIC ENGINE_SOURCE_ROOT="${ENGINE_SOURCE_ROOT_CMAKE_PATH}")
 target_link_libraries(
     engine_renderer
     PUBLIC
@@ -306,6 +325,27 @@ if(EXISTS "${DILIGENT_ENGINE_DIR}/DiligentTools/ThirdParty/imgui/imgui_demo.cpp"
 endif()
 set_engine_warnings(engine_renderer)
 
+add_library(imguizmo STATIC
+    "${imguizmo_SOURCE_DIR}/ImGuizmo.cpp"
+)
+target_include_directories(
+    imguizmo
+    PUBLIC
+        "${imguizmo_SOURCE_DIR}"
+    PRIVATE
+        "${ENGINE_ROOT_INCLUDE_DIR}"
+        "${DILIGENT_ENGINE_DIR}/DiligentTools/ThirdParty/imgui"
+)
+if(TARGET Diligent-Imgui)
+    target_link_libraries(imguizmo PUBLIC Diligent-Imgui)
+endif()
+if(MSVC)
+    target_compile_options(imguizmo PRIVATE "/FI${ENGINE_IMGUIZMO_COMPAT_HEADER_CMAKE_PATH}")
+else()
+    target_compile_options(imguizmo PRIVATE -include "${ENGINE_IMGUIZMO_COMPAT_HEADER_CMAKE_PATH}")
+endif()
+set_engine_warnings(imguizmo)
+
 add_library(engine_game STATIC
     engine/ecs/world.cpp
     engine/ecs/physics_system.cpp
@@ -315,9 +355,17 @@ add_library(engine_game STATIC
     engine/game/MenuState.cpp
     engine/game/GameplayState.cpp
     engine/game/PauseState.cpp
+    "${DILIGENT_ENGINE_DIR}/DiligentTools/ThirdParty/imgui/misc/cpp/imgui_stdlib.cpp"
 )
 target_include_directories(engine_game PUBLIC "${ENGINE_ROOT_INCLUDE_DIR}")
-target_link_libraries(engine_game PUBLIC engine_core engine_platform engine_renderer)
+target_include_directories(
+    engine_game
+    PRIVATE
+        "${imguizmo_SOURCE_DIR}"
+        "${DILIGENT_ENGINE_DIR}/DiligentTools/ThirdParty/imgui"
+        "${DILIGENT_ENGINE_DIR}/DiligentTools/ThirdParty/imgui/misc/cpp"
+)
+target_link_libraries(engine_game PUBLIC engine_core engine_platform engine_renderer PRIVATE imguizmo)
 set_engine_warnings(engine_game)
 
 add_executable(app

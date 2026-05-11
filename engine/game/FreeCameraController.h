@@ -11,6 +11,8 @@ public:
         float sprintMultiplier{3.0F};
         float mouseSensitivity{0.0021F};
         float pitchLimitRadians{glm::radians(88.0F)};
+        float maxMouseDeltaPixels{220.0F};
+        float maxDeltaSeconds{1.0F / 30.0F};
     };
 
     FreeCameraController() = default;

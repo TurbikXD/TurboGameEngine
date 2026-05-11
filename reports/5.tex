@@ -1,0 +1,608 @@
+% !TeX program = xelatex
+\documentclass[a4paper,14pt]{extarticle}
+
+% ---------- GOST-like layout ----------
+\usepackage[a4paper,left=30mm,right=10mm,top=20mm,bottom=20mm]{geometry}
+\usepackage{setspace}
+\onehalfspacing
+\setlength{\parindent}{1.25cm}
+\setlength{\parskip}{0pt}
+\usepackage{indentfirst}
+\usepackage[protrusion=false,expansion=false]{microtype}
+
+% ---------- Fonts / language ----------
+\usepackage{fontspec}
+\setmainfont{Times New Roman}
+\setmonofont{Courier New}
+\usepackage{polyglossia}
+\setdefaultlanguage{russian}
+\setotherlanguage{english}
+\newfontfamily\cyrillicfont{Times New Roman}
+\newfontfamily\cyrillicfonttt{Courier New}
+
+% ---------- Math / tables / graphics ----------
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{caption}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,calc,fit}
+
+\renewcommand{\figurename}{Рисунок}
+\renewcommand{\tablename}{Таблица}
+\captionsetup{labelsep=endash,justification=centering}
+
+% ---------- Hyperlinks ----------
+\usepackage[hidelinks]{hyperref}
+\usepackage{xurl}
+\urlstyle{tt}
+\DeclareRobustCommand{\code}[1]{\nolinkurl{#1}}
+
+% Better line breaking
+\pretolerance=1000
+\tolerance=2000
+\setlength{\emergencystretch}{2em}
+\hbadness=10000
+
+% ---------- Listings ----------
+\usepackage{xcolor}
+\usepackage{listings}
+\renewcommand{\lstlistingname}{Листинг}
+\lstset{
+  basicstyle=\fontsize{10}{12}\ttfamily,
+  keywordstyle=\bfseries,
+  commentstyle=\itshape,
+  stringstyle=\itshape,
+  numbers=left,
+  numberstyle=\tiny,
+  stepnumber=1,
+  numbersep=8pt,
+  tabsize=2,
+  breaklines=true,
+  breakatwhitespace=false,
+  showstringspaces=false,
+  frame=single,
+  rulecolor=\color{black},
+  xleftmargin=12pt,
+  framexleftmargin=12pt
+}
+
+\lstdefinelanguage{cmake}{
+  morekeywords={cmake_minimum_required,project,set,add_library,add_executable,target_link_libraries,target_compile_definitions,target_include_directories,option,if,elseif,else,endif,find_package,include,FetchContent_Declare,FetchContent_MakeAvailable,add_subdirectory},
+  sensitive=true,
+  morecomment=[l]{\#},
+  morestring=[b]"
+}
+\lstdefinelanguage{json}{
+  morestring=[b]",
+  showstringspaces=false,
+  morecomment=[l]{//}
+}
+
+\begin{document}
+
+\pagenumbering{gobble}
+\begin{titlepage}
+\begin{center}
+\large
+САНКТ-ПЕТЕРБУРГСКИЙ НАЦИОНАЛЬНЫЙ\\
+ИССЛЕДОВАТЕЛЬСКИЙ УНИВЕРСИТЕТ\\
+ИНФОРМАЦИОННЫХ ТЕХНОЛОГИЙ, МЕХАНИКИ И ОПТИКИ\\
+
+\vfill
+\textbf{ОТЧЁТ}\par
+по дисциплине \textbf{«Архитектура игровых движков»}\\[2mm]
+\textbf{«WYSIWYG редактор сцены на базе Dear ImGui»}\\[10mm]
+
+\vfill
+\begin{flushright}
+\begin{tabular}{@{}l@{\quad}l@{}}
+Студент: & Тереховский Арсений Дмитриевич\\
+Группа: & J3300\\
+\end{tabular}
+\end{flushright}
+
+\vfill
+Санкт-Петербург\\
+2026\,г.
+\end{center}
+\end{titlepage}
+
+\newpage
+\pagenumbering{arabic}
+\setcounter{page}{2}
+\tableofcontents
+\newpage
+
+\section{Введение}
+Практическое занятие №5 посвящено созданию WYSIWYG-редактора сцены для существующего игрового движка. Цель работы состояла в том, чтобы интегрировать в движок библиотеку Dear ImGui, построить редакторский интерфейс, связать его с ECS, обеспечить редактирование компонентов в реальном времени, добавить 3D-манипуляторы трансформаций и реализовать переключение между режимами редактирования и игры.
+
+В текущей версии \textit{TurboGameEngine} редактор реализован как полноценный слой инструментов поверх уже существующего рантайма. Он использует ECS-мир, физическую систему, рендерер на базе Diligent Engine, подсистему ввода и сцену из предыдущих практических работ. Новая работа не ограничилась минимальной тестовой отрисовкой ImGui: в проект добавлены инспектор компонентов, иерархия сцены, viewport с live preview, ImGuizmo, статистика, Asset Browser, сохранение и загрузка сцены, Undo/Redo, выбор объекта кликом в 3D-сцене, профессиональная тёмная тема, drag-and-drop docking, resize закреплённых панелей и сохранение раскладки между запусками. После пользовательского тестирования также были исправлены скачки камеры, визуальные артефакты docking layout, assert ImGui в окне viewport и нестабильное вращение/масштабирование через гизмо.
+
+\section{Постановка задачи}
+\subsection{Цель и обязательные задачи}
+Согласно заданию, необходимо было выполнить следующие пункты:
+\begin{enumerate}
+  \item интегрировать Dear ImGui в существующий движок;
+  \item создать главное меню и базовые панели инструментов;
+  \item реализовать панель инспектора для просмотра и редактирования компонентов выбранной сущности;
+  \item разработать панель иерархии сцены;
+  \item обеспечить live preview, при котором изменения в инспекторе сразу видны на экране;
+  \item внедрить 3D-гизмо для перемещения, вращения и масштабирования объектов;
+  \item создать панель статистики с FPS, временем кадра и количеством объектов;
+  \item обеспечить переключение между Edit Mode и Play Mode.
+\end{enumerate}
+
+\subsection{Расширение задания в проекте}
+Помимо обязательных пунктов, в проект были добавлены дополнительные функции, которые приближают редактор к инструментам уровня Unity, Unreal Engine и Roblox Studio:
+\begin{itemize}
+  \item профессиональная раскладка окон с главным меню, toolbar, статусной строкой, viewport, hierarchy, inspector, statistics и content browser;
+  \item кастомная docking-система с drag-and-drop переносом панелей между зонами;
+  \item resize закреплённых областей через splitters внутри docking layout;
+  \item автоматическое сохранение layout в \code{assets/editor_layout.json};
+  \item выбор объектов кликом прямо в сцене с корректным ray picking ближайшего объекта;
+  \item исключение editor-camera из начального выбора и из picking-логики;
+  \item Undo/Redo для действий редактора и операций гизмо;
+  \item сохранение и загрузка сцены в JSON;
+  \item Asset Browser с карточками, фильтром, metadata и превью ресурсов;
+  \item фиксированный центральный viewport, который не отцепляется и не замещается другими панелями;
+  \item защита free camera от резких скачков мыши и больших \texttt{dt}-спайков;
+  \item стабильное применение rotate/scale в ImGuizmo без паразитного изменения соседних компонентов transform;
+  \item оптимизации UI и picking: кэширование ассетов, throttling hover-pick, отключение лишней grid-сетки, уменьшение затрат на отрисовку редакторских overlays.
+\end{itemize}
+
+\section{Архитектура решения}
+\subsection{Интеграция ImGui в игровой цикл}
+Интерфейс редактора встроен в обычный игровой цикл движка. Платформенный слой создаёт окно и передаёт события ввода, затем состояние игры обновляет ECS и физику, рендерер отрисовывает 3D-сцену, а поверх неё вызывается редакторский UI. Такой порядок важен: ImGui должен быть отрисован последним, чтобы панели и гизмо находились поверх viewport.
+
+\begin{figure}[H]
+\centering
+\resizebox{\linewidth}{!}{%
+\begin{tikzpicture}[
+  node distance=10mm and 10mm,
+  box/.style={draw, rounded corners=2pt, align=center, minimum height=10mm, text width=39mm},
+  wide/.style={draw, rounded corners=2pt, align=center, minimum height=10mm, text width=50mm},
+  arr/.style={-Latex, thick}
+]
+\node[wide] (app) {\textbf{Application}\\window, events, frame loop};
+\node[box, below left=12mm and 2mm of app] (input) {\textbf{InputManager}\\raw keys, mouse, scroll};
+\node[box, below=12mm of app] (game) {\textbf{GameplayState}\\scene update, editor state};
+\node[box, below right=12mm and 2mm of app] (imgui) {\textbf{ImGui Layer}\\menus, panels, docking};
+\node[box, below=12mm of game, xshift=-28mm] (ecs) {\textbf{ECS World}\\entities, components};
+\node[box, below=12mm of game, xshift=28mm] (renderer) {\textbf{Renderer}\\3D scene, ImGui draw data};
+\node[wide, below=16mm of renderer, xshift=-30mm] (screen) {\textbf{Frame}\\scene viewport + editor UI};
+
+\draw[arr] (app) -- (input);
+\draw[arr] (app) -- (game);
+\draw[arr] (app) -- (imgui);
+\draw[arr] (input) -- (game);
+\draw[arr] (game) -- (ecs);
+\draw[arr] (ecs) -- (renderer);
+\draw[arr] (imgui) -- (renderer);
+\draw[arr] (renderer) -- (screen);
+\end{tikzpicture}
+}
+\caption{Место редакторского UI в игровом цикле}
+\label{fig:pz5-frame-loop}
+\end{figure}
+
+\subsection{Связь редактора и ECS}
+Редактор не хранит отдельную копию сцены для отображения. Он напрямую работает с ECS-компонентами выбранной сущности. За счёт этого live preview получается естественным: инспектор изменяет \texttt{Transform}, \texttt{MeshRenderer}, \texttt{Rigidbody}, \texttt{Collider} и другие компоненты, а рендерер уже в следующем кадре видит актуальные значения.
+
+\begin{figure}[H]
+\centering
+\resizebox{\linewidth}{!}{%
+\begin{tikzpicture}[
+  node distance=9mm and 9mm,
+  cls/.style={draw, rounded corners=2pt, align=left, minimum height=10mm, text width=43mm},
+  arr/.style={-Latex, thick}
+]
+\node[cls] (hier) {\textbf{Scene Hierarchy}\\список сущностей\\выбор активной сущности};
+\node[cls, right=of hier] (inspector) {\textbf{Inspector}\\редактирование компонентов\\live preview};
+\node[cls, right=of inspector] (gizmo) {\textbf{ImGuizmo}\\перемещение\\вращение\\масштаб};
+
+\node[cls, below=of inspector] (ecs) {\textbf{ECS World}\\Transform\\Tag\\MeshRenderer\\Rigidbody\\Collider\\Camera};
+\node[cls, below left=of ecs] (viewport) {\textbf{Viewport}\\3D preview\\selection outline\\click picking};
+\node[cls, below right=of ecs] (stats) {\textbf{Statistics}\\FPS\\frame ms\\object counters};
+
+\draw[arr] (hier) -- node[above]{selected id} (inspector);
+\draw[arr] (inspector) -- (ecs);
+\draw[arr] (gizmo) -- (ecs);
+\draw[arr] (ecs) -- (viewport);
+\draw[arr] (ecs) -- (stats);
+\draw[arr] (viewport) -| node[pos=0.25, below]{ray pick} (hier);
+\end{tikzpicture}
+}
+\caption{Взаимодействие панелей редактора с ECS}
+\label{fig:pz5-editor-ecs}
+\end{figure}
+
+\subsection{Подсистема layout и docking}
+В поставленном задании рекомендована docking-ветка ImGui. В проекте используется версия ImGui, поставляемая вместе с Diligent Tools, в которой отсутствует полноценный \texttt{DockSpace}. Поэтому была реализована собственная docking-модель поверх базовых окон ImGui:
+\begin{itemize}
+  \item каждая панель имеет логический слот \texttt{Top}, \texttt{Center}, \texttt{LeftTop}, \texttt{LeftBottom}, \texttt{RightTop}, \texttt{RightBottom}, \texttt{Bottom} или \texttt{Floating};
+  \item у панели есть drag-grip; при перетаскивании открывается fullscreen overlay с зонами docking;
+  \item drop в зону закрепляет панель, drop вне зон переводит её в floating;
+  \item если целевой слот занят, панели меняются местами;
+  \item закреплённые панели имеют resize через splitters;
+  \item центральный слот зарезервирован под viewport и не принимает другие панели;
+  \item служебные resize-hitbox не рисуют постоянные рамки и показывают подсветку только при наведении;
+  \item layout сохраняется между запусками в JSON.
+\end{itemize}
+
+\section{Реализация ключевых модулей}
+\subsection{Подключение ImGui и ImGuizmo}
+Интеграция редакторского UI начинается с настройки сборки. В проект подключены заголовки и библиотека ImGui, уже входящие в Diligent Tools, а также ImGuizmo для 3D-манипуляторов. Для корректной сборки ImGuizmo добавлен compatibility header, подключаемый через forced include, так как библиотека ожидает некоторые math-операторы ImGui.
+
+\begin{lstlisting}[language=cmake,caption={Фрагмент подключения ImGuizmo и ImGui в CMake}]
+FetchContent_Declare(
+  imguizmo
+  GIT_REPOSITORY https://github.com/CedricGuillemet/ImGuizmo.git
+  GIT_TAG 1.83
+)
+
+add_library(imguizmo STATIC ${imguizmo_SOURCE_DIR}/ImGuizmo.cpp)
+target_include_directories(imguizmo PUBLIC ${imguizmo_SOURCE_DIR})
+target_compile_definitions(imguizmo PUBLIC IMGUI_DEFINE_MATH_OPERATORS)
+
+target_link_libraries(engine_game PRIVATE Diligent-Imgui imguizmo)
+target_compile_options(engine_game PRIVATE /FI"engine/game/ImGuizmoCompat.h")
+\end{lstlisting}
+
+\subsection{Главное меню, toolbar и стиль редактора}
+В редакторе создана единая тёмная тема, близкая к профессиональным игровым редакторам. Основные действия доступны через меню \texttt{File}, \texttt{Edit}, \texttt{GameObject}, \texttt{Tools}, \texttt{Scene}, \texttt{View}, \texttt{Window}, \texttt{Help}. Toolbar содержит кнопки \texttt{Edit}, \texttt{Play}, \texttt{Undo}, \texttt{Redo}, создание куба, дублирование, фокус камеры, режимы гизмо, локальное/глобальное пространство, snap и скорость камеры.
+
+Для удобства добавлена статусная строка. Она показывает текущий режим, выбранную сущность, скорость камеры, размер undo/redo history и последнее сообщение редактора. Это упрощает диагностику действий пользователя.
+
+\subsection{Панель иерархии сцены}
+Панель \texttt{Scene Hierarchy} выводит список всех живых сущностей ECS. Для отображения используется имя из компонента \texttt{Tag}; если тега нет, генерируется имя по идентификатору. Панель поддерживает фильтрацию, выбор сущности, создание объектов, дублирование и удаление.
+
+Выбор через иерархию синхронизирован с инспектором, viewport и гизмо. Это означает, что активная сущность всегда одна: её свойства отображаются справа, вокруг неё рисуется selection outline, а ImGuizmo получает именно её transform matrix.
+
+\subsection{Выбор объекта кликом в сцене}
+Дополнительно к выбору из списка реализован picking прямо во viewport. При клике мыши строится луч из камеры через позицию курсора в 3D-пространство. Далее перебираются потенциально выбираемые сущности, для каждой вычисляется pick-shape, после чего выбирается ближайшее пересечение. Это решает проблему, когда объект на заднем плане выбирался вместо ближайшего куба.
+
+\begin{lstlisting}[language=C++,caption={Упрощённая схема выбора ближайшей сущности лучом}]
+std::optional<PickResult> GameplayState::pickEntity(const PickRay& ray) const {
+    PickResult best{};
+    best.distance = std::numeric_limits<float>::max();
+
+    m_world.forEachEntity([&](ecs::EntityId entity) {
+        if (entity == m_cameraEntity) {
+            return;
+        }
+
+        ecs::WorldColliderShape shape{};
+        if (!computeEntityPickShape(entity, shape)) {
+            return;
+        }
+
+        float distance = 0.0F;
+        const bool hit = shape.type == ecs::ColliderType::Sphere
+            ? intersectRaySphere(ray.origin, ray.direction, shape.sphere, distance)
+            : intersectRayAabb(ray.origin, ray.direction, shape.aabb, distance);
+
+        if (hit && distance < best.distance) {
+            best.entity = entity;
+            best.distance = distance;
+        }
+    });
+
+    return best.entity != ecs::kInvalidEntity ? std::optional(best) : std::nullopt;
+}
+\end{lstlisting}
+
+\subsection{Инспектор компонентов}
+Панель \texttt{Inspector} отображает компоненты выбранной сущности. Для каждого компонента создан отдельный блок. Сейчас редактируются:
+\begin{itemize}
+  \item \texttt{Tag}: имя объекта;
+  \item \texttt{Transform}: позиция, поворот и масштаб;
+  \item \texttt{MeshRenderer}: видимость, tint, UV scale, primitive type, mesh, texture, shader;
+  \item \texttt{Rigidbody}: gravity, static, kinematic, масса, трение, restitution, velocity;
+  \item \texttt{Collider}: параметры AABB и Sphere;
+  \item \texttt{Camera}: параметры камеры, если компонент присутствует.
+\end{itemize}
+
+\begin{lstlisting}[language=C++,caption={Пример редактирования Transform через ImGui}]
+if (auto* transform = m_world.getComponent<ecs::Transform>(entity)) {
+    if (ImGui::CollapsingHeader("Transform", ImGuiTreeNodeFlags_DefaultOpen)) {
+        if (drawVec3Editor("Position", transform->position, 0.05F, "%.2f")) {
+            wakeEntity(entity);
+        }
+
+        glm::vec3 rotationDegrees = glm::degrees(transform->rotationEulerRadians);
+        if (drawVec3Editor("Rotation", rotationDegrees, 0.25F, "%.1f deg")) {
+            transform->rotationEulerRadians = glm::radians(rotationDegrees);
+            wakeEntity(entity);
+        }
+
+        if (drawVec3Editor("Scale", transform->scale, 0.03F, "%.2f")) {
+            transform->scale = glm::max(transform->scale, glm::vec3(0.05F));
+            wakeEntity(entity);
+        }
+    }
+}
+\end{lstlisting}
+
+Все изменения выполняются непосредственно над ECS-компонентом, поэтому результат сразу виден в viewport. Для редактирования в Edit Mode система пишет snapshots в историю, что позволяет отменять действия через Undo/Redo.
+
+\subsection{Viewport и live preview}
+\texttt{Viewport} занимает центральную область редактора. В отличие от остальных панелей он закреплён в центре и не участвует в drag-and-drop перестановке: это предотвращает случайное разрушение основной рабочей области. Сцена отрисовывается обычным renderer pipeline, но поверх неё добавляются редакторские overlay-элементы: подсказки режима, selection outline, hover outline и ImGuizmo. При изменении свойства в инспекторе сцена не перезапускается и не пересоздаётся. Изменяется компонент в ECS, затем следующий кадр рисуется уже по новым данным.
+
+Для удобства добавлены команды:
+\begin{itemize}
+  \item \texttt{F}: фокус камеры на выбранном объекте;
+  \item \texttt{Frame Scene}: кадрирование всей сцены;
+  \item camera bookmarks;
+  \item изменение скорости камеры колесом мыши;
+  \item free camera через RMB + WASDQE.
+\end{itemize}
+
+Для устойчивости редакторской камеры добавлены два защитных механизма. При включении и выключении camera-look сбрасывается накопленная mouse delta, чтобы переключение режима курсора не превращалось в резкий рывок камеры. Кроме того, контроллер камеры ограничивает максимальный raw mouse delta и максимальный \texttt{dt}, поэтому после лагов, breakpoint или потери фокуса камера не улетает далеко от сцены.
+
+\subsection{Интеграция ImGuizmo}
+Гизмо работает поверх viewport. Для выбранной сущности строится матрица transform, затем в \texttt{ImGuizmo::Manipulate()} передаются view/projection матрицы активной камеры, режим операции и система координат. После тестирования была изменена схема применения результата: редактор больше не записывает в \texttt{Transform} все три компонента сразу после каждой операции. Это важно, потому что универсальное разложение матрицы на Euler-углы и scale может давать численный шум. Теперь каждая операция меняет только релевантную часть transform: \texttt{Move} меняет позицию, \texttt{Rotate} меняет только rotation, а \texttt{Scale} меняет только scale.
+
+\begin{lstlisting}[language=C++,caption={Принцип работы ImGuizmo в viewport}]
+ImGuizmo::SetOrthographic(false);
+ImGuizmo::SetDrawlist();
+ImGuizmo::SetRect(
+    m_viewportPosition.x,
+    m_viewportPosition.y,
+    m_viewportSize.x,
+    m_viewportSize.y);
+
+glm::mat4 localMatrix = ecs::computeWorldMatrix(m_world, m_selectedEntity);
+glm::mat4 deltaMatrix(1.0F);
+const bool manipulated = ImGuizmo::Manipulate(
+    glm::value_ptr(cameraFrame.view),
+    glm::value_ptr(cameraFrame.projection),
+    operation,
+    mode,
+    glm::value_ptr(localMatrix),
+    glm::value_ptr(deltaMatrix),
+    m_snapEnabled ? snapValues : nullptr);
+
+if (manipulated) {
+    auto components = decomposeEditorTransform(
+        localMatrix,
+        transform->rotationEulerRadians,
+        transform->scale);
+
+    if (components.has_value()) {
+        transform->position = components->position;
+
+        switch (m_gizmoOperation) {
+            case GizmoOperation::Translate:
+                break;
+            case GizmoOperation::Rotate:
+                transform->rotationEulerRadians = components->rotationEulerRadians;
+                break;
+            case GizmoOperation::Scale:
+                transform->scale = components->scale;
+                break;
+        }
+    }
+}
+\end{lstlisting}
+
+Вспомогательная функция \texttt{decomposeEditorTransform()} проверяет конечность матрицы, ограничивает scale безопасным диапазоном, ортонормализует оси и разворачивает Euler-углы относительно предыдущего значения. За счёт этого при вращении объект не начинает менять масштаб, а при масштабировании не появляется паразитное вращение. Если у объекта есть \texttt{Rigidbody}, во время прямого редактирования дополнительно обнуляются linear/angular velocity и накопленные силы, чтобы физика не продолжала крутить объект поверх действия пользователя.
+
+Toolbar позволяет переключать операции \texttt{Move}, \texttt{Rotate}, \texttt{Scale}, выбирать локальную или глобальную систему координат, а также включать snap. Изменения через гизмо сохраняются в историю как отдельное действие.
+
+\subsection{Edit Mode и Play Mode}
+В режиме \texttt{Edit} физическая симуляция остановлена, а инспектор и гизмо доступны для редактирования. При переходе в \texttt{Play} создаётся snapshot текущей сцены, включается физика и игровая логика. При остановке Play Mode snapshot восстанавливается, поэтому тестирование не разрушает сцену редактора.
+
+Это поведение соответствует workflow профессиональных редакторов: пользователь может настроить сцену, нажать \texttt{Play}, проверить физику и затем вернуться к исходному состоянию.
+
+\subsection{Панель статистики}
+Панель \texttt{Statistics} отображает:
+\begin{itemize}
+  \item FPS;
+  \item время кадра в миллисекундах;
+  \item CPU-время отрисовки сцены;
+  \item графики frame ms и render ms;
+  \item число сущностей;
+  \item число renderable объектов;
+  \item число камер;
+  \item число динамических тел;
+  \item collision counters.
+\end{itemize}
+
+История значений хранится в кольцевых массивах, что даёт недорогие графики без постоянных аллокаций.
+
+\subsection{Asset Browser и превью ресурсов}
+В рамках самостоятельного расширения задания реализована панель \texttt{Content Browser}. Она сканирует папку \code{assets}, классифицирует ресурсы и показывает их не текстовым списком, а карточками, похожими на content browser в профессиональных редакторах.
+
+Для ассетов реализованы:
+\begin{itemize}
+  \item фильтр по имени, типу и пути;
+  \item карточки ресурсов с цветовой категоризацией;
+  \item metadata: тип, размер файла, число вершин/граней для OBJ;
+  \item pixel-preview для PPM-текстур;
+  \item компактное wire-cube preview для mesh-файлов;
+  \item кнопка применения mesh/texture/shader к выбранному объекту;
+  \item загрузка сцены из \code{assets/scenes/editor_scene.json}.
+\end{itemize}
+
+\subsection{Сохранение сцены и Undo/Redo}
+Меню \texttt{File} содержит \texttt{Save Scene} и \texttt{Load Scene}. Сцена сериализуется в JSON, включая основные ECS-компоненты и служебные данные редактора. Это продолжает работу предыдущей практической работы по сериализации.
+
+Undo/Redo реализован через snapshots сцены. Перед редактированием создаётся состояние ``до'', а после подтверждения изменения оно помещается в undo stack. Такой подход прост, но надёжен для учебного проекта: он покрывает изменения в инспекторе, операции создания/удаления/дублирования сущностей и трансформации через гизмо.
+
+\subsection{Docking, resize и сохранение layout}
+После первичной реализации кнопочного dock-menu была добавлена более удобная модель в стиле Roblox Studio: пользователь зажимает grip панели и переносит её в подсвеченную зону. Для этого используется стандартный Drag and Drop API ImGui: \code{SetDragDropPayload()}, \code{AcceptDragDropPayload()} и отдельное overlay-окно с drop-зонами.
+
+В последней версии также реализовано изменение размеров закреплённых областей. Resize работает через невидимые hitbox-окна ImGui, расположенные на границах docking layout:
+\begin{itemize}
+  \item между левой колонкой и viewport;
+  \item между viewport и правой колонкой;
+  \item между \texttt{Scene Hierarchy} и \texttt{Content Browser};
+  \item между \texttt{Inspector} и \texttt{Statistics}.
+\end{itemize}
+
+После визуального тестирования splitters были доработаны: у служебных окон отключены background и border, поэтому они не оставляют на экране лишние тонкие линии. В обычном состоянии они невидимы, но при наведении показывают аккуратную подсветку и меняют курсор на resize. Также был исправлен debug assert ImGui, возникавший из-за \texttt{SetCursorScreenPos()} в окне viewport без последующего item: лишний вызов был удалён.
+
+Размеры колонок и пропорции вертикальных стеков сохраняются в \code{assets/editor_layout.json}. При следующем запуске редактор восстанавливает layout автоматически.
+
+\begin{lstlisting}[language=json,caption={Структура файла сохранения layout}]
+{
+  "version": 1,
+  "locked": false,
+  "visibility": {
+    "toolbar": true,
+    "hierarchy": true,
+    "project": true,
+    "inspector": true,
+    "stats": true,
+    "viewport": true,
+    "status": true
+  },
+  "dockSlots": {
+    "toolbar": "top",
+    "hierarchy": "left_top",
+    "project": "left_bottom",
+    "inspector": "right_top",
+    "stats": "right_bottom",
+    "viewport": "center",
+    "status": "bottom"
+  },
+  "sizing": {
+    "leftWidth": 300.0,
+    "rightWidth": 390.0,
+    "leftSplit": 0.72,
+    "rightSplit": 0.68
+  }
+}
+\end{lstlisting}
+
+\section{Результаты}
+\subsection{Функциональный результат}
+В результате работы движок получил полноценный WYSIWYG-редактор сцены. Теперь можно:
+\begin{itemize}
+  \item открывать сцену в редакторском интерфейсе;
+  \item выбирать объекты из иерархии или кликом во viewport;
+  \item менять компоненты выбранной сущности через инспектор;
+  \item сразу видеть изменения в 3D-сцене;
+  \item перемещать, вращать и масштабировать объекты через ImGuizmo;
+  \item тестировать сцену в Play Mode и возвращаться к исходному Edit Mode;
+  \item сохранять и загружать сцену;
+  \item пользоваться Undo/Redo;
+  \item просматривать ассеты как карточки с превью;
+  \item перемещать, закреплять и ресайзить панели редактора;
+  \item сохранять центральный viewport стабильным и не допускать его случайного перемещения;
+  \item пользоваться более устойчивой камерой без резких скачков после смены режима курсора;
+  \item вращать и масштабировать объекты через гизмо без дрожания и паразитного изменения transform;
+  \item сохранять layout между запусками.
+\end{itemize}
+
+\subsection{Сопоставление с требованиями задания}
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{@{}p{7mm}p{73mm}p{73mm}@{}}
+\toprule
+№ & Требование & Реализация в проекте\\
+\midrule
+1 & Интеграция Dear ImGui & Подключён ImGui слой через Diligent Tools, добавлен UI lifecycle и взаимодействие с вводом.\\
+2 & Главное меню и панели & Реализованы меню, toolbar, viewport, hierarchy, inspector, statistics, content browser и status bar.\\
+3 & Inspector & Редактируются Transform, Tag, MeshRenderer, Rigidbody, Collider, Camera и связанные параметры.\\
+4 & Scene Hierarchy & Отображается список сущностей, фильтр, выбор, создание, дублирование и удаление.\\
+5 & Live preview & Инспектор и гизмо меняют ECS-компоненты напрямую, viewport обновляется каждый кадр.\\
+6 & Гизмо & Подключён ImGuizmo: move, rotate, scale, local/global, snap, undo integration.\\
+7 & Statistics & FPS, frame ms, render ms, графики, количество сущностей, renderable объектов, камер и динамических тел.\\
+8 & Edit/Play & Play создаёт snapshot и включает физику; Stop восстанавливает сцену редактора.\\
+\bottomrule
+\end{tabular}
+\caption{Соответствие результата требованиям ПЗ5}
+\label{tab:pz5-requirements}
+\end{table}
+
+\subsection{Дополнительные результаты}
+Часть пунктов из самостоятельной работы также реализована:
+\begin{itemize}
+  \item \textbf{Save/Load}: сцена сохраняется в JSON и загружается из редактора;
+  \item \textbf{Undo/Redo}: реализована история действий редактора;
+  \item \textbf{Asset Browser}: добавлена панель ассетов с визуальными карточками;
+  \item \textbf{Кастомная тема}: интерфейс приведён к единому тёмному стилю;
+  \item \textbf{Docking UX}: реализованы drag-and-drop docking, resize и сохранение layout;
+  \item \textbf{Стабилизация редактора}: исправлены скачки камеры, визуальные артефакты splitters, assert ImGui в viewport и нестабильный rotate/scale.
+\end{itemize}
+
+\subsection{Иллюстрации и проверка работоспособности}
+В текстовой версии отчёта основной упор сделан на архитектуру, листинги и описание результата. Для финальной печатной версии можно добавить актуальные скриншоты:
+\begin{itemize}
+  \item общий вид редактора с hierarchy, viewport, inspector, statistics и content browser;
+  \item выбранный объект с активным ImGuizmo;
+  \item пример asset browser с карточками и превью ресурсов;
+  \item пример перетаскивания панели на docking overlay;
+  \item пример изменённого layout после resize splitters;
+  \item пример стабильной работы rotate/scale gizmo на выбранном объекте.
+\end{itemize}
+
+\section{Возникшие трудности и способы их решения}
+\begin{itemize}
+  \item \textbf{Отсутствие полноценной docking-ветки ImGui в текущей поставке.} В Diligent Tools используется ImGui без \texttt{DockSpace}. Решение: реализовать собственные dock slots, drag-and-drop overlay и сохранение layout поверх базовых окон ImGui.
+
+  \item \textbf{Некорректный picking при перекрытии объектов.} Ранний выбор мог попадать в объект на заднем плане. Решение: выбирать ближайшее пересечение ray-shape и исключить editor camera из pickable объектов.
+
+  \item \textbf{Конфликт горячих клавиш с ImGui.} Комбинации \texttt{Ctrl+S}, \texttt{Ctrl+Z}, \texttt{Ctrl+Y} не всегда проходили через обычный путь ввода. Решение: добавить raw input path и учитывать capture-флаги ImGui.
+
+  \item \textbf{Скачки свободной камеры.} При смене режима курсора или после потери фокуса накапливалась большая mouse delta, из-за чего камера могла резко повернуться и пользователь терял сцену. Решение: сбрасывать mouse delta при включении/выключении camera-look, ограничить максимальную mouse delta и clamp \texttt{dt} в контроллере камеры.
+
+  \item \textbf{Просадка FPS из-за лишних overlay-элементов.} Debug grid и частые проверки hover-pick создавали лишнюю нагрузку. Решение: отключить ненужную grid-сетку, кэшировать ассеты, ограничить частоту hover picking и уменьшить объём draw calls UI.
+
+  \item \textbf{Странный вид mesh-preview в Asset Browser.} Первичная пиктограмма меша выглядела как длинный треугольник. Решение: заменить её на компактный wire-cube preview, а для PPM-текстур добавить реальное pixel-preview.
+
+  \item \textbf{Визуальные артефакты docking resize.} Служебные окна resize-hitbox оставляли на границах layout тонкие рамки, хотя сами splitters уже были скрыты. Решение: отключить background и border у этих окон, оставив подсветку только при hover/drag.
+
+  \item \textbf{Assert ImGui в окне viewport.} После фикса неподвижного viewport остался вызов \texttt{SetCursorScreenPos()} для отключённого drag-grip. ImGui считал, что код расширяет границы окна без последующего item, и в Debug-сборке вызывал assert. Решение: удалить мёртвый вызов и не создавать dock-controls для viewport.
+
+  \item \textbf{Дрожание объектов при rotate/scale.} Первичная реализация гизмо каждый кадр раскладывала матрицу на position, rotation и scale и записывала все компоненты обратно. Из-за численного шума Euler-разложения scale мог менять rotation, а rotate мог менять scale. Решение: добавить безопасное разложение матрицы, unwrap углов, clamp scale и применять только тот компонент transform, который соответствует текущей операции гизмо.
+
+  \item \textbf{Необходимость сохранения рабочего пространства.} После настройки панелей пользователь терял layout при перезапуске. Решение: сохранять dock slots, visibility и размеры splitters в \code{assets/editor_layout.json}.
+\end{itemize}
+
+\section{Ответы на контрольные вопросы}
+\begin{enumerate}
+  \item \textbf{В чём отличие immediate mode GUI от retained mode GUI? Почему ImGui популярен в инструментах разработки игр?}\\
+  В immediate mode интерфейс описывается заново каждый кадр, а состояние виджетов обычно хранится в коде приложения. В retained mode дерево виджетов создаётся заранее и живёт независимо. ImGui популярен в игровых инструментах, потому что он быстро интегрируется в render loop, не требует сложной архитектуры UI и удобен для отладочных и редакторских панелей.
+
+  \item \textbf{Как организовать передачу событий ввода между ImGui и игровым движком?}\\
+  Платформенные события сначала передаются ImGui backend, после чего игровой код проверяет флаги \texttt{io.WantCaptureMouse} и \texttt{io.WantCaptureKeyboard}. Если ImGui хочет захватить ввод, gameplay не должен реагировать на мышь или клавиатуру. Для редакторских hotkeys можно использовать отдельный raw input path, но с осторожной фильтрацией текстового ввода.
+
+  \item \textbf{Как устроен docking в ImGui? Какие флаги необходимо установить для его поддержки?}\\
+  В стандартной docking-ветке ImGui нужно включить флаг \code{ImGuiConfigFlags_DockingEnable} и создать \code{DockSpace}. В текущем проекте такая ветка недоступна, поэтому docking реализован вручную через логические слоты, drag-and-drop payload и позиционирование окон.
+
+  \item \textbf{Каким образом изменения в инспекторе немедленно отражаются в окне предпросмотра?}\\
+  Инспектор редактирует сами ECS-компоненты выбранной сущности. Рендерер каждый кадр читает эти компоненты, поэтому новая позиция, цвет, mesh или collider становятся видимыми без перезапуска сцены.
+
+  \item \textbf{Как гизмо преобразует действия мыши в изменения матрицы трансформации?}\\
+  ImGuizmo получает view/projection матрицы камеры, прямоугольник viewport и матрицу объекта. По движению мыши библиотека строит новую матрицу объекта. В проекте эта матрица проходит безопасное разложение, после чего в \texttt{Transform} записывается только релевантный компонент: position для перемещения, rotation для вращения или scale для масштабирования.
+
+  \item \textbf{Какие данные необходимы для корректной работы 3D-манипулятора?}\\
+  Нужны матрица вида камеры, матрица проекции, размеры viewport, мировая или локальная матрица объекта, выбранная операция transform и режим координат. Также желательно учитывать snapping и состояние selected entity.
+
+  \item \textbf{Как можно оптимизировать отрисовку панели иерархии при большом количестве объектов?}\\
+  Можно использовать фильтрацию, кэш отображаемых имён, \texttt{ImGuiListClipper}, ленивое раскрытие дерева и обновление списка только при изменениях ECS. Для тысяч объектов важно не строить лишние строки и не выполнять тяжёлые запросы каждый кадр.
+
+  \item \textbf{Какие метрики производительности полезно отображать в панели статистики?}\\
+  Полезны FPS, frame time, CPU/GPU render time, количество сущностей, renderable объектов, draw calls, активные rigidbodies, collision pairs, память ресурсов и время отдельных систем. В проекте уже отображаются FPS, frame ms, render ms и основные счётчики сцены.
+
+  \item \textbf{Как организовать переключение между режимами редактирования и игры?}\\
+  При входе в Play Mode редактор сохраняет snapshot сцены и включает физику/игровую логику. При выходе из Play Mode snapshot восстанавливается, чтобы пользователь вернулся к исходной редакторской сцене. В Edit Mode редактирование компонентов разрешено, а физика остановлена.
+\end{enumerate}
+
+\section{Заключение}
+В ходе выполнения практической работы в \textit{TurboGameEngine} был реализован WYSIWYG-редактор сцены на базе Dear ImGui и ImGuizmo. Проект получил главное меню, профессионально оформленные панели, инспектор компонентов, иерархию сцены, viewport с live preview, манипуляторы трансформаций, статистику, режимы Edit/Play, выбор объектов кликом по сцене, Asset Browser, Undo/Redo и сохранение сцены. Дополнительно была разработана собственная docking-система с drag-and-drop, resize закреплённых областей и сохранением layout между запусками.
+
+После первичной реализации редактор был доработан по результатам практического тестирования. Были исправлены скачки free camera, центральный viewport был зафиксирован как основная рабочая область, splitters перестали оставлять визуальные артефакты, был устранён debug assert ImGui, а операции rotate/scale в ImGuizmo стали стабильнее за счёт безопасного разложения матрицы и покомпонентного применения transform.
+
+Полученный редактор уже позволяет использовать движок не только как runtime-демонстрацию, но и как инструмент для интерактивной сборки и настройки сцен. Следующими логичными улучшениями являются полноценный material editor, drag-and-drop ассетов прямо во viewport, thumbnails через offscreen rendering, отдельные prefab-ресурсы, hot-reload ассетов и переход на ImGui docking branch при обновлении third-party зависимостей.
+
+\subsection*{Репозиторий проекта на GitHub}
+\href{https://github.com/TurbikXD/TurboGameEngine}{https://github.com/TurbikXD/TurboGameEngine}.
+
+\end{document}

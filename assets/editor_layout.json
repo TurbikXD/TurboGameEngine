@@ -1,0 +1,28 @@
+{
+  "dockSlots": {
+    "hierarchy": "left_bottom",
+    "inspector": "right_top",
+    "project": "left_top",
+    "stats": "right_bottom",
+    "status": "bottom",
+    "toolbar": "top",
+    "viewport": "center"
+  },
+  "locked": false,
+  "sizing": {
+    "leftSplit": 0.4510822892189026,
+    "leftWidth": 414.0,
+    "rightSplit": 0.6800000071525574,
+    "rightWidth": 352.0
+  },
+  "version": 1,
+  "visibility": {
+    "hierarchy": true,
+    "inspector": true,
+    "project": true,
+    "stats": true,
+    "status": true,
+    "toolbar": true,
+    "viewport": true
+  }
+}

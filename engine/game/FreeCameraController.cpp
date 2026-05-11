@@ -27,12 +27,22 @@ void FreeCameraController::update(
     const double dt,
     const bool flyModeActive,
     const bool mouseLookActive) {
-    const float dtSeconds = static_cast<float>(dt);
+    const float dtSeconds = std::clamp(static_cast<float>(dt), 0.0F, m_settings.maxDeltaSeconds);
 
     if (mouseLookActive) {
         const auto [deltaX, deltaY] = platform::InputManager::mouseDeltaRaw();
-        transform.rotationEulerRadians.y += static_cast<float>(deltaX) * m_settings.mouseSensitivity;
-        transform.rotationEulerRadians.x -= static_cast<float>(deltaY) * m_settings.mouseSensitivity;
+        glm::vec2 mouseDelta(static_cast<float>(deltaX), static_cast<float>(deltaY));
+        if (std::isfinite(mouseDelta.x) && std::isfinite(mouseDelta.y)) {
+            const float deltaLength = glm::length(mouseDelta);
+            if (deltaLength > m_settings.maxMouseDeltaPixels && deltaLength > 1e-5F) {
+                mouseDelta *= m_settings.maxMouseDeltaPixels / deltaLength;
+            }
+        } else {
+            mouseDelta = glm::vec2(0.0F);
+        }
+
+        transform.rotationEulerRadians.y += mouseDelta.x * m_settings.mouseSensitivity;
+        transform.rotationEulerRadians.x -= mouseDelta.y * m_settings.mouseSensitivity;
         transform.rotationEulerRadians.x =
             std::clamp(transform.rotationEulerRadians.x, -m_settings.pitchLimitRadians, m_settings.pitchLimitRadians);
         transform.rotationEulerRadians.y =

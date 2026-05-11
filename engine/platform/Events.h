@@ -8,12 +8,27 @@ enum class KeyCode : std::uint16_t {
     Unknown = 0,
     Enter,
     Escape,
+    Tab,
+    Backspace,
+    Delete,
+    Home,
+    End,
     W,
     A,
     S,
     D,
     Q,
     E,
+    F,
+    N,
+    O,
+    R,
+    Y,
+    Z,
+    LeftControl,
+    RightControl,
+    LeftAlt,
+    RightAlt,
     Space,
     LeftShift,
     RightShift,
@@ -41,6 +56,7 @@ enum class EventType : std::uint8_t {
     MouseButtonReleased,
     MouseMoved,
     MouseScrolled,
+    TextInput,
     Resize
 };
 
@@ -53,6 +69,7 @@ struct Event final {
     double mouseY{0.0};
     double scrollX{0.0};
     double scrollY{0.0};
+    std::uint32_t codepoint{0};
     int width{0};
     int height{0};
 };

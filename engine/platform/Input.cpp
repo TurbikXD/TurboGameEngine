@@ -111,8 +111,24 @@ bool InputManager::wasKeyPressed(const KeyCode key) {
     return s_currentKeyStates[index] && !s_previousKeyStates[index];
 }
 
+bool InputManager::wasKeyPressedRaw(const KeyCode key) {
+    if (!isValidKey(key)) {
+        return false;
+    }
+    const std::size_t index = static_cast<std::size_t>(key);
+    return s_currentKeyStates[index] && !s_previousKeyStates[index];
+}
+
 bool InputManager::wasKeyReleased(const KeyCode key) {
     if (!isValidKey(key) || s_keyboardCaptured) {
+        return false;
+    }
+    const std::size_t index = static_cast<std::size_t>(key);
+    return !s_currentKeyStates[index] && s_previousKeyStates[index];
+}
+
+bool InputManager::wasKeyReleasedRaw(const KeyCode key) {
+    if (!isValidKey(key)) {
         return false;
     }
     const std::size_t index = static_cast<std::size_t>(key);
@@ -162,6 +178,11 @@ std::pair<double, double> InputManager::mouseDelta() {
 
 std::pair<double, double> InputManager::mouseDeltaRaw() {
     return {s_mouseDeltaX, s_mouseDeltaY};
+}
+
+void InputManager::resetMouseDelta() {
+    s_mouseDeltaX = 0.0;
+    s_mouseDeltaY = 0.0;
 }
 
 std::pair<double, double> InputManager::scrollDelta() {

@@ -405,6 +405,11 @@ void Application::renderWorkspaceUi(const double frameDtSeconds) {
         return;
     }
 
+    if (m_workspaceMode == WorkspaceMode::EngineStates) {
+        m_stateStack.renderUi(m_renderer);
+        return;
+    }
+
     static constexpr std::array<const char*, 5> kWorkspaceItems{
         "Engine States",
         "Diligent Tutorial01: Hello Triangle",
@@ -441,17 +446,7 @@ void Application::renderWorkspaceUi(const double frameDtSeconds) {
             ENGINE_LOG_INFO("Workspace mode switched to '{}'", workspaceModeLabel(m_workspaceMode));
         }
 
-        if (m_workspaceMode == WorkspaceMode::EngineStates) {
-            ImGui::TextUnformatted("Engine state controls:");
-            ImGui::BulletText("Menu: Enter -> Gameplay");
-            ImGui::BulletText("Gameplay: Hold Right Mouse + WASDQE for UE-style camera");
-            ImGui::BulletText("Gameplay: Mouse Wheel adjusts move speed, Shift boosts fly speed");
-            ImGui::BulletText("Gameplay: Start physics from UI, Space launches the striker");
-            ImGui::BulletText("Gameplay: F1 toggles collider debug");
-            ImGui::BulletText("Gameplay: Esc -> Pause");
-            ImGui::BulletText("Pause: Esc -> Resume");
-            m_stateStack.renderUi(m_renderer);
-        } else if (m_workspaceMode == WorkspaceMode::Tutorial01HelloTriangle) {
+        if (m_workspaceMode == WorkspaceMode::Tutorial01HelloTriangle) {
             ImGui::TextWrapped("Renders a rotating triangle using the engine pipeline (Tutorial01-style).");
         } else if (m_workspaceMode == WorkspaceMode::Tutorial03Texturing) {
             ImGui::TextWrapped("Renders textured geometry using assets/shaders_hlsl/textured.* (Tutorial03-style).");

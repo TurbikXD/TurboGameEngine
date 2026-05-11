@@ -1,0 +1,1661 @@
+{
+    "cameraEntity": 1,
+    "entities": [
+        {
+            "camera": {
+                "active": true,
+                "farPlane": 220.0,
+                "nearPlane": 0.10000000149011612,
+                "verticalFovRadians": 0.9075711965560913
+            },
+            "sourceId": 1,
+            "tag": {
+                "value": "editor_camera"
+            },
+            "transform": {
+                "position": [
+                    2.390918493270874,
+                    20.021947860717773,
+                    -41.48146057128906
+                ],
+                "rotationEulerRadians": [
+                    -0.4334861934185028,
+                    -0.05249999091029167,
+                    0.0
+                ],
+                "scale": [
+                    1.0,
+                    1.0,
+                    1.0
+                ]
+            }
+        },
+        {
+            "collider": {
+                "enabled": true,
+                "halfExtents": [
+                    0.5,
+                    0.5,
+                    0.5
+                ],
+                "offset": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "radius": 0.5,
+                "type": "aabb"
+            },
+            "meshRenderer": {
+                "meshId": "__diligent_cube__",
+                "primitiveType": 0,
+                "shaderId": "assets/shaders_hlsl/textured.shader.json",
+                "textureId": "assets/textures/arena_floor.ppm",
+                "tint": [
+                    0.9599999785423279,
+                    0.9800000190734863,
+                    1.0,
+                    1.0
+                ],
+                "uvScale": [
+                    8.0,
+                    6.0
+                ],
+                "visible": true
+            },
+            "rigidbody": {
+                "acceleration": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "angularDamping": 0.6000000238418579,
+                "angularVelocity": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "canSleep": true,
+                "friction": 0.9200000166893005,
+                "isKinematic": false,
+                "isStatic": true,
+                "linearDamping": 0.07999999821186066,
+                "mass": 1.0,
+                "restitution": 0.05999999865889549,
+                "useGravity": false,
+                "velocity": [
+                    0.0,
+                    0.0,
+                    0.0
+                ]
+            },
+            "sourceId": 2,
+            "tag": {
+                "value": "floor"
+            },
+            "transform": {
+                "position": [
+                    0.0,
+                    -2.5,
+                    10.0
+                ],
+                "rotationEulerRadians": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "scale": [
+                    28.0,
+                    1.0,
+                    20.0
+                ]
+            }
+        },
+        {
+            "collider": {
+                "enabled": true,
+                "halfExtents": [
+                    0.5,
+                    0.5,
+                    0.5
+                ],
+                "offset": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "radius": 0.5,
+                "type": "aabb"
+            },
+            "meshRenderer": {
+                "meshId": "__diligent_cube__",
+                "primitiveType": 0,
+                "shaderId": "assets/shaders_hlsl/textured.shader.json",
+                "textureId": "assets/textures/arena_wall.ppm",
+                "tint": [
+                    0.6000000238418579,
+                    0.6399999856948853,
+                    0.7200000286102295,
+                    1.0
+                ],
+                "uvScale": [
+                    6.0,
+                    2.0
+                ],
+                "visible": true
+            },
+            "rigidbody": {
+                "acceleration": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "angularDamping": 0.6000000238418579,
+                "angularVelocity": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "canSleep": true,
+                "friction": 0.9200000166893005,
+                "isKinematic": false,
+                "isStatic": true,
+                "linearDamping": 0.07999999821186066,
+                "mass": 1.0,
+                "restitution": 0.05999999865889549,
+                "useGravity": false,
+                "velocity": [
+                    0.0,
+                    0.0,
+                    0.0
+                ]
+            },
+            "sourceId": 3,
+            "tag": {
+                "value": "wall_left"
+            },
+            "transform": {
+                "position": [
+                    -14.300000190734863,
+                    -1.100000023841858,
+                    10.0
+                ],
+                "rotationEulerRadians": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "scale": [
+                    0.699999988079071,
+                    4.0,
+                    20.0
+                ]
+            }
+        },
+        {
+            "collider": {
+                "enabled": true,
+                "halfExtents": [
+                    0.5,
+                    0.5,
+                    0.5
+                ],
+                "offset": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "radius": 0.5,
+                "type": "aabb"
+            },
+            "meshRenderer": {
+                "meshId": "__diligent_cube__",
+                "primitiveType": 0,
+                "shaderId": "assets/shaders_hlsl/textured.shader.json",
+                "textureId": "assets/textures/arena_wall.ppm",
+                "tint": [
+                    0.6000000238418579,
+                    0.6399999856948853,
+                    0.7200000286102295,
+                    1.0
+                ],
+                "uvScale": [
+                    6.0,
+                    2.0
+                ],
+                "visible": true
+            },
+            "rigidbody": {
+                "acceleration": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "angularDamping": 0.6000000238418579,
+                "angularVelocity": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "canSleep": true,
+                "friction": 0.9200000166893005,
+                "isKinematic": false,
+                "isStatic": true,
+                "linearDamping": 0.07999999821186066,
+                "mass": 1.0,
+                "restitution": 0.05999999865889549,
+                "useGravity": false,
+                "velocity": [
+                    0.0,
+                    0.0,
+                    0.0
+                ]
+            },
+            "sourceId": 4,
+            "tag": {
+                "value": "wall_right"
+            },
+            "transform": {
+                "position": [
+                    14.300000190734863,
+                    -1.100000023841858,
+                    10.0
+                ],
+                "rotationEulerRadians": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "scale": [
+                    0.699999988079071,
+                    4.0,
+                    20.0
+                ]
+            }
+        },
+        {
+            "collider": {
+                "enabled": true,
+                "halfExtents": [
+                    0.5,
+                    0.5,
+                    0.5
+                ],
+                "offset": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "radius": 0.5,
+                "type": "aabb"
+            },
+            "meshRenderer": {
+                "meshId": "__diligent_cube__",
+                "primitiveType": 0,
+                "shaderId": "assets/shaders_hlsl/textured.shader.json",
+                "textureId": "assets/textures/arena_wall.ppm",
+                "tint": [
+                    0.5799999833106995,
+                    0.6200000047683716,
+                    0.699999988079071,
+                    1.0
+                ],
+                "uvScale": [
+                    7.0,
+                    2.0
+                ],
+                "visible": true
+            },
+            "rigidbody": {
+                "acceleration": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "angularDamping": 0.6000000238418579,
+                "angularVelocity": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "canSleep": true,
+                "friction": 0.9200000166893005,
+                "isKinematic": false,
+                "isStatic": true,
+                "linearDamping": 0.07999999821186066,
+                "mass": 1.0,
+                "restitution": 0.05999999865889549,
+                "useGravity": false,
+                "velocity": [
+                    0.0,
+                    0.0,
+                    0.0
+                ]
+            },
+            "sourceId": 5,
+            "tag": {
+                "value": "wall_back"
+            },
+            "transform": {
+                "position": [
+                    0.0,
+                    -1.100000023841858,
+                    19.700000762939453
+                ],
+                "rotationEulerRadians": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "scale": [
+                    28.0,
+                    4.0,
+                    0.699999988079071
+                ]
+            }
+        },
+        {
+            "collider": {
+                "enabled": true,
+                "halfExtents": [
+                    0.5,
+                    0.5,
+                    0.5
+                ],
+                "offset": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "radius": 0.5,
+                "type": "aabb"
+            },
+            "meshRenderer": {
+                "meshId": "__diligent_cube__",
+                "primitiveType": 0,
+                "shaderId": "assets/shaders_hlsl/textured.shader.json",
+                "textureId": "assets/textures/arena_wall.ppm",
+                "tint": [
+                    0.6800000071525574,
+                    0.7200000286102295,
+                    0.7900000214576721,
+                    1.0
+                ],
+                "uvScale": [
+                    2.0,
+                    5.0
+                ],
+                "visible": true
+            },
+            "rigidbody": {
+                "acceleration": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "angularDamping": 0.6000000238418579,
+                "angularVelocity": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "canSleep": true,
+                "friction": 0.9200000166893005,
+                "isKinematic": false,
+                "isStatic": true,
+                "linearDamping": 0.07999999821186066,
+                "mass": 1.0,
+                "restitution": 0.05999999865889549,
+                "useGravity": false,
+                "velocity": [
+                    0.0,
+                    0.0,
+                    0.0
+                ]
+            },
+            "sourceId": 6,
+            "tag": {
+                "value": "pillar_left"
+            },
+            "transform": {
+                "position": [
+                    -5.800000190734863,
+                    0.20000000298023224,
+                    10.0
+                ],
+                "rotationEulerRadians": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "scale": [
+                    1.399999976158142,
+                    5.0,
+                    1.399999976158142
+                ]
+            }
+        },
+        {
+            "collider": {
+                "enabled": true,
+                "halfExtents": [
+                    0.5,
+                    0.5,
+                    0.5
+                ],
+                "offset": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "radius": 0.5,
+                "type": "aabb"
+            },
+            "meshRenderer": {
+                "meshId": "__diligent_cube__",
+                "primitiveType": 0,
+                "shaderId": "assets/shaders_hlsl/textured.shader.json",
+                "textureId": "assets/textures/arena_wall.ppm",
+                "tint": [
+                    0.6800000071525574,
+                    0.7200000286102295,
+                    0.7900000214576721,
+                    1.0
+                ],
+                "uvScale": [
+                    2.0,
+                    5.0
+                ],
+                "visible": true
+            },
+            "rigidbody": {
+                "acceleration": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "angularDamping": 0.6000000238418579,
+                "angularVelocity": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "canSleep": true,
+                "friction": 0.9200000166893005,
+                "isKinematic": false,
+                "isStatic": true,
+                "linearDamping": 0.07999999821186066,
+                "mass": 1.0,
+                "restitution": 0.05999999865889549,
+                "useGravity": false,
+                "velocity": [
+                    0.0,
+                    0.0,
+                    0.0
+                ]
+            },
+            "sourceId": 7,
+            "tag": {
+                "value": "pillar_right"
+            },
+            "transform": {
+                "position": [
+                    5.800000190734863,
+                    0.20000000298023224,
+                    10.0
+                ],
+                "rotationEulerRadians": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "scale": [
+                    1.399999976158142,
+                    5.0,
+                    1.399999976158142
+                ]
+            }
+        },
+        {
+            "collider": {
+                "enabled": true,
+                "halfExtents": [
+                    0.5,
+                    0.5,
+                    0.5
+                ],
+                "offset": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "radius": 0.5,
+                "type": "aabb"
+            },
+            "meshRenderer": {
+                "meshId": "__diligent_cube__",
+                "primitiveType": 0,
+                "shaderId": "assets/shaders_hlsl/textured.shader.json",
+                "textureId": "",
+                "tint": [
+                    0.8199999928474426,
+                    0.41999998688697815,
+                    0.3199999928474426,
+                    1.0
+                ],
+                "uvScale": [
+                    1.0,
+                    1.0
+                ],
+                "visible": true
+            },
+            "rigidbody": {
+                "acceleration": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "angularDamping": 0.6200000047683716,
+                "angularVelocity": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "canSleep": true,
+                "friction": 0.8199999928474426,
+                "isKinematic": false,
+                "isStatic": false,
+                "linearDamping": 0.14000000059604645,
+                "mass": 0.949999988079071,
+                "restitution": 0.05999999865889549,
+                "useGravity": true,
+                "velocity": [
+                    0.0,
+                    0.0,
+                    0.0
+                ]
+            },
+            "sourceId": 8,
+            "tag": {
+                "value": "stack_0_0"
+            },
+            "transform": {
+                "position": [
+                    -3.6000001430511475,
+                    -1.350000023841858,
+                    13.0
+                ],
+                "rotationEulerRadians": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "scale": [
+                    1.100000023841858,
+                    1.100000023841858,
+                    1.100000023841858
+                ]
+            }
+        },
+        {
+            "collider": {
+                "enabled": true,
+                "halfExtents": [
+                    0.5,
+                    0.5,
+                    0.5
+                ],
+                "offset": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "radius": 0.5,
+                "type": "aabb"
+            },
+            "meshRenderer": {
+                "meshId": "__diligent_cube__",
+                "primitiveType": 0,
+                "shaderId": "assets/shaders_hlsl/textured.shader.json",
+                "textureId": "",
+                "tint": [
+                    0.8799999952316284,
+                    0.6299999952316284,
+                    0.23999999463558197,
+                    1.0
+                ],
+                "uvScale": [
+                    1.0,
+                    1.0
+                ],
+                "visible": true
+            },
+            "rigidbody": {
+                "acceleration": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "angularDamping": 0.6200000047683716,
+                "angularVelocity": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "canSleep": true,
+                "friction": 0.8199999928474426,
+                "isKinematic": false,
+                "isStatic": false,
+                "linearDamping": 0.14000000059604645,
+                "mass": 0.949999988079071,
+                "restitution": 0.05999999865889549,
+                "useGravity": true,
+                "velocity": [
+                    0.0,
+                    0.0,
+                    0.0
+                ]
+            },
+            "sourceId": 9,
+            "tag": {
+                "value": "stack_0_1"
+            },
+            "transform": {
+                "position": [
+                    -1.2000000476837158,
+                    -1.350000023841858,
+                    13.0
+                ],
+                "rotationEulerRadians": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "scale": [
+                    1.100000023841858,
+                    1.100000023841858,
+                    1.100000023841858
+                ]
+            }
+        },
+        {
+            "collider": {
+                "enabled": true,
+                "halfExtents": [
+                    0.5,
+                    0.5,
+                    0.5
+                ],
+                "offset": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "radius": 0.5,
+                "type": "aabb"
+            },
+            "meshRenderer": {
+                "meshId": "__diligent_cube__",
+                "primitiveType": 0,
+                "shaderId": "assets/shaders_hlsl/textured.shader.json",
+                "textureId": "",
+                "tint": [
+                    0.550000011920929,
+                    0.6800000071525574,
+                    0.3199999928474426,
+                    1.0
+                ],
+                "uvScale": [
+                    1.0,
+                    1.0
+                ],
+                "visible": true
+            },
+            "rigidbody": {
+                "acceleration": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "angularDamping": 0.6200000047683716,
+                "angularVelocity": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "canSleep": true,
+                "friction": 0.8199999928474426,
+                "isKinematic": false,
+                "isStatic": false,
+                "linearDamping": 0.14000000059604645,
+                "mass": 0.949999988079071,
+                "restitution": 0.05999999865889549,
+                "useGravity": true,
+                "velocity": [
+                    0.0,
+                    0.0,
+                    0.0
+                ]
+            },
+            "sourceId": 10,
+            "tag": {
+                "value": "stack_0_2"
+            },
+            "transform": {
+                "position": [
+                    1.2000000476837158,
+                    -1.350000023841858,
+                    13.0
+                ],
+                "rotationEulerRadians": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "scale": [
+                    1.100000023841858,
+                    1.100000023841858,
+                    1.100000023841858
+                ]
+            }
+        },
+        {
+            "collider": {
+                "enabled": true,
+                "halfExtents": [
+                    0.5,
+                    0.5,
+                    0.5
+                ],
+                "offset": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "radius": 0.5,
+                "type": "aabb"
+            },
+            "meshRenderer": {
+                "meshId": "__diligent_cube__",
+                "primitiveType": 0,
+                "shaderId": "assets/shaders_hlsl/textured.shader.json",
+                "textureId": "",
+                "tint": [
+                    0.23000000417232513,
+                    0.6299999952316284,
+                    0.6100000143051147,
+                    1.0
+                ],
+                "uvScale": [
+                    1.0,
+                    1.0
+                ],
+                "visible": true
+            },
+            "rigidbody": {
+                "acceleration": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "angularDamping": 0.6200000047683716,
+                "angularVelocity": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "canSleep": true,
+                "friction": 0.8199999928474426,
+                "isKinematic": false,
+                "isStatic": false,
+                "linearDamping": 0.14000000059604645,
+                "mass": 0.949999988079071,
+                "restitution": 0.05999999865889549,
+                "useGravity": true,
+                "velocity": [
+                    0.0,
+                    0.0,
+                    0.0
+                ]
+            },
+            "sourceId": 11,
+            "tag": {
+                "value": "stack_0_3"
+            },
+            "transform": {
+                "position": [
+                    3.6000001430511475,
+                    -1.350000023841858,
+                    13.0
+                ],
+                "rotationEulerRadians": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "scale": [
+                    1.100000023841858,
+                    1.100000023841858,
+                    1.100000023841858
+                ]
+            }
+        },
+        {
+            "collider": {
+                "enabled": true,
+                "halfExtents": [
+                    0.5,
+                    0.5,
+                    0.5
+                ],
+                "offset": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "radius": 0.5,
+                "type": "aabb"
+            },
+            "meshRenderer": {
+                "meshId": "__diligent_cube__",
+                "primitiveType": 0,
+                "shaderId": "assets/shaders_hlsl/textured.shader.json",
+                "textureId": "",
+                "tint": [
+                    0.2800000011920929,
+                    0.5199999809265137,
+                    0.7900000214576721,
+                    1.0
+                ],
+                "uvScale": [
+                    1.0,
+                    1.0
+                ],
+                "visible": true
+            },
+            "rigidbody": {
+                "acceleration": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "angularDamping": 0.6200000047683716,
+                "angularVelocity": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "canSleep": true,
+                "friction": 0.8199999928474426,
+                "isKinematic": false,
+                "isStatic": false,
+                "linearDamping": 0.14000000059604645,
+                "mass": 1.0299999713897705,
+                "restitution": 0.05999999865889549,
+                "useGravity": true,
+                "velocity": [
+                    0.0,
+                    0.0,
+                    0.0
+                ]
+            },
+            "sourceId": 12,
+            "tag": {
+                "value": "stack_1_0"
+            },
+            "transform": {
+                "position": [
+                    -2.4000000953674316,
+                    -0.1700000762939453,
+                    13.0
+                ],
+                "rotationEulerRadians": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "scale": [
+                    1.100000023841858,
+                    1.100000023841858,
+                    1.100000023841858
+                ]
+            }
+        },
+        {
+            "collider": {
+                "enabled": true,
+                "halfExtents": [
+                    0.5,
+                    0.5,
+                    0.5
+                ],
+                "offset": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "radius": 0.5,
+                "type": "aabb"
+            },
+            "meshRenderer": {
+                "meshId": "__diligent_cube__",
+                "primitiveType": 0,
+                "shaderId": "assets/shaders_hlsl/textured.shader.json",
+                "textureId": "",
+                "tint": [
+                    0.550000011920929,
+                    0.4399999976158142,
+                    0.7400000095367432,
+                    1.0
+                ],
+                "uvScale": [
+                    1.0,
+                    1.0
+                ],
+                "visible": true
+            },
+            "rigidbody": {
+                "acceleration": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "angularDamping": 0.6200000047683716,
+                "angularVelocity": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "canSleep": true,
+                "friction": 0.8199999928474426,
+                "isKinematic": false,
+                "isStatic": false,
+                "linearDamping": 0.14000000059604645,
+                "mass": 1.0299999713897705,
+                "restitution": 0.05999999865889549,
+                "useGravity": true,
+                "velocity": [
+                    0.0,
+                    0.0,
+                    0.0
+                ]
+            },
+            "sourceId": 13,
+            "tag": {
+                "value": "stack_1_1"
+            },
+            "transform": {
+                "position": [
+                    0.0,
+                    -0.1700000762939453,
+                    13.0
+                ],
+                "rotationEulerRadians": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "scale": [
+                    1.100000023841858,
+                    1.100000023841858,
+                    1.100000023841858
+                ]
+            }
+        },
+        {
+            "collider": {
+                "enabled": true,
+                "halfExtents": [
+                    0.5,
+                    0.5,
+                    0.5
+                ],
+                "offset": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "radius": 0.5,
+                "type": "aabb"
+            },
+            "meshRenderer": {
+                "meshId": "__diligent_cube__",
+                "primitiveType": 0,
+                "shaderId": "assets/shaders_hlsl/textured.shader.json",
+                "textureId": "",
+                "tint": [
+                    0.800000011920929,
+                    0.46000000834465027,
+                    0.6200000047683716,
+                    1.0
+                ],
+                "uvScale": [
+                    1.0,
+                    1.0
+                ],
+                "visible": true
+            },
+            "rigidbody": {
+                "acceleration": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "angularDamping": 0.6200000047683716,
+                "angularVelocity": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "canSleep": true,
+                "friction": 0.8199999928474426,
+                "isKinematic": false,
+                "isStatic": false,
+                "linearDamping": 0.14000000059604645,
+                "mass": 1.0299999713897705,
+                "restitution": 0.05999999865889549,
+                "useGravity": true,
+                "velocity": [
+                    0.0,
+                    0.0,
+                    0.0
+                ]
+            },
+            "sourceId": 14,
+            "tag": {
+                "value": "stack_1_2"
+            },
+            "transform": {
+                "position": [
+                    2.4000000953674316,
+                    -0.1700000762939453,
+                    13.0
+                ],
+                "rotationEulerRadians": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "scale": [
+                    1.100000023841858,
+                    1.100000023841858,
+                    1.100000023841858
+                ]
+            }
+        },
+        {
+            "collider": {
+                "enabled": true,
+                "halfExtents": [
+                    0.5,
+                    0.5,
+                    0.5
+                ],
+                "offset": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "radius": 0.5,
+                "type": "aabb"
+            },
+            "meshRenderer": {
+                "meshId": "__diligent_cube__",
+                "primitiveType": 0,
+                "shaderId": "assets/shaders_hlsl/textured.shader.json",
+                "textureId": "",
+                "tint": [
+                    0.8199999928474426,
+                    0.41999998688697815,
+                    0.3199999928474426,
+                    1.0
+                ],
+                "uvScale": [
+                    1.0,
+                    1.0
+                ],
+                "visible": true
+            },
+            "rigidbody": {
+                "acceleration": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "angularDamping": 0.6200000047683716,
+                "angularVelocity": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "canSleep": true,
+                "friction": 0.8199999928474426,
+                "isKinematic": false,
+                "isStatic": false,
+                "linearDamping": 0.14000000059604645,
+                "mass": 1.1100000143051147,
+                "restitution": 0.05999999865889549,
+                "useGravity": true,
+                "velocity": [
+                    0.0,
+                    0.0,
+                    0.0
+                ]
+            },
+            "sourceId": 15,
+            "tag": {
+                "value": "stack_2_0"
+            },
+            "transform": {
+                "position": [
+                    -1.2000000476837158,
+                    1.0099998712539673,
+                    13.0
+                ],
+                "rotationEulerRadians": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "scale": [
+                    1.100000023841858,
+                    1.100000023841858,
+                    1.100000023841858
+                ]
+            }
+        },
+        {
+            "collider": {
+                "enabled": true,
+                "halfExtents": [
+                    0.5,
+                    0.5,
+                    0.5
+                ],
+                "offset": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "radius": 0.5,
+                "type": "aabb"
+            },
+            "meshRenderer": {
+                "meshId": "__diligent_cube__",
+                "primitiveType": 0,
+                "shaderId": "assets/shaders_hlsl/textured.shader.json",
+                "textureId": "",
+                "tint": [
+                    0.8799999952316284,
+                    0.6299999952316284,
+                    0.23999999463558197,
+                    1.0
+                ],
+                "uvScale": [
+                    1.0,
+                    1.0
+                ],
+                "visible": true
+            },
+            "rigidbody": {
+                "acceleration": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "angularDamping": 0.6200000047683716,
+                "angularVelocity": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "canSleep": true,
+                "friction": 0.8199999928474426,
+                "isKinematic": false,
+                "isStatic": false,
+                "linearDamping": 0.14000000059604645,
+                "mass": 1.1100000143051147,
+                "restitution": 0.05999999865889549,
+                "useGravity": true,
+                "velocity": [
+                    0.0,
+                    0.0,
+                    0.0
+                ]
+            },
+            "sourceId": 16,
+            "tag": {
+                "value": "stack_2_1"
+            },
+            "transform": {
+                "position": [
+                    1.2000000476837158,
+                    1.0099998712539673,
+                    13.0
+                ],
+                "rotationEulerRadians": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "scale": [
+                    1.100000023841858,
+                    1.100000023841858,
+                    1.100000023841858
+                ]
+            }
+        },
+        {
+            "collider": {
+                "enabled": true,
+                "halfExtents": [
+                    0.5,
+                    0.5,
+                    0.5
+                ],
+                "offset": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "radius": 0.5,
+                "type": "aabb"
+            },
+            "meshRenderer": {
+                "meshId": "__procedural_pyramid__",
+                "primitiveType": 0,
+                "shaderId": "assets/shaders_hlsl/textured.shader.json",
+                "textureId": "",
+                "tint": [
+                    0.8999999761581421,
+                    0.5,
+                    0.23999999463558197,
+                    1.0
+                ],
+                "uvScale": [
+                    1.399999976158142,
+                    1.399999976158142
+                ],
+                "visible": true
+            },
+            "rigidbody": {
+                "acceleration": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "angularDamping": 0.7799999713897705,
+                "angularVelocity": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "canSleep": true,
+                "friction": 0.5799999833106995,
+                "isKinematic": false,
+                "isStatic": false,
+                "linearDamping": 0.18000000715255737,
+                "mass": 0.7799999713897705,
+                "restitution": 0.10000000149011612,
+                "useGravity": true,
+                "velocity": [
+                    0.0,
+                    0.0,
+                    0.0
+                ]
+            },
+            "sourceId": 17,
+            "tag": {
+                "value": "accent_pyramid_left"
+            },
+            "transform": {
+                "position": [
+                    -3.200000047683716,
+                    -1.25,
+                    7.0
+                ],
+                "rotationEulerRadians": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "scale": [
+                    1.2000000476837158,
+                    1.2000000476837158,
+                    1.2000000476837158
+                ]
+            }
+        },
+        {
+            "collider": {
+                "enabled": true,
+                "halfExtents": [
+                    0.5,
+                    0.5,
+                    0.5
+                ],
+                "offset": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "radius": 0.5,
+                "type": "aabb"
+            },
+            "meshRenderer": {
+                "meshId": "__procedural_pyramid__",
+                "primitiveType": 0,
+                "shaderId": "assets/shaders_hlsl/textured.shader.json",
+                "textureId": "",
+                "tint": [
+                    0.27000001072883606,
+                    0.6800000071525574,
+                    0.5600000023841858,
+                    1.0
+                ],
+                "uvScale": [
+                    1.2999999523162842,
+                    1.2999999523162842
+                ],
+                "visible": true
+            },
+            "rigidbody": {
+                "acceleration": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "angularDamping": 0.7799999713897705,
+                "angularVelocity": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "canSleep": true,
+                "friction": 0.5799999833106995,
+                "isKinematic": false,
+                "isStatic": false,
+                "linearDamping": 0.18000000715255737,
+                "mass": 0.7400000095367432,
+                "restitution": 0.10000000149011612,
+                "useGravity": true,
+                "velocity": [
+                    0.0,
+                    0.0,
+                    0.0
+                ]
+            },
+            "sourceId": 18,
+            "tag": {
+                "value": "accent_pyramid_mid"
+            },
+            "transform": {
+                "position": [
+                    0.0,
+                    -1.25,
+                    7.800000190734863
+                ],
+                "rotationEulerRadians": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "scale": [
+                    1.0499999523162842,
+                    1.0499999523162842,
+                    1.0499999523162842
+                ]
+            }
+        },
+        {
+            "collider": {
+                "enabled": true,
+                "halfExtents": [
+                    0.5,
+                    0.5,
+                    0.5
+                ],
+                "offset": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "radius": 0.5,
+                "type": "aabb"
+            },
+            "meshRenderer": {
+                "meshId": "__procedural_pyramid__",
+                "primitiveType": 0,
+                "shaderId": "assets/shaders_hlsl/textured.shader.json",
+                "textureId": "",
+                "tint": [
+                    0.28999999165534973,
+                    0.5199999809265137,
+                    0.8799999952316284,
+                    1.0
+                ],
+                "uvScale": [
+                    1.399999976158142,
+                    1.399999976158142
+                ],
+                "visible": true
+            },
+            "rigidbody": {
+                "acceleration": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "angularDamping": 0.7799999713897705,
+                "angularVelocity": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "canSleep": true,
+                "friction": 0.5799999833106995,
+                "isKinematic": false,
+                "isStatic": false,
+                "linearDamping": 0.18000000715255737,
+                "mass": 0.7799999713897705,
+                "restitution": 0.10000000149011612,
+                "useGravity": true,
+                "velocity": [
+                    0.0,
+                    0.0,
+                    0.0
+                ]
+            },
+            "sourceId": 19,
+            "tag": {
+                "value": "accent_pyramid_right"
+            },
+            "transform": {
+                "position": [
+                    3.200000047683716,
+                    -1.25,
+                    7.0
+                ],
+                "rotationEulerRadians": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "scale": [
+                    1.2000000476837158,
+                    1.2000000476837158,
+                    1.2000000476837158
+                ]
+            }
+        },
+        {
+            "collider": {
+                "enabled": true,
+                "halfExtents": [
+                    0.5,
+                    0.5,
+                    0.5
+                ],
+                "offset": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "radius": 0.5,
+                "type": "sphere"
+            },
+            "meshRenderer": {
+                "meshId": "__diligent_sphere__",
+                "primitiveType": 0,
+                "shaderId": "assets/shaders_hlsl/textured.shader.json",
+                "textureId": "",
+                "tint": [
+                    0.9200000166893005,
+                    0.3799999952316284,
+                    0.1599999964237213,
+                    1.0
+                ],
+                "uvScale": [
+                    1.0,
+                    1.0
+                ],
+                "visible": true
+            },
+            "rigidbody": {
+                "acceleration": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "angularDamping": 0.07999999821186066,
+                "angularVelocity": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "canSleep": true,
+                "friction": 0.949999988079071,
+                "isKinematic": false,
+                "isStatic": false,
+                "linearDamping": 0.029999999329447746,
+                "mass": 2.4000000953674316,
+                "restitution": 0.029999999329447746,
+                "useGravity": true,
+                "velocity": [
+                    0.0,
+                    0.0,
+                    0.0
+                ]
+            },
+            "sourceId": 20,
+            "tag": {
+                "value": "showcase_sphere"
+            },
+            "transform": {
+                "position": [
+                    -9.199999809265137,
+                    -1.100000023841858,
+                    16.0
+                ],
+                "rotationEulerRadians": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "scale": [
+                    1.350000023841858,
+                    1.350000023841858,
+                    1.350000023841858
+                ]
+            }
+        },
+        {
+            "collider": {
+                "enabled": true,
+                "halfExtents": [
+                    0.5,
+                    0.5,
+                    0.5
+                ],
+                "offset": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "radius": 0.5,
+                "type": "aabb"
+            },
+            "meshRenderer": {
+                "meshId": "__diligent_cube__",
+                "primitiveType": 0,
+                "shaderId": "assets/shaders_hlsl/textured.shader.json",
+                "textureId": "assets/textures/DGLogo.png",
+                "tint": [
+                    1.0,
+                    1.0,
+                    1.0,
+                    1.0
+                ],
+                "uvScale": [
+                    1.0,
+                    1.0
+                ],
+                "visible": true
+            },
+            "rigidbody": {
+                "acceleration": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "angularDamping": 0.6200000047683716,
+                "angularVelocity": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "canSleep": true,
+                "friction": 0.41999998688697815,
+                "isKinematic": false,
+                "isStatic": false,
+                "linearDamping": 0.14000000059604645,
+                "mass": 8.0,
+                "restitution": 0.07999999821186066,
+                "useGravity": true,
+                "velocity": [
+                    0.0,
+                    0.0,
+                    0.0
+                ]
+            },
+            "sourceId": 21,
+            "tag": {
+                "value": "striker"
+            },
+            "transform": {
+                "position": [
+                    -10.800000190734863,
+                    -1.0,
+                    10.0
+                ],
+                "rotationEulerRadians": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "scale": [
+                    1.850000023841858,
+                    1.850000023841858,
+                    1.850000023841858
+                ]
+            }
+        }
+    ],
+    "selectedEntity": 21,
+    "showColliderDebug": false,
+    "showcaseSphereEntity": 20,
+    "showcaseSphereLaunched": false,
+    "spawnSequence": 0,
+    "strikerEntity": 21,
+    "version": 1
+}
