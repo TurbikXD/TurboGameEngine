@@ -8,6 +8,10 @@
 #include "engine/core/EventBus.h"
 #include "engine/ecs/collision_utils.h"
 
+namespace engine::core {
+class JobSystem;
+}
+
 namespace engine::ecs {
 
 class World;
@@ -46,6 +50,7 @@ public:
     [[nodiscard]] std::size_t bodyCount() const;
     [[nodiscard]] std::size_t broadphasePairCount() const;
     [[nodiscard]] std::size_t sleepingBodyCount() const;
+    void setJobSystem(core::JobSystem* jobSystem);
     void clear();
 
     void update(World& world, double dt, core::EventBus& eventBus);
@@ -68,6 +73,7 @@ private:
     std::size_t m_lastBodyCount{0};
     std::size_t m_lastBroadphasePairCount{0};
     std::size_t m_lastSleepingBodyCount{0};
+    core::JobSystem* m_jobSystem{nullptr};
 };
 
 } // namespace engine::ecs

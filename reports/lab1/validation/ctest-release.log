@@ -1,0 +1,67 @@
+Start testing: Sep 24 22:59 RTZ 2 (çèìà)
+----------------------------------------------------------
+1/4 Testing: engine_physics_tests
+1/4 Test: engine_physics_tests
+Command: "C:/tge/profile/Release/engine_physics_tests.exe"
+Directory: C:/tge/profile
+"engine_physics_tests" start time: Sep 24 22:59 RTZ 2 (çèìà)
+Output:
+----------------------------------------------------------
+PhysicsSystem tests passed
+<end of output>
+Test time =   0.46 sec
+----------------------------------------------------------
+Test Passed.
+"engine_physics_tests" end time: Sep 24 22:59 RTZ 2 (çèìà)
+"engine_physics_tests" time elapsed: 00:00:00
+----------------------------------------------------------
+
+2/4 Testing: engine_job_system_tests
+2/4 Test: engine_job_system_tests
+Command: "C:/tge/profile/Release/engine_job_system_tests.exe"
+Directory: C:/tge/profile
+"engine_job_system_tests" start time: Sep 24 22:59 RTZ 2 (çèìà)
+Output:
+----------------------------------------------------------
+JobSystem tests passed
+<end of output>
+Test time =   0.46 sec
+----------------------------------------------------------
+Test Passed.
+"engine_job_system_tests" end time: Sep 24 22:59 RTZ 2 (çèìà)
+"engine_job_system_tests" time elapsed: 00:00:00
+----------------------------------------------------------
+
+3/4 Testing: engine_async_load_tests
+3/4 Test: engine_async_load_tests
+Command: "C:/tge/profile/Release/engine_async_load_tests.exe"
+Directory: C:/tge/profile
+"engine_async_load_tests" start time: Sep 24 22:59 RTZ 2 (çèìà)
+Output:
+----------------------------------------------------------
+Async loading tests passed: worker decode, bounded main pump, errors, live shutdown, sync A/B
+<end of output>
+Test time =   4.34 sec
+----------------------------------------------------------
+Test Passed.
+"engine_async_load_tests" end time: Sep 24 22:59 RTZ 2 (çèìà)
+"engine_async_load_tests" time elapsed: 00:00:04
+----------------------------------------------------------
+
+4/4 Testing: engine_transform_batch_tests
+4/4 Test: engine_transform_batch_tests
+Command: "C:/tge/profile/Release/engine_transform_batch_tests.exe"
+Directory: C:/tge/profile
+"engine_transform_batch_tests" start time: Sep 24 22:59 RTZ 2 (çèìà)
+Output:
+----------------------------------------------------------
+Transform batches: 4096 hierarchy matrices match serial/reference; bounds checks passed
+<end of output>
+Test time =   0.47 sec
+----------------------------------------------------------
+Test Passed.
+"engine_transform_batch_tests" end time: Sep 24 22:59 RTZ 2 (çèìà)
+"engine_transform_batch_tests" time elapsed: 00:00:00
+----------------------------------------------------------
+
+End testing: Sep 24 22:59 RTZ 2 (çèìà)

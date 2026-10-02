@@ -2,8 +2,10 @@
 #include <cstdlib>
 #include <iostream>
 #include <string>
+#include <vector>
 
 #include "engine/core/EventBus.h"
+#include "engine/core/JobSystem.h"
 #include "engine/ecs/components.h"
 #include "engine/ecs/physics_system.h"
 #include "engine/ecs/world.h"
@@ -214,6 +216,57 @@ bool runSphereRollingTest() {
     return expect(std::abs(sphereBody->angularVelocity.z) > 0.2F, "sphere should gain spin while rolling");
 }
 
+bool runParallelEquivalenceTest() {
+    engine::ecs::World serialWorld;
+    engine::ecs::World parallelWorld;
+    std::vector<engine::ecs::EntityId> serialEntities;
+    std::vector<engine::ecs::EntityId> parallelEntities;
+    serialEntities.reserve(256U);
+    parallelEntities.reserve(256U);
+
+    for (int row = 0; row < 16; ++row) {
+        for (int column = 0; column < 16; ++column) {
+            const glm::vec3 position(
+                static_cast<float>(column) * 3.0F,
+                5.0F + static_cast<float>((row + column) % 3),
+                static_cast<float>(row) * 3.0F);
+            serialEntities.push_back(spawnBox(serialWorld, position, glm::vec3(0.5F), false, 1.0F));
+            parallelEntities.push_back(spawnBox(parallelWorld, position, glm::vec3(0.5F), false, 1.0F));
+        }
+    }
+
+    engine::core::EventBus serialEvents;
+    engine::core::EventBus parallelEvents;
+    engine::ecs::PhysicsSystem serialPhysics;
+    engine::ecs::PhysicsSystem parallelPhysics;
+    engine::core::JobSystem jobs(true, 3U);
+    parallelPhysics.setJobSystem(&jobs);
+
+    serialPhysics.update(serialWorld, 1.0 / 60.0, serialEvents);
+    parallelPhysics.update(parallelWorld, 1.0 / 60.0, parallelEvents);
+
+    for (std::size_t index = 0; index < serialEntities.size(); ++index) {
+        const auto* serialTransform = serialWorld.getComponent<engine::ecs::Transform>(serialEntities[index]);
+        const auto* parallelTransform = parallelWorld.getComponent<engine::ecs::Transform>(parallelEntities[index]);
+        const auto* serialBody = serialWorld.getComponent<engine::ecs::Rigidbody>(serialEntities[index]);
+        const auto* parallelBody = parallelWorld.getComponent<engine::ecs::Rigidbody>(parallelEntities[index]);
+        if (!expect(serialTransform != nullptr && parallelTransform != nullptr, "parallel transform is missing") ||
+            !expect(serialBody != nullptr && parallelBody != nullptr, "parallel rigidbody is missing")) {
+            return false;
+        }
+        if (!expect(
+                glm::length(serialTransform->position - parallelTransform->position) < 1e-6F,
+                "parallel integration changed a transform") ||
+            !expect(
+                glm::length(serialBody->velocity - parallelBody->velocity) < 1e-6F,
+                "parallel integration changed a velocity")) {
+            return false;
+        }
+    }
+
+    return expect(serialPhysics.bodyCount() == parallelPhysics.bodyCount(), "parallel proxy count differs");
+}
+
 } // namespace
 
 int main() {
@@ -227,6 +280,9 @@ int main() {
         return EXIT_FAILURE;
     }
     if (!runSphereRollingTest()) {
+        return EXIT_FAILURE;
+    }
+    if (!runParallelEquivalenceTest()) {
         return EXIT_FAILURE;
     }
 

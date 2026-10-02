@@ -837,6 +837,11 @@ DiligentDevice::DiligentDevice(const DeviceCreateDesc& desc) : m_impl(std::make_
             m_impl->baseFactory = m_impl->d3d12Factory;
             Diligent::EngineD3D12CreateInfo createInfo{};
             configureCommonEngineOptions(createInfo, desc.enableValidation);
+            // Dynamic SRV/CBV descriptors are consumed for every draw and kept
+            // until the GPU retires the frame. The SDK default (8192) exhausts
+            // on the 4096-object scene. Reserve headroom for the supported
+            // 16384-object lab scene and multiple frames in flight (~8 MiB).
+            createInfo.GPUDescriptorHeapDynamicSize[0] = 262144U;
             m_impl->d3d12Factory->CreateDeviceAndContextsD3D12(createInfo, &m_impl->renderDevice, &m_impl->immediateContext);
             break;
         }

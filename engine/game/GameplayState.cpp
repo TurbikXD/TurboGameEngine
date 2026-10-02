@@ -25,6 +25,9 @@
 #include <nlohmann/json.hpp>
 
 #include "engine/core/Log.h"
+#include "engine/core/JobSystem.h"
+#include "engine/core/LabOptions.h"
+#include "engine/core/Profiling.h"
 #include "engine/ecs/collision_utils.h"
 #include "engine/ecs/components.h"
 #include "engine/ecs/transform_utils.h"
@@ -42,6 +45,7 @@ namespace {
 using engine::ecs::EntityId;
 
 constexpr const char* kCubeMeshId = "__diligent_cube__";
+
 constexpr const char* kPyramidMeshId = "__procedural_pyramid__";
 constexpr const char* kSphereMeshId = "__diligent_sphere__";
 constexpr const char* kShaderId = "assets/shaders_hlsl/textured.shader.json";
@@ -1094,19 +1098,31 @@ bool renderSplitterHandle(const char* id, const ImVec2& position, const ImVec2& 
 
 namespace engine::game {
 
-GameplayState::GameplayState(StateStack& stack) : IGameState(stack) {}
+GameplayState::GameplayState(StateStack& stack) : IGameState(stack) {
+    const auto* options = stack.labOptions();
+    auto* jobs = options == nullptr || options->parallelEcs ? stack.jobs() : nullptr;
+    m_physicsSystem.setJobSystem(jobs);
+    m_renderSystem.setJobSystem(jobs);
+}
+
+bool GameplayState::labActive() const {
+    return stack().labOptions() != nullptr && stack().labOptions()->active();
+}
 
 void GameplayState::onEnter() {
     ENGINE_LOG_INFO("Entered GameplayState editor scene");
     m_eventBus.clear();
-    loadEditorLayout();
+    if (!labActive()) { loadEditorLayout(); }
     bindCollisionEventHandlers();
     resetDemoScene();
+#if defined(ENGINE_TRACY_PROFILE)
+    if (!labActive()) { enterPlayMode(); }
+#endif
 }
 
 void GameplayState::onExit() {
     ENGINE_LOG_INFO("Exited GameplayState editor scene");
-    saveEditorLayout();
+    if (!labActive()) { saveEditorLayout(); }
     setCameraLookActive(false);
     m_pendingSpawnJobs.clear();
     m_undoStack.clear();
@@ -1134,6 +1150,7 @@ void GameplayState::onExit() {
 }
 
 void GameplayState::handleEvent(const platform::Event& event) {
+    if (labActive()) { return; }
     if (event.type == platform::EventType::MouseButtonPressed && event.mouseButton == platform::MouseButton::Right) {
         if (m_viewportHovered) {
             setCameraLookActive(true);
@@ -1334,6 +1351,7 @@ ecs::EntityId GameplayState::spawnDynamicSphere(
 }
 
 void GameplayState::createDemoScene() {
+    ENGINE_PROFILE_ZONE("Create Demo Scene");
     if (m_sceneInitialized) {
         return;
     }
@@ -1349,6 +1367,12 @@ void GameplayState::createDemoScene() {
     m_world.addComponent<ecs::Transform>(m_cameraEntity, cameraTransform);
     m_world.addComponent<ecs::Camera>(m_cameraEntity, camera);
     m_world.addComponent<ecs::Tag>(m_cameraEntity, ecs::Tag{"editor_camera"});
+
+    if (labActive()) {
+        createLabScene();
+        m_sceneInitialized = true;
+        return;
+    }
 
     spawnStaticBody(
         "floor",
@@ -1460,13 +1484,139 @@ void GameplayState::createDemoScene() {
         0.42F,
         glm::vec2(1.0F, 1.0F));
 
+#if defined(ENGINE_TRACY_PROFILE)
+    // Deterministic wall of bodies: enough CPU work to expose physics and
+    // render submission costs without any input or random scene generation.
+    for (int row = 0; row < 32; ++row) {
+        for (int column = 0; column < 40; ++column) {
+            const float x = -12.675F + static_cast<float>(column) * 0.65F;
+            const float y = -1.75F + static_cast<float>((row + column) % 2) * 0.02F;
+            const float z = 0.35F + static_cast<float>(row) * 0.62F;
+            spawnDynamicBody(
+                "profile_body_" + std::to_string(row) + "_" + std::to_string(column),
+                glm::vec3(x, y, z),
+                glm::vec3(0.42F, 0.42F, 0.42F),
+                paletteColor(static_cast<std::size_t>(row * 40 + column)),
+                1.0F);
+        }
+    }
+#endif
+
     m_sceneInitialized = true;
     m_selectedEntity = m_strikerEntity;
     m_lastCollisionMessage = "Editor scene ready.";
 }
 
+void GameplayState::createLabScene() {
+    const auto& options = *stack().labOptions();
+    const bool ecsScene = options.scene == "ecs";
+    const std::size_t count = ecsScene ? options.entityCount : 16U;
+    m_labEntities.reserve(count);
+    const std::size_t columns = ecsScene ? static_cast<std::size_t>(std::ceil(std::sqrt(static_cast<double>(count)))) : 4U;
+
+    // A scene root and row groups exercise the existing hierarchy transform path.
+    const auto root = m_world.createEntity();
+    m_world.addComponent<ecs::Transform>(root, ecs::Transform{});
+    m_world.addComponent<ecs::Tag>(root, ecs::Tag{"lab_scene_root"});
+    ecs::EntityId rowEntity = root;
+    for (std::size_t index = 0; index < count; ++index) {
+        const std::size_t column = index % columns;
+        const std::size_t row = index / columns;
+        if (column == 0U) {
+            rowEntity = m_world.createEntity();
+            ecs::Transform group;
+            group.position.z = ecsScene ? 0.25F + static_cast<float>(row) * (19.0F / static_cast<float>(columns))
+                                        : 3.0F + static_cast<float>(row) * 3.5F;
+            m_world.addComponent<ecs::Transform>(rowEntity, group);
+            m_world.addComponent<ecs::Hierarchy>(rowEntity, ecs::Hierarchy{root});
+        }
+        const auto entity = m_world.createEntity();
+        ecs::Transform transform;
+        transform.position = glm::vec3(
+            ecsScene ? -12.0F + static_cast<float>(column) * (24.0F / static_cast<float>(columns))
+                     : -5.25F + static_cast<float>(column) * 3.5F,
+            -0.7F, 0.0F);
+        transform.scale = glm::vec3(ecsScene ? 0.22F : 1.7F);
+        transform.rotationEulerRadians = glm::vec3(0.07F * static_cast<float>(index % 5U),
+                                                    0.13F * static_cast<float>(index % 11U), 0.0F);
+        ecs::MeshRenderer mesh;
+        mesh.meshId = kCubeMeshId;
+        mesh.textureId = kLogoTextureId;
+        mesh.shaderId = kShaderId;
+        mesh.tint = ecsScene ? paletteColor(index) : glm::vec4(1.0F);
+        m_world.addComponent<ecs::Transform>(entity, transform);
+        m_world.addComponent<ecs::Hierarchy>(entity, ecs::Hierarchy{rowEntity});
+        m_world.addComponent<ecs::MeshRenderer>(entity, mesh);
+        m_labEntities.push_back(entity);
+    }
+    ENGINE_LOG_INFO("LAB_SCENE_READY scene={} render_entities={} total_entities={}",
+                    options.scene, count, m_world.aliveCount());
+}
+
+void GameplayState::requestLabAssets() {
+    const auto& options = *stack().labOptions();
+    m_labLoadRequested = true;
+    ENGINE_PROFILE_MESSAGE("LAB_LOAD_START");
+    ENGINE_LOG_INFO("LAB_LOAD_START elapsed={} asset_dir={}", stack().labElapsedSeconds(), options.assetDirectory);
+    const std::filesystem::path directory(options.assetDirectory);
+    for (std::size_t index = 0; index < m_labEntities.size(); ++index) {
+        auto* mesh = m_world.getComponent<ecs::MeshRenderer>(m_labEntities[index]);
+        if (mesh == nullptr) { continue; }
+        std::ostringstream name;
+        if (index < 12U) {
+            name << "texture_" << std::setw(2) << std::setfill('0') << index << ".png";
+            mesh->textureId = (directory / name.str()).string();
+            mesh->texture.reset();
+        } else {
+            name << "mesh_" << std::setw(2) << std::setfill('0') << (index - 12U) << ".obj";
+            mesh->meshId = (directory / name.str()).string();
+            mesh->mesh.reset();
+        }
+    }
+    if (options.missingAsset && !m_labEntities.empty()) {
+        auto* mesh = m_world.getComponent<ecs::MeshRenderer>(m_labEntities.front());
+        mesh->textureId = (directory / "intentionally_missing.png").string();
+    }
+}
+
+void GameplayState::renderLabUi(renderer::Renderer& rendererInstance) {
+    const auto& options = *stack().labOptions();
+    const auto loads = rendererInstance.assetLoadingStats();
+    updateFrameHistory();
+    if (m_labLoadRequested && !m_labLoadCompleted && loads.pendingCpu == 0U && loads.pendingUploads == 0U) {
+        m_labLoadCompleted = true;
+        ENGINE_PROFILE_MESSAGE("LAB_LOAD_COMPLETE");
+        ENGINE_LOG_INFO("LAB_LOAD_COMPLETE elapsed={} loaded={} failed={} cancelled={}",
+                        stack().labElapsedSeconds(), loads.loaded, loads.failed, loads.cancelled);
+    }
+    ImGui::SetNextWindowPos(ImVec2(16.0F, 16.0F), ImGuiCond_Always);
+    ImGui::SetNextWindowSize(ImVec2(430.0F, 235.0F), ImGuiCond_Always);
+    ImGui::Begin("TurboGameEngine / Lab 1", nullptr,
+                 ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoCollapse);
+    ImGui::Text("Scene: %s | Objects: %zu", options.scene.c_str(), m_labEntities.size());
+    ImGui::Text("ECS: %s | Loading: %s | Workers: %zu",
+                options.parallelEcs ? "jobs" : "serial", options.asyncLoading ? "async" : "sync",
+                stack().jobs() != nullptr ? stack().jobs()->workerCount() : 0U);
+    ImGui::Text("Elapsed: %.1fs | CPU: %zu | Uploads: %zu", stack().labElapsedSeconds(),
+                loads.pendingCpu, loads.pendingUploads);
+    ImGui::Text("Ready: %zu | Failed: %zu | Pump: %.2fms", loads.loaded, loads.failed, loads.lastPumpMilliseconds);
+    if (options.scene == "loading" && !m_labLoadRequested) {
+        ImGui::Text("Load batch at %.1f seconds", options.loadAtSeconds);
+    } else {
+        ImGui::TextUnformatted(options.scene == "loading"
+            ? (m_labLoadCompleted ? "Resource batch complete" : "Loading resources...")
+            : "Read-only transform jobs; GPU submission on main");
+    }
+    ImGui::PlotLines("Frame ms", m_frameTimeHistory.data(), static_cast<int>(m_frameTimeHistory.size()),
+                     static_cast<int>(m_historyCursor), nullptr, 0.0F, 50.0F, ImVec2(320.0F, 55.0F));
+    ImGui::End();
+}
+
 void GameplayState::resetDemoScene() {
     m_world.clear();
+    m_labEntities.clear();
+    m_labLoadRequested = false;
+    m_labLoadCompleted = false;
     m_physicsSystem.clear();
     m_cameraEntity = ecs::kInvalidEntity;
     m_strikerEntity = ecs::kInvalidEntity;
@@ -1591,6 +1741,7 @@ void GameplayState::spawnDropWave() {
 }
 
 void GameplayState::processPendingSpawns() {
+    ENGINE_PROFILE_ZONE("Process Pending Spawns");
     std::size_t spawnedThisFrame = 0;
     while (!m_pendingSpawnJobs.empty() && spawnedThisFrame < kSpawnBudgetPerFrame) {
         std::function<void()> spawnJob = std::move(m_pendingSpawnJobs.front());
@@ -2802,8 +2953,18 @@ void GameplayState::updateFrameHistory() {
 }
 
 void GameplayState::update(const double dt) {
+    ENGINE_PROFILE_ZONE("Gameplay Update");
     if (!m_sceneInitialized) {
         createDemoScene();
+    }
+
+    if (labActive()) {
+        const auto& options = *stack().labOptions();
+        if (options.scene == "loading" && !m_labLoadRequested &&
+            stack().labElapsedSeconds() >= options.loadAtSeconds) {
+            requestLabAssets();
+        }
+        return;
     }
 
     ensureSelectedEntityValid();
@@ -2835,6 +2996,7 @@ void GameplayState::update(const double dt) {
     if (m_editorMode == EditorMode::Play) {
         processPendingSpawns();
         if (m_simulationRunning) {
+            ENGINE_PROFILE_ZONE("Physics");
             m_physicsSystem.update(m_world, dt, m_eventBus);
         }
     }
@@ -3023,14 +3185,22 @@ void GameplayState::renderSelectionOutline(
 }
 
 void GameplayState::render(renderer::Renderer& rendererInstance) {
+    ENGINE_PROFILE_ZONE("Gameplay Render");
     const auto renderStart = std::chrono::high_resolution_clock::now();
     const CameraFrame cameraFrame = buildActiveCameraFrame(rendererInstance);
     renderer::RenderAdapter renderAdapter{rendererInstance};
-    m_renderSystem.render(m_world, renderAdapter, cameraFrame.viewProjection);
+    {
+        ENGINE_PROFILE_ZONE("Scene Render");
+        m_renderSystem.render(m_world, renderAdapter, cameraFrame.viewProjection);
+    }
     if (m_showColliderDebug) {
+        ENGINE_PROFILE_ZONE("Collider Debug Render");
         m_debugRenderSystem.render(m_world, renderAdapter, cameraFrame.viewProjection);
     }
-    renderSelectionOutline(renderAdapter, cameraFrame.viewProjection);
+    {
+        ENGINE_PROFILE_ZONE("Selection Outline");
+        renderSelectionOutline(renderAdapter, cameraFrame.viewProjection);
+    }
 
     m_lastSceneRenderMs = std::chrono::duration<double, std::milli>(
                               std::chrono::high_resolution_clock::now() - renderStart)
@@ -4876,7 +5046,11 @@ void GameplayState::renderUi(renderer::Renderer& rendererInstance) {
         return;
     }
 
-    renderEditorUi(rendererInstance);
+    if (labActive()) {
+        renderLabUi(rendererInstance);
+    } else {
+        renderEditorUi(rendererInstance);
+    }
 }
 
 } // namespace engine::game

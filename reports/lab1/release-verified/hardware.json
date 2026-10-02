@@ -1,0 +1,31 @@
+{
+  "collectedUtc": "2026-09-24T19:57:06.8387585Z",
+  "collectionStatus": "complete",
+  "note": "Supplemental hardware snapshot collected after the 15 measurements; original runs.json is preserved.",
+  "cpu": [
+    {
+      "model": "AMD Ryzen Threadripper 3960X 24-Core Processor",
+      "physicalCores": 24,
+      "logicalProcessors": 48
+    }
+  ],
+  "physicalCores": 24,
+  "logicalProcessors": 48,
+  "ramBytes": 51406041088,
+  "os": {
+    "name": "Майкрософт Windows 11 Pro",
+    "version": "10.0.26200",
+    "build": "26200",
+    "architecture": "64-разрядная"
+  },
+  "detectedGpus": [
+    {
+      "name": "Parsec Virtual Display Adapter",
+      "driverVersion": "0.45.0.0"
+    },
+    {
+      "name": "NVIDIA GeForce RTX 5070",
+      "driverVersion": "32.0.16.1074"
+    }
+  ]
+}

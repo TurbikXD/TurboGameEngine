@@ -1,5 +1,7 @@
 #include "engine/ecs/debug_render_system.h"
 
+#include "engine/core/Profiling.h"
+
 #include <algorithm>
 
 #include <glm/geometric.hpp>
@@ -75,6 +77,7 @@ void DebugRenderSystem::render(
     World& world,
     renderer::RenderAdapter& renderer,
     const glm::mat4& viewProjectionMatrix) {
+    ENGINE_PROFILE_ZONE("DebugRenderSystem");
     world.forEach<Transform, Collider>([&](EntityId entity, Transform& transform, Collider& collider) {
         (void)transform;
 

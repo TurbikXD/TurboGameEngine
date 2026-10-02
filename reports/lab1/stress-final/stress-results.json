@@ -1,0 +1,81 @@
+[
+  {
+    "name": "missing-resources",
+    "requestedRunSeconds": 5,
+    "elapsedProcessSeconds": 6.2356398,
+    "pid": 32388,
+    "gracefulExit": true,
+    "exitCode": 0,
+    "passed": true,
+    "notes": "Checks process exit, explicit completed shutdown, resource errors/completion; early-exit additionally requires logged pending work > 0.",
+    "shutdownMarkerFound": true,
+    "expectedMissingResourceLog": true
+  },
+  {
+    "name": "exit-with-live-loading",
+    "requestedRunSeconds": 1.01,
+    "elapsedProcessSeconds": 2.4855516,
+    "pid": 82632,
+    "gracefulExit": true,
+    "exitCode": 0,
+    "passed": true,
+    "notes": "Checks process exit, explicit completed shutdown, resource errors/completion; early-exit additionally requires logged pending work > 0.",
+    "shutdownMarkerFound": true,
+    "unexpectedResourceErrors": false,
+    "liveWorkAtShutdown": true,
+    "pendingCpuAtShutdown": 16,
+    "pendingUploadsAtShutdown": 0
+  },
+  {
+    "name": "long-session",
+    "requestedRunSeconds": 60,
+    "elapsedProcessSeconds": 61.3251903,
+    "pid": 41524,
+    "gracefulExit": true,
+    "exitCode": 0,
+    "passed": true,
+    "notes": "Checks process exit, explicit completed shutdown, resource errors/completion; early-exit additionally requires logged pending work > 0.",
+    "shutdownMarkerFound": true,
+    "unexpectedResourceErrors": false,
+    "loadingCompletedCleanly": true
+  },
+  {
+    "name": "repeated-start-01",
+    "requestedRunSeconds": 8,
+    "elapsedProcessSeconds": 9.3913582,
+    "pid": 85644,
+    "gracefulExit": true,
+    "exitCode": 0,
+    "passed": true,
+    "notes": "Checks process exit, explicit completed shutdown, resource errors/completion; early-exit additionally requires logged pending work > 0.",
+    "shutdownMarkerFound": true,
+    "unexpectedResourceErrors": false,
+    "loadingCompletedCleanly": true
+  },
+  {
+    "name": "repeated-start-02",
+    "requestedRunSeconds": 8,
+    "elapsedProcessSeconds": 9.4464699,
+    "pid": 89360,
+    "gracefulExit": true,
+    "exitCode": 0,
+    "passed": true,
+    "notes": "Checks process exit, explicit completed shutdown, resource errors/completion; early-exit additionally requires logged pending work > 0.",
+    "shutdownMarkerFound": true,
+    "unexpectedResourceErrors": false,
+    "loadingCompletedCleanly": true
+  },
+  {
+    "name": "repeated-start-03",
+    "requestedRunSeconds": 8,
+    "elapsedProcessSeconds": 9.3651689,
+    "pid": 76412,
+    "gracefulExit": true,
+    "exitCode": 0,
+    "passed": true,
+    "notes": "Checks process exit, explicit completed shutdown, resource errors/completion; early-exit additionally requires logged pending work > 0.",
+    "shutdownMarkerFound": true,
+    "unexpectedResourceErrors": false,
+    "loadingCompletedCleanly": true
+  }
+]

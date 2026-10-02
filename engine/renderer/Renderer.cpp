@@ -8,6 +8,7 @@
 #include <exception>
 #include <filesystem>
 #include <optional>
+#include <stdexcept>
 #include <string>
 #include <system_error>
 #include <utility>
@@ -17,6 +18,7 @@
 #include <glm/gtc/constants.hpp>
 
 #include "engine/core/Log.h"
+#include "engine/core/Profiling.h"
 #include "engine/platform/Events.h"
 #include "engine/platform/Window.h"
 #include "engine/rhi_diligent/DiligentDevice.h"
@@ -362,7 +364,7 @@ bool Renderer::init(
     }
 
     m_graphicsQueue = &m_device->graphicsQueue();
-    startAssetWorkers();
+    m_assetLoads.start(m_jobSystem);
 
     constexpr std::size_t framesInFlight = 2;
     m_frames.resize(framesInFlight);
@@ -395,97 +397,23 @@ bool Renderer::init(
     return true;
 }
 
-void Renderer::startAssetWorkers() {
-    stopAssetWorkers();
-    m_assetWorkersStopping = false;
-
-    unsigned int workerCount = std::thread::hardware_concurrency();
-    if (workerCount == 0U) {
-        workerCount = 2U;
+void Renderer::setJobSystem(core::JobSystem* jobs) {
+    if (m_initialized) {
+        throw std::logic_error("Configure Renderer job system before initialization");
     }
-    workerCount = std::clamp(workerCount > 1U ? workerCount - 1U : 1U, 1U, 4U);
-
-    m_assetWorkers.reserve(workerCount);
-    for (unsigned int index = 0; index < workerCount; ++index) {
-        m_assetWorkers.emplace_back([this]() {
-            for (;;) {
-                std::function<void()> task;
-                {
-                    std::unique_lock<std::mutex> lock(m_assetTaskMutex);
-                    m_assetTaskCv.wait(lock, [this]() { return m_assetWorkersStopping || !m_assetTasks.empty(); });
-                    if (m_assetWorkersStopping && m_assetTasks.empty()) {
-                        return;
-                    }
-
-                    task = std::move(m_assetTasks.front());
-                    m_assetTasks.pop_front();
-                }
-
-                if (task) {
-                    task();
-                }
-            }
-        });
-    }
+    m_jobSystem = jobs;
 }
 
-void Renderer::stopAssetWorkers() {
-    {
-        std::lock_guard<std::mutex> lock(m_assetTaskMutex);
-        m_assetWorkersStopping = true;
-        m_assetTasks.clear();
-    }
-    m_assetTaskCv.notify_all();
-
-    for (auto& worker : m_assetWorkers) {
-        if (worker.joinable()) {
-            worker.join();
-        }
-    }
-    m_assetWorkers.clear();
-
-    {
-        std::lock_guard<std::mutex> lock(m_mainThreadTaskMutex);
-        m_mainThreadTasks.clear();
-    }
+void Renderer::setAsyncLoadingEnabled(const bool enabled) {
+    m_assetLoads.setAsyncEnabled(enabled);
 }
 
-void Renderer::enqueueBackgroundTask(std::function<void()> task) {
-    if (!task) {
-        return;
-    }
-
-    {
-        std::lock_guard<std::mutex> lock(m_assetTaskMutex);
-        if (m_assetWorkersStopping) {
-            return;
-        }
-        m_assetTasks.push_back(std::move(task));
-    }
-    m_assetTaskCv.notify_one();
+void Renderer::setUploadBudget(const std::size_t maximumUploads, const double milliseconds) {
+    m_assetLoads.setUploadBudget(maximumUploads, milliseconds);
 }
 
-void Renderer::enqueueMainThreadTask(std::function<void()> task) {
-    if (!task) {
-        return;
-    }
-
-    std::lock_guard<std::mutex> lock(m_mainThreadTaskMutex);
-    m_mainThreadTasks.push_back(std::move(task));
-}
-
-void Renderer::processPendingMainThreadTasks() {
-    std::deque<std::function<void()>> pendingTasks;
-    {
-        std::lock_guard<std::mutex> lock(m_mainThreadTaskMutex);
-        pendingTasks.swap(m_mainThreadTasks);
-    }
-
-    for (auto& task : pendingTasks) {
-        if (task) {
-            task();
-        }
-    }
+AssetLoadingStats Renderer::assetLoadingStats() const {
+    return m_assetLoads.stats();
 }
 
 bool Renderer::initializePrimitivePipeline() {
@@ -765,17 +693,19 @@ std::shared_ptr<resources::Mesh> Renderer::requestMeshLoadFromDisk(const std::st
     mesh->path = path;
     mesh->setLoadState(resources::ResourceLoadState::Loading);
 
-    enqueueBackgroundTask([this, mesh, path]() {
+    m_assetLoads.submit([this, mesh, path]() -> resources::AsyncLoadQueue::Finalize {
+        ENGINE_PROFILE_ZONE("Load Mesh CPU");
         resources::MeshData meshData;
         std::string errorMessage;
         const bool loaded = resources::loadMeshData(path, meshData, &errorMessage);
 
-        enqueueMainThreadTask([this, mesh, path, meshData = std::move(meshData), errorMessage = std::move(errorMessage), loaded]() mutable {
+        return [this, mesh, path, meshData = std::move(meshData), errorMessage = std::move(errorMessage), loaded]() mutable {
+            ENGINE_PROFILE_ZONE("Upload Mesh GPU");
             if (!loaded) {
                 mesh->lastError = errorMessage;
                 mesh->setLoadState(resources::ResourceLoadState::Failed);
                 ENGINE_LOG_ERROR("Mesh load failed '{}': {}", path, mesh->lastError);
-                return;
+                return false;
             }
 
             mesh->data = std::move(meshData);
@@ -787,7 +717,7 @@ std::shared_ptr<resources::Mesh> Renderer::requestMeshLoadFromDisk(const std::st
                 mesh->lastError = "GPU upload failed";
                 mesh->setLoadState(resources::ResourceLoadState::Failed);
                 ENGINE_LOG_ERROR("Mesh upload failed '{}'", path);
-                return;
+                return false;
             }
 
             mesh->lastError.clear();
@@ -797,13 +727,19 @@ std::shared_ptr<resources::Mesh> Renderer::requestMeshLoadFromDisk(const std::st
                 path,
                 mesh->vertexCount,
                 mesh->indexCount);
-        });
+            return true;
+        };
+    }, [mesh, path](const std::string& error) {
+        mesh->lastError = error;
+        mesh->setLoadState(resources::ResourceLoadState::Failed);
+        ENGINE_LOG_ERROR("Mesh loading stopped '{}': {}", path, error);
     });
 
     return mesh;
 }
 
 bool Renderer::uploadMeshToGpu(resources::Mesh& mesh) const {
+    ENGINE_PROFILE_ZONE("Create Mesh GPU Buffers");
     if (!m_device || mesh.data.vertices.empty()) {
         return false;
     }
@@ -838,45 +774,51 @@ std::shared_ptr<resources::Texture> Renderer::requestTextureLoadFromDisk(const s
     texture->path = path;
     texture->setLoadState(resources::ResourceLoadState::Loading);
 
-    enqueueBackgroundTask([this, texture, path]() {
+    m_assetLoads.submit([this, texture, path]() -> resources::AsyncLoadQueue::Finalize {
+        ENGINE_PROFILE_ZONE("Load Texture CPU");
         resources::TextureData textureData;
         std::string errorMessage;
         const bool loaded = resources::loadTextureDataRgba8(path, textureData, &errorMessage);
 
-        enqueueMainThreadTask(
-            [this, texture, path, textureData = std::move(textureData), errorMessage = std::move(errorMessage), loaded]() mutable {
-                if (!loaded) {
-                    texture->lastError = errorMessage;
-                    texture->setLoadState(resources::ResourceLoadState::Failed);
-                    ENGINE_LOG_ERROR("Texture load failed '{}': {}", path, texture->lastError);
-                    return;
-                }
+        return [this, texture, path, textureData = std::move(textureData), errorMessage = std::move(errorMessage), loaded]() mutable {
+            ENGINE_PROFILE_ZONE("Upload Texture GPU");
+            if (!loaded) {
+                texture->lastError = errorMessage;
+                texture->setLoadState(resources::ResourceLoadState::Failed);
+                ENGINE_LOG_ERROR("Texture load failed '{}': {}", path, texture->lastError);
+                return false;
+            }
 
-                texture->data = std::move(textureData);
-                texture->image.reset();
+            texture->data = std::move(textureData);
+            texture->image.reset();
 
-                rhi::ImageDesc imageDesc{};
-                imageDesc.width = static_cast<std::uint32_t>(texture->data.width);
-                imageDesc.height = static_cast<std::uint32_t>(texture->data.height);
-                imageDesc.format = rhi::ImageFormat::RGBA8;
-                imageDesc.generateMipmaps = true;
-                texture->image = m_device->createImage(imageDesc, texture->data.pixels.data());
-                if (!texture->image) {
-                    texture->lastError = "GPU upload failed";
-                    texture->setLoadState(resources::ResourceLoadState::Failed);
-                    ENGINE_LOG_ERROR("Texture upload failed '{}'", path);
-                    return;
-                }
+            rhi::ImageDesc imageDesc{};
+            imageDesc.width = static_cast<std::uint32_t>(texture->data.width);
+            imageDesc.height = static_cast<std::uint32_t>(texture->data.height);
+            imageDesc.format = rhi::ImageFormat::RGBA8;
+            imageDesc.generateMipmaps = true;
+            texture->image = m_device->createImage(imageDesc, texture->data.pixels.data());
+            if (!texture->image) {
+                texture->lastError = "GPU upload failed";
+                texture->setLoadState(resources::ResourceLoadState::Failed);
+                ENGINE_LOG_ERROR("Texture upload failed '{}'", path);
+                return false;
+            }
 
-                texture->lastError.clear();
-                texture->setLoadState(resources::ResourceLoadState::Loaded);
-                ENGINE_LOG_INFO(
-                    "Texture loaded '{}': {}x{} channels={}",
-                    path,
-                    texture->data.width,
-                    texture->data.height,
-                    texture->data.channels);
-            });
+            texture->lastError.clear();
+            texture->setLoadState(resources::ResourceLoadState::Loaded);
+            ENGINE_LOG_INFO(
+                "Texture loaded '{}': {}x{} channels={}",
+                path,
+                texture->data.width,
+                texture->data.height,
+                texture->data.channels);
+            return true;
+        };
+    }, [texture, path](const std::string& error) {
+        texture->lastError = error;
+        texture->setLoadState(resources::ResourceLoadState::Failed);
+        ENGINE_LOG_ERROR("Texture loading stopped '{}': {}", path, error);
     });
 
     return texture;
@@ -886,6 +828,7 @@ std::shared_ptr<resources::ShaderProgram> Renderer::createShaderProgram(
     const std::string& key,
     const std::string& vertexPath,
     const std::string& fragmentPath) {
+    ENGINE_PROFILE_ZONE("Create Shader Program");
     auto program = std::make_shared<resources::ShaderProgram>();
     program->key = key;
     program->descriptorPath = key;
@@ -938,38 +881,44 @@ std::shared_ptr<resources::ShaderProgram> Renderer::requestShaderProgramLoadFrom
     program->descriptorPath = path;
     program->setLoadState(resources::ResourceLoadState::Loading);
 
-    enqueueBackgroundTask([this, program, path]() {
+    m_assetLoads.submit([this, program, path]() -> resources::AsyncLoadQueue::Finalize {
+        ENGINE_PROFILE_ZONE("Load Shader Manifest CPU");
         resources::ShaderProgramSource source{};
         std::string errorMessage;
         const bool loaded = resources::loadShaderProgramSource(path, source, &errorMessage);
 
-        enqueueMainThreadTask(
-            [this, program, path, source = std::move(source), errorMessage = std::move(errorMessage), loaded]() mutable {
-                if (!loaded) {
-                    program->lastError = errorMessage;
-                    program->setLoadState(resources::ResourceLoadState::Failed);
-                    ENGINE_LOG_ERROR("Shader source load failed '{}': {}", path, program->lastError);
-                    return;
-                }
+        return [this, program, path, source = std::move(source), errorMessage = std::move(errorMessage), loaded]() mutable {
+            ENGINE_PROFILE_ZONE("Upload Shader GPU");
+            if (!loaded) {
+                program->lastError = errorMessage;
+                program->setLoadState(resources::ResourceLoadState::Failed);
+                ENGINE_LOG_ERROR("Shader source load failed '{}': {}", path, program->lastError);
+                return false;
+            }
 
-                auto compiledProgram = createShaderProgram(path, source.vertexPath, source.fragmentPath);
-                if (!compiledProgram) {
-                    program->lastError = "Shader program creation failed";
-                    program->setLoadState(resources::ResourceLoadState::Failed);
-                    return;
-                }
+            auto compiledProgram = createShaderProgram(path, source.vertexPath, source.fragmentPath);
+            if (!compiledProgram) {
+                program->lastError = "Shader program creation failed";
+                program->setLoadState(resources::ResourceLoadState::Failed);
+                return false;
+            }
 
-                program->descriptorPath = source.descriptorPath;
-                program->vertexPath = source.vertexPath;
-                program->fragmentPath = source.fragmentPath;
-                program->vertexShader = std::move(compiledProgram->vertexShader);
-                program->fragmentShader = std::move(compiledProgram->fragmentShader);
-                program->pipelineLayout = std::move(compiledProgram->pipelineLayout);
-                program->pipeline = std::move(compiledProgram->pipeline);
-                program->lastError.clear();
-                program->setLoadState(resources::ResourceLoadState::Loaded);
-                registerShaderForHotReload(path, program, source);
-            });
+            program->descriptorPath = source.descriptorPath;
+            program->vertexPath = source.vertexPath;
+            program->fragmentPath = source.fragmentPath;
+            program->vertexShader = std::move(compiledProgram->vertexShader);
+            program->fragmentShader = std::move(compiledProgram->fragmentShader);
+            program->pipelineLayout = std::move(compiledProgram->pipelineLayout);
+            program->pipeline = std::move(compiledProgram->pipeline);
+            program->lastError.clear();
+            program->setLoadState(resources::ResourceLoadState::Loaded);
+            registerShaderForHotReload(path, program, source);
+            return true;
+        };
+    }, [program, path](const std::string& error) {
+        program->lastError = error;
+        program->setLoadState(resources::ResourceLoadState::Failed);
+        ENGINE_LOG_ERROR("Shader loading stopped '{}': {}", path, error);
     });
 
     return program;
@@ -1087,17 +1036,24 @@ bool Renderer::wantsMouseCapture() const {
 }
 
 void Renderer::beginFrame(const glm::vec4& clearColor) {
+    ENGINE_PROFILE_ZONE("Renderer Begin Frame");
     if (!m_initialized || !m_swapchain || m_frames.empty()) {
         return;
     }
 
-    processPendingMainThreadTasks();
+    m_assetLoads.pump();
 
     FrameContext& frame = m_frames[m_currentFrameIndex];
-    frame.inFlight->wait();
-    frame.inFlight->reset();
+    {
+        ENGINE_PROFILE_ZONE("Wait Frame Fence");
+        frame.inFlight->wait();
+        frame.inFlight->reset();
+    }
 
-    m_swapchain->acquireNextImage(frame.imageAvailable.get());
+    {
+        ENGINE_PROFILE_ZONE("Acquire Swapchain Image");
+        m_swapchain->acquireNextImage(frame.imageAvailable.get());
+    }
 
     frame.commandBuffer->begin();
 
@@ -1376,8 +1332,6 @@ bool Renderer::reloadShaderInPlace(resources::ShaderProgram& program, const reso
 }
 
 void Renderer::pollHotReload() {
-    processPendingMainThreadTasks();
-
     if (!m_initialized || m_shaderHotReloadEntries.empty()) {
         return;
     }
@@ -1507,6 +1461,7 @@ void Renderer::pollHotReload() {
 }
 
 void Renderer::endFrame() {
+    ENGINE_PROFILE_ZONE("Renderer End Frame");
     if (!m_initialized || !m_swapchain || m_frames.empty() || !m_activeCommandBuffer) {
         m_imguiFrameOpen = false;
         return;
@@ -1516,9 +1471,15 @@ void Renderer::endFrame() {
     m_activeCommandBuffer->endRenderPass();
     m_activeCommandBuffer->end();
 
-    m_graphicsQueue->submit(
-        *m_activeCommandBuffer, frame.imageAvailable.get(), frame.renderFinished.get(), frame.inFlight.get());
-    m_swapchain->present(*m_graphicsQueue, frame.renderFinished.get());
+    {
+        ENGINE_PROFILE_ZONE("GPU Submit");
+        m_graphicsQueue->submit(
+            *m_activeCommandBuffer, frame.imageAvailable.get(), frame.renderFinished.get(), frame.inFlight.get());
+    }
+    {
+        ENGINE_PROFILE_ZONE("Present");
+        m_swapchain->present(*m_graphicsQueue, frame.renderFinished.get());
+    }
 
     m_activeCommandBuffer = nullptr;
     m_currentFrameIndex = (m_currentFrameIndex + 1) % m_frames.size();
@@ -1535,11 +1496,11 @@ void Renderer::onResize(std::uint32_t width, std::uint32_t height) {
 
 void Renderer::shutdown() {
     if (!m_initialized) {
-        stopAssetWorkers();
+        m_assetLoads.stop();
         return;
     }
 
-    stopAssetWorkers();
+    m_assetLoads.stop();
     m_activeCommandBuffer = nullptr;
     m_frames.clear();
     m_imguiFrameOpen = false;

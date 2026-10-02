@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <array>
 #include <cctype>
+#include <chrono>
 #include <cstdint>
 #include <cstdlib>
 #include <exception>
@@ -10,6 +11,7 @@
 #include <memory>
 #include <string>
 #include <system_error>
+#include <thread>
 #include <utility>
 #include <vector>
 
@@ -25,6 +27,7 @@
 #include <glm/vec4.hpp>
 
 #include "engine/core/Log.h"
+#include "engine/core/Profiling.h"
 #include "engine/core/Time.h"
 #include "engine/ecs/components.h"
 #include "engine/game/GameplayState.h"
@@ -231,11 +234,30 @@ Application::~Application() {
 }
 
 bool Application::init() {
+    ENGINE_PROFILE_ZONE("Application Init");
     Log::init();
     m_logInitialized = true;
     ENGINE_LOG_INFO("Application init started");
 
     m_config = Config::load("config.json");
+    m_labOptions = LabOptions::fromEnvironment();
+    m_stateStack.setServices(&m_jobs, &m_labOptions);
+    m_renderer.setJobSystem(&m_jobs);
+    m_renderer.setAsyncLoadingEnabled(m_labOptions.asyncLoading);
+    m_renderer.setUploadBudget(m_labOptions.uploadsPerFrame, m_labOptions.uploadBudgetMilliseconds);
+#if defined(ENGINE_TRACY_PROFILE)
+    // Keep captures comparable regardless of a developer's local config.json.
+    m_config.width = 1280;
+    m_config.height = 720;
+    m_config.vsync = false;
+    m_config.initialState = "gameplay";
+#endif
+    if (m_labOptions.active()) {
+        m_config.width = 1280;
+        m_config.height = 720;
+        m_config.vsync = false;
+        m_config.initialState = "gameplay";
+    }
     initializeConfigHotReload();
 
     platform::WindowDesc windowDesc{};
@@ -292,6 +314,23 @@ int Application::run() {
         return 1;
     }
 
+    if (m_labOptions.waitForTracy) {
+        ENGINE_LOG_INFO("LAB_READY_FOR_TRACY");
+        const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(10);
+        while (!ENGINE_PROFILE_CONNECTED() && std::chrono::steady_clock::now() < deadline) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        }
+        if (!ENGINE_PROFILE_CONNECTED()) {
+            ENGINE_LOG_ERROR("LAB: Tracy did not connect within 10 seconds");
+            shutdown();
+            return 2;
+        }
+    }
+    ENGINE_PROFILE_MESSAGE("LAB_RUN_START");
+    const auto runStart = std::chrono::steady_clock::now();
+    ENGINE_LOG_INFO("LAB_RUN_START scene={} parallel_ecs={} async_loading={} entities={} workers={}",
+        m_labOptions.scene, m_labOptions.parallelEcs, m_labOptions.asyncLoading,
+        m_labOptions.entityCount, m_jobs.workerCount());
     FrameTimer timer;
     timer.reset();
 
@@ -300,31 +339,45 @@ int Application::run() {
     TimeStatsAggregator stats(1.0);
 
     while (m_running && m_window && !m_window->shouldClose()) {
-        platform::InputManager::beginFrame();
-        m_window->pollEvents();
-        pollRuntimeHotReload();
+        ENGINE_PROFILE_ZONE("Main Frame");
+        const double elapsed = std::chrono::duration<double>(std::chrono::steady_clock::now() - runStart).count();
+        m_stateStack.setLabElapsedSeconds(elapsed);
+        if (m_labOptions.durationSeconds > 0.0 && elapsed >= m_labOptions.durationSeconds) {
+            break;
+        }
+        {
+            ENGINE_PROFILE_ZONE("Input and Hot Reload");
+            platform::InputManager::beginFrame();
+            m_window->pollEvents();
+            if (!m_labOptions.active()) { pollRuntimeHotReload(); }
+        }
 
         double frameDt = timer.tickSeconds();
         frameDt = std::min(frameDt, 0.25);
         m_workspaceSampleTime += frameDt;
 
         if (m_workspaceMode == WorkspaceMode::EngineStates) {
+            ENGINE_PROFILE_ZONE("Fixed Update");
             accumulator += frameDt;
             while (accumulator >= fixedDt) {
+                ENGINE_PROFILE_ZONE("State Update Step");
                 m_stateStack.update(fixedDt);
                 m_stateStack.applyPendingChanges();
                 accumulator -= fixedDt;
             }
         }
 
-        const glm::vec4 clearColor{
-            m_config.clearColor[0], m_config.clearColor[1], m_config.clearColor[2], m_config.clearColor[3]};
-        m_renderer.beginFrame(clearColor);
-        m_renderer.beginImGuiFrame(static_cast<float>(frameDt));
-        renderWorkspace(frameDt);
-        renderWorkspaceUi(frameDt);
-        m_renderer.renderImGui();
-        m_renderer.endFrame();
+        {
+            ENGINE_PROFILE_ZONE("Frame Render");
+            const glm::vec4 clearColor{
+                m_config.clearColor[0], m_config.clearColor[1], m_config.clearColor[2], m_config.clearColor[3]};
+            m_renderer.beginFrame(clearColor);
+            m_renderer.beginImGuiFrame(static_cast<float>(frameDt));
+            renderWorkspace(frameDt);
+            renderWorkspaceUi(frameDt);
+            m_renderer.renderImGui();
+            m_renderer.endFrame();
+        }
 
         stats.sample(frameDt);
         TimeStats sampled{};
@@ -341,6 +394,9 @@ int Application::run() {
             ENGINE_LOG_WARN("State stack empty, exiting");
             m_running = false;
         }
+
+        m_jobs.publishStats();
+        ENGINE_PROFILE_FRAME_MARK();
     }
 
     shutdown();
@@ -362,7 +418,11 @@ void Application::shutdown() {
     m_tutorial03Mesh.reset();
     m_tutorial03Texture.reset();
     m_tutorial03Shader.reset();
+    const auto loads = m_renderer.assetLoadingStats();
+    ENGINE_LOG_INFO("LAB_SHUTDOWN pending_cpu={} pending_uploads={}", loads.pendingCpu, loads.pendingUploads);
     m_renderer.shutdown();
+    m_jobs.shutdown();
+    m_stateStack.setServices(nullptr, nullptr);
     m_window.reset();
     m_initialized = false;
     if (m_logInitialized) {

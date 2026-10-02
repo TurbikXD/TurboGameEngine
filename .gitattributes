@@ -1,0 +1,16 @@
+# Portable source/docs; preserve the original bytes of measurement evidence.
+* text=auto
+*.cpp text eol=lf
+*.h text eol=lf
+*.md text eol=lf
+*.mjs text eol=lf
+*.ps1 text eol=lf
+*.json text eol=lf
+*.csv -text whitespace=cr-at-eol
+# Multi-megabyte raw zone exports are evidence, not useful line-by-line diffs.
+reports/**/zones.csv -diff
+*.tracy binary
+*.png binary
+*.jpg binary
+*.pdf binary
+*.pptx binary

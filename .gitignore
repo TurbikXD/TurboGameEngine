@@ -52,6 +52,10 @@ app_stdout*.txt
 app_stderr*.txt
 
 # Local cache/temp
+# Local credentials (never publish these).
+.env
+.env.*
+!.env.example
 *.tmp
 *.temp
 *.bak

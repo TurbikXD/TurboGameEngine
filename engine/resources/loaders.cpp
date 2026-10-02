@@ -3,6 +3,7 @@
 #include <cmath>
 #include <cstdint>
 #include <fstream>
+#include <memory>
 #include <string>
 
 #include <assimp/Importer.hpp>
@@ -10,6 +11,7 @@
 #include <assimp/scene.h>
 #include <nlohmann/json.hpp>
 
+#include "engine/core/Profiling.h"
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
 
@@ -95,6 +97,7 @@ void appendAssimpMesh(const aiMesh& sourceMesh, MeshData& outMeshData, bool& has
 } // namespace
 
 bool loadMeshData(const std::string& path, MeshData& outMeshData, std::string* errorMessage) {
+    ENGINE_PROFILE_ZONE("Parse Mesh Data");
     Assimp::Importer importer;
     constexpr unsigned int kImportFlags = aiProcess_Triangulate | aiProcess_JoinIdenticalVertices |
                                           aiProcess_PreTransformVertices | aiProcess_GenSmoothNormals |
@@ -158,6 +161,7 @@ bool loadMeshData(const std::string& path, MeshData& outMeshData, std::string* e
 }
 
 bool loadTextureDataRgba8(const std::string& path, TextureData& outTextureData, std::string* errorMessage) {
+    ENGINE_PROFILE_ZONE("Decode Texture");
     int width = 0;
     int height = 0;
     int channels = 0;
@@ -170,6 +174,7 @@ bool loadTextureDataRgba8(const std::string& path, TextureData& outTextureData, 
         }
         return false;
     }
+    const std::unique_ptr<stbi_uc, decltype(&stbi_image_free)> ownedPixels(pixels, &stbi_image_free);
 
     const std::size_t pixelCount = static_cast<std::size_t>(width) * static_cast<std::size_t>(height) * 4U;
     outTextureData.width = width;
@@ -177,7 +182,6 @@ bool loadTextureDataRgba8(const std::string& path, TextureData& outTextureData, 
     outTextureData.channels = 4;
     outTextureData.pixels.assign(pixels, pixels + pixelCount);
 
-    stbi_image_free(pixels);
     return true;
 }
 
@@ -185,6 +189,7 @@ bool loadShaderProgramSource(
     const std::string& descriptor,
     ShaderProgramSource& outSource,
     std::string* errorMessage) {
+    ENGINE_PROFILE_ZONE("Parse Shader Manifest");
     outSource = ShaderProgramSource{};
     outSource.descriptorPath = descriptor;
 

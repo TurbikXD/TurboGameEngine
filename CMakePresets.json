@@ -29,6 +29,24 @@
         "ENGINE_BACKEND": "diligent",
         "ENGINE_BUILD_DILIGENT_SAMPLES": "ON"
       }
+    },
+    {
+      "name": "profile",
+      "displayName": "Profile (Tracy)",
+      "description": "Optimized RelWithDebInfo build with Tracy instrumentation",
+      "generator": "Visual Studio 17 2022",
+      "architecture": "x64",
+      "binaryDir": "C:/tge/profile",
+      "cacheVariables": {
+        "ENGINE_BACKEND": "diligent",
+        "ENGINE_BUILD_DILIGENT_SAMPLES": "OFF",
+        "ENGINE_ENABLE_TRACY": "ON"
+      }
+    },
+    {
+      "name": "profile-release",
+      "inherits": "profile",
+      "displayName": "Lab 1 Release + Tracy symbols"
     }
   ],
   "buildPresets": [
@@ -40,6 +58,16 @@
     {
       "name": "release",
       "configurePreset": "release",
+      "configuration": "Release"
+    },
+    {
+      "name": "profile",
+      "configurePreset": "profile",
+      "configuration": "RelWithDebInfo"
+    },
+    {
+      "name": "profile-release",
+      "configurePreset": "profile-release",
       "configuration": "Release"
     }
   ]

@@ -7,6 +7,8 @@
 #include <vector>
 
 #include "engine/core/Config.h"
+#include "engine/core/JobSystem.h"
+#include "engine/core/LabOptions.h"
 #include "engine/game/StateStack.h"
 #include "engine/renderer/Renderer.h"
 #include "engine/rhi/Types.h"
@@ -63,6 +65,9 @@ private:
 
     rhi::BackendType m_backend;
     EngineConfig m_config{};
+    LabOptions m_labOptions{};
+    // Services outlive renderer/state consumers. There is one scheduler for engine CPU jobs.
+    JobSystem m_jobs{};
     std::unique_ptr<platform::Window> m_window;
     renderer::Renderer m_renderer;
     game::StateStack m_stateStack;

@@ -13,6 +13,8 @@
 #include <glm/geometric.hpp>
 #include <glm/gtc/constants.hpp>
 
+#include "engine/core/JobSystem.h"
+#include "engine/core/Profiling.h"
 #include "engine/ecs/world.h"
 
 namespace engine::ecs {
@@ -497,6 +499,10 @@ std::size_t PhysicsSystem::sleepingBodyCount() const {
     return m_lastSleepingBodyCount;
 }
 
+void PhysicsSystem::setJobSystem(core::JobSystem* const jobSystem) {
+    m_jobSystem = jobSystem;
+}
+
 void PhysicsSystem::clear() {
     m_activeContacts.clear();
     m_lastBodyCount = 0;
@@ -511,95 +517,168 @@ std::size_t PhysicsSystem::CollisionPairHash::operator()(const CollisionPair& pa
 }
 
 void PhysicsSystem::update(World& world, const double dt, core::EventBus& eventBus) {
+    ENGINE_PROFILE_ZONE("PhysicsSystem Update");
     if (dt <= 0.0) {
         return;
     }
 
     const float dtSeconds = static_cast<float>(dt);
 
-    world.forEach<Transform, Rigidbody>([&](EntityId entity, Transform& transform, Rigidbody& rigidbody) {
-        integrateBody(transform, rigidbody, world.getComponent<Collider>(entity), m_settings, dtSeconds);
-    });
+    {
+        ENGINE_PROFILE_ZONE("Physics Integrate Bodies");
+        struct IntegrationItem final {
+            Transform* transform{nullptr};
+            Rigidbody* rigidbody{nullptr};
+            const Collider* collider{nullptr};
+        };
+
+        std::vector<IntegrationItem> items;
+        items.reserve(world.aliveCount());
+        world.forEach<Transform, Rigidbody>([&](EntityId entity, Transform& transform, Rigidbody& rigidbody) {
+            items.push_back(IntegrationItem{&transform, &rigidbody, world.getComponent<Collider>(entity)});
+        });
+
+        const auto integrateRange = [&](const std::size_t begin, const std::size_t end) {
+            ENGINE_PROFILE_ZONE("Job Physics Integrate");
+            for (std::size_t index = begin; index < end; ++index) {
+                IntegrationItem& item = items[index];
+                integrateBody(*item.transform, *item.rigidbody, item.collider, m_settings, dtSeconds);
+            }
+        };
+        if (m_jobSystem != nullptr) {
+            m_jobSystem->parallelFor(items.size(), 64U, integrateRange);
+        } else {
+            integrateRange(0U, items.size());
+        }
+    }
 
     std::vector<BodyProxy> bodies;
-    world.forEach<Transform, Collider>([&](EntityId entity, Transform& transform, Collider& collider) {
-        if (!collider.enabled) {
-            return;
+    {
+        ENGINE_PROFILE_ZONE("Physics Build Body Proxies");
+        struct ProxyItem final {
+            EntityId entity{kInvalidEntity};
+            Transform* transform{nullptr};
+            Rigidbody* rigidbody{nullptr};
+            Collider* collider{nullptr};
+        };
+
+        std::vector<ProxyItem> items;
+        items.reserve(world.aliveCount());
+        world.forEach<Transform, Collider>([&](EntityId entity, Transform& transform, Collider& collider) {
+            if (!collider.enabled) {
+                return;
+            }
+            items.push_back(ProxyItem{entity, &transform, world.getComponent<Rigidbody>(entity), &collider});
+        });
+
+        std::vector<BodyProxy> results(items.size());
+        std::vector<std::uint8_t> valid(items.size(), 0U);
+        const auto buildRange = [&](const std::size_t begin, const std::size_t end) {
+            ENGINE_PROFILE_ZONE("Job Physics Build Proxies");
+            for (std::size_t index = begin; index < end; ++index) {
+                const ProxyItem& item = items[index];
+                BodyProxy proxy{};
+                proxy.entity = item.entity;
+                proxy.transform = item.transform;
+                proxy.rigidbody = item.rigidbody;
+                proxy.collider = item.collider;
+                if (!computeWorldColliderShape(world, item.entity, *item.collider, proxy.worldShape)) {
+                    continue;
+                }
+
+                if (proxy.rigidbody != nullptr) {
+                    sanitizeRigidBody(*proxy.rigidbody);
+                }
+                proxy.worldBounds = computeWorldBounds(proxy.worldShape);
+                results[index] = proxy;
+                valid[index] = 1U;
+            }
+        };
+        if (m_jobSystem != nullptr) {
+            m_jobSystem->parallelFor(items.size(), 64U, buildRange);
+        } else {
+            buildRange(0U, items.size());
         }
 
-        BodyProxy proxy{};
-        proxy.entity = entity;
-        proxy.transform = &transform;
-        proxy.rigidbody = world.getComponent<Rigidbody>(entity);
-        proxy.collider = &collider;
-        if (!computeWorldColliderShape(world, entity, collider, proxy.worldShape)) {
-            return;
+        bodies.reserve(results.size());
+        for (std::size_t index = 0; index < results.size(); ++index) {
+            if (valid[index] == 0U) {
+                continue;
+            }
+            bodies.push_back(results[index]);
         }
-
-        if (proxy.rigidbody != nullptr) {
-            sanitizeRigidBody(*proxy.rigidbody);
-        }
-        proxy.worldBounds = computeWorldBounds(proxy.worldShape);
-        bodies.push_back(proxy);
-    });
+    }
 
     m_lastBodyCount = bodies.size();
-    const std::vector<PotentialPair> potentialPairs = buildBroadphasePairs(bodies, m_settings.broadphaseCellSize);
+    std::vector<PotentialPair> potentialPairs;
+    {
+        ENGINE_PROFILE_ZONE("Physics Broadphase");
+        potentialPairs = buildBroadphasePairs(bodies, m_settings.broadphaseCellSize);
+    }
     m_lastBroadphasePairCount = potentialPairs.size();
 
     std::unordered_map<CollisionPair, CollisionContact, CollisionPairHash> frameContacts;
     const std::size_t iterations = std::max<std::size_t>(1, m_settings.solverIterations);
 
-    for (std::size_t iteration = 0; iteration < iterations; ++iteration) {
-        for (const PotentialPair& potentialPair : potentialPairs) {
-            BodyProxy& bodyA = bodies[potentialPair.bodyIndexA];
-            BodyProxy& bodyB = bodies[potentialPair.bodyIndexB];
+    {
+        ENGINE_PROFILE_ZONE("Physics Narrowphase and Solver");
+        for (std::size_t iteration = 0; iteration < iterations; ++iteration) {
+            for (const PotentialPair& potentialPair : potentialPairs) {
+                BodyProxy& bodyA = bodies[potentialPair.bodyIndexA];
+                BodyProxy& bodyB = bodies[potentialPair.bodyIndexB];
 
-            const bool bodyASleeping = bodyA.rigidbody != nullptr && bodyA.rigidbody->isSleeping;
-            const bool bodyBSleeping = bodyB.rigidbody != nullptr && bodyB.rigidbody->isSleeping;
-            if (iteration > 0U && bodyASleeping && bodyBSleeping) {
-                continue;
+                const bool bodyASleeping = bodyA.rigidbody != nullptr && bodyA.rigidbody->isSleeping;
+                const bool bodyBSleeping = bodyB.rigidbody != nullptr && bodyB.rigidbody->isSleeping;
+                if (iteration > 0U && bodyASleeping && bodyBSleeping) {
+                    continue;
+                }
+
+                CollisionContact contact{};
+                if (!intersectColliders(bodyA.entity, bodyA.worldShape, bodyB.entity, bodyB.worldShape, contact)) {
+                    continue;
+                }
+
+                if (iteration == 0U) {
+                    const CollisionContact canonicalContact = canonicalizeContact(contact);
+                    frameContacts[makeCollisionPair(canonicalContact.entityA, canonicalContact.entityB)] = canonicalContact;
+                }
+
+                resolveCollision(bodyA, bodyB, contact);
+                computeWorldColliderShape(world, bodyA.entity, *bodyA.collider, bodyA.worldShape);
+                computeWorldColliderShape(world, bodyB.entity, *bodyB.collider, bodyB.worldShape);
+                bodyA.worldBounds = computeWorldBounds(bodyA.worldShape);
+                bodyB.worldBounds = computeWorldBounds(bodyB.worldShape);
             }
-
-            CollisionContact contact{};
-            if (!intersectColliders(bodyA.entity, bodyA.worldShape, bodyB.entity, bodyB.worldShape, contact)) {
-                continue;
-            }
-
-            if (iteration == 0U) {
-                const CollisionContact canonicalContact = canonicalizeContact(contact);
-                frameContacts[makeCollisionPair(canonicalContact.entityA, canonicalContact.entityB)] = canonicalContact;
-            }
-
-            resolveCollision(bodyA, bodyB, contact);
-            computeWorldColliderShape(world, bodyA.entity, *bodyA.collider, bodyA.worldShape);
-            computeWorldColliderShape(world, bodyB.entity, *bodyB.collider, bodyB.worldShape);
-            bodyA.worldBounds = computeWorldBounds(bodyA.worldShape);
-            bodyB.worldBounds = computeWorldBounds(bodyB.worldShape);
         }
     }
 
     m_lastSleepingBodyCount = 0;
-    world.forEach<Rigidbody>([&](EntityId entity, Rigidbody& rigidbody) {
-        (void)entity;
-        updateSleepState(rigidbody, m_settings, dtSeconds);
-        if (rigidbody.isSleeping) {
-            ++m_lastSleepingBodyCount;
-        }
-    });
-
-    for (const auto& [pair, contact] : frameContacts) {
-        const auto previousIt = m_activeContacts.find(pair);
-        if (previousIt == m_activeContacts.end()) {
-            eventBus.publish(CollisionEnterEvent{contact});
-        } else {
-            eventBus.publish(CollisionStayEvent{contact});
-        }
+    {
+        ENGINE_PROFILE_ZONE("Physics Sleep Update");
+        world.forEach<Rigidbody>([&](EntityId entity, Rigidbody& rigidbody) {
+            (void)entity;
+            updateSleepState(rigidbody, m_settings, dtSeconds);
+            if (rigidbody.isSleeping) {
+                ++m_lastSleepingBodyCount;
+            }
+        });
     }
 
-    for (const auto& [pair, contact] : m_activeContacts) {
-        if (frameContacts.find(pair) == frameContacts.end()) {
-            eventBus.publish(CollisionExitEvent{contact});
+    {
+        ENGINE_PROFILE_ZONE("Physics Collision Events");
+        for (const auto& [pair, contact] : frameContacts) {
+            const auto previousIt = m_activeContacts.find(pair);
+            if (previousIt == m_activeContacts.end()) {
+                eventBus.publish(CollisionEnterEvent{contact});
+            } else {
+                eventBus.publish(CollisionStayEvent{contact});
+            }
+        }
+
+        for (const auto& [pair, contact] : m_activeContacts) {
+            if (frameContacts.find(pair) == frameContacts.end()) {
+                eventBus.publish(CollisionExitEvent{contact});
+            }
         }
     }
 

@@ -252,6 +252,14 @@ private:
         float friction = 0.92F);
     void bindCollisionEventHandlers();
 
+    void createLabScene();
+    void requestLabAssets();
+    void renderLabUi(renderer::Renderer& renderer);
+    bool labActive() const;
+
+    std::vector<ecs::EntityId> m_labEntities;
+    bool m_labLoadRequested{false};
+    bool m_labLoadCompleted{false};
     ecs::World m_world{};
     ecs::RenderSystem m_renderSystem{};
     ecs::DebugRenderSystem m_debugRenderSystem{};

@@ -16,6 +16,7 @@ set_property(CACHE ENGINE_BACKEND PROPERTY STRINGS diligent)
 option(ENGINE_BUILD_DILIGENT_SAMPLES "Build DiligentEngine samples/tutorials" ON)
 option(ENGINE_BUILD_APP_LAUNCHER_SAMPLES "Build selected standalone Diligent samples alongside app" OFF)
 option(ENGINE_ENABLE_DILIGENT_WEBGPU "Build WebGPU backend in Diligent" OFF)
+option(ENGINE_ENABLE_TRACY "Enable Tracy instrumentation in engine targets" OFF)
 set(DILIGENT_SAMPLE_MODE "d3d12" CACHE STRING "Runtime backend mode for Diligent sample launch targets")
 set_property(CACHE DILIGENT_SAMPLE_MODE PROPERTY STRINGS d3d11 d3d12 vk gl webgpu)
 
@@ -24,6 +25,47 @@ string(TOLOWER "${ENGINE_BACKEND}" ENGINE_BACKEND_NORMALIZED)
 include(FetchContent)
 set(FETCHCONTENT_UPDATES_DISCONNECTED ON CACHE BOOL "Disable remote updates for already populated dependencies" FORCE)
 set(FETCHCONTENT_UPDATES_DISCONNECTED ON)
+
+# enkiTS v1.12: library-managed work stealing and priority queues.
+set(ENKITS_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+set(ENKITS_BUILD_C_INTERFACE OFF CACHE BOOL "" FORCE)
+set(ENKITS_BUILD_SHARED OFF CACHE BOOL "" FORCE)
+set(ENKITS_INSTALL OFF CACHE BOOL "" FORCE)
+set(ENKITS_TASK_PRIORITIES_NUM 3 CACHE STRING "" FORCE)
+FetchContent_Declare(
+    enkits
+    GIT_REPOSITORY https://github.com/dougbinks/enkiTS.git
+    GIT_TAG 0289cf6ffce86697e1f46cb4eeca1c946bffec71
+    UPDATE_DISCONNECTED ON
+)
+FetchContent_MakeAvailable(enkits)
+
+if(ENGINE_ENABLE_TRACY)
+    # Keep this tag identical to the Tracy GUI version used to open captures.
+    set(TRACY_ENABLE ON CACHE BOOL "" FORCE)
+    set(TRACY_ON_DEMAND ON CACHE BOOL "" FORCE)
+    set(TRACY_ONLY_LOCALHOST ON CACHE BOOL "" FORCE)
+    FetchContent_Declare(
+        tracy
+        GIT_REPOSITORY https://github.com/wolfpld/tracy.git
+        GIT_TAG v0.13.1
+        GIT_SHALLOW TRUE
+        UPDATE_DISCONNECTED ON
+    )
+    FetchContent_MakeAvailable(tracy)
+endif()
+
+function(enable_engine_tracy target_name)
+    if(ENGINE_ENABLE_TRACY)
+        target_link_libraries(${target_name} PRIVATE Tracy::TracyClient)
+        target_compile_definitions(${target_name} PRIVATE ENGINE_TRACY_PROFILE=1)
+        if(MSVC)
+            # Keep the lab's Release optimizations and emit symbols for Tracy.
+            target_compile_options(${target_name} PRIVATE "$<$<CONFIG:Release>:/Zi>")
+            target_link_options(${target_name} PRIVATE "$<$<CONFIG:Release>:/DEBUG>")
+        endif()
+    endif()
+endfunction()
 
 set(GLFW_BUILD_DOCS OFF CACHE BOOL "" FORCE)
 set(GLFW_BUILD_TESTS OFF CACHE BOOL "" FORCE)
@@ -236,10 +278,12 @@ add_library(engine_core STATIC
     engine/core/Log.cpp
     engine/core/Time.cpp
     engine/core/Config.cpp
+    engine/core/JobSystem.cpp
 )
 target_include_directories(engine_core PUBLIC "${ENGINE_ROOT_INCLUDE_DIR}")
-target_link_libraries(engine_core PUBLIC spdlog::spdlog nlohmann_json::nlohmann_json)
+target_link_libraries(engine_core PUBLIC spdlog::spdlog nlohmann_json::nlohmann_json PRIVATE enkiTS)
 set_engine_warnings(engine_core)
+enable_engine_tracy(engine_core)
 
 add_library(engine_platform STATIC
     engine/platform/Window.cpp
@@ -281,6 +325,11 @@ PRIVATE
     ${DILIGENT_RHI_LIBS}
 )
 target_compile_definitions(engine_rhi_diligent PRIVATE ENGINE_ENABLE_DILIGENT_BACKEND=1)
+if(MSVC)
+    # Diligent-BuildSettings disables RTTI in optimized builds, while this
+    # adapter intentionally uses dynamic_cast to validate RHI object types.
+    set_property(SOURCE engine/rhi_diligent/DiligentDevice.cpp APPEND PROPERTY COMPILE_OPTIONS /GR)
+endif()
 set_engine_warnings(engine_rhi_diligent)
 
 add_library(engine_rhi STATIC
@@ -294,9 +343,11 @@ set_engine_warnings(engine_rhi)
 add_library(engine_renderer STATIC
     engine/renderer/Renderer.cpp
     engine/resources/resource_manager.cpp
+    engine/resources/async_load_queue.cpp
     engine/resources/loaders.cpp
     engine/ecs/render_system.cpp
     engine/ecs/transform_utils.cpp
+    engine/ecs/transform_batch.cpp
     engine/ecs/collision_utils.cpp
 )
 target_include_directories(engine_renderer PUBLIC "${ENGINE_ROOT_INCLUDE_DIR}")
@@ -318,12 +369,16 @@ endif()
 if(TARGET Diligent-BuildSettings)
     target_link_libraries(engine_renderer PRIVATE Diligent-BuildSettings)
 endif()
+if(MSVC)
+    set_property(SOURCE engine/renderer/Renderer.cpp APPEND PROPERTY COMPILE_OPTIONS /GR)
+endif()
 if(EXISTS "${DILIGENT_ENGINE_DIR}/DiligentTools/ThirdParty/imgui/imgui_demo.cpp")
     target_sources(engine_renderer PRIVATE
         "${DILIGENT_ENGINE_DIR}/DiligentTools/ThirdParty/imgui/imgui_demo.cpp"
     )
 endif()
 set_engine_warnings(engine_renderer)
+enable_engine_tracy(engine_renderer)
 
 add_library(imguizmo STATIC
     "${imguizmo_SOURCE_DIR}/ImGuizmo.cpp"
@@ -367,6 +422,7 @@ target_include_directories(
 )
 target_link_libraries(engine_game PUBLIC engine_core engine_platform engine_renderer PRIVATE imguizmo)
 set_engine_warnings(engine_game)
+enable_engine_tracy(engine_game)
 
 add_executable(app
     app/main.cpp
@@ -376,6 +432,7 @@ target_include_directories(app PRIVATE "${ENGINE_ROOT_INCLUDE_DIR}")
 target_compile_definitions(app PRIVATE ENGINE_BACKEND_NAME="diligent")
 target_link_libraries(app PRIVATE engine_core engine_platform engine_renderer engine_game)
 set_engine_warnings(app)
+enable_engine_tracy(app)
 copy_pix_runtime_dll(app)
 
 add_executable(engine_physics_tests
@@ -385,6 +442,27 @@ target_include_directories(engine_physics_tests PRIVATE "${ENGINE_ROOT_INCLUDE_D
 target_link_libraries(engine_physics_tests PRIVATE engine_core engine_platform engine_renderer engine_game)
 set_engine_warnings(engine_physics_tests)
 add_test(NAME engine_physics_tests COMMAND engine_physics_tests)
+
+add_executable(engine_job_system_tests
+    tests/JobSystemTests.cpp
+)
+target_include_directories(engine_job_system_tests PRIVATE "${ENGINE_ROOT_INCLUDE_DIR}")
+target_link_libraries(engine_job_system_tests PRIVATE engine_core)
+set_engine_warnings(engine_job_system_tests)
+add_test(NAME engine_job_system_tests COMMAND engine_job_system_tests)
+
+add_executable(engine_async_load_tests tests/AsyncLoadQueueTests.cpp)
+target_link_libraries(engine_async_load_tests PRIVATE engine_renderer)
+set_engine_warnings(engine_async_load_tests)
+add_test(NAME engine_async_load_tests COMMAND engine_async_load_tests)
+
+add_executable(engine_transform_batch_tests tests/TransformBatchTests.cpp engine/ecs/world.cpp)
+target_link_libraries(engine_transform_batch_tests PRIVATE engine_renderer)
+set_engine_warnings(engine_transform_batch_tests)
+add_test(NAME engine_transform_batch_tests COMMAND engine_transform_batch_tests)
+
+set_tests_properties(engine_physics_tests engine_job_system_tests engine_async_load_tests engine_transform_batch_tests
+    PROPERTIES TIMEOUT 60)
 
 if(COMMAND copy_required_dlls)
     copy_required_dlls(app)

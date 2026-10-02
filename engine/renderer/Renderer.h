@@ -1,14 +1,10 @@
 #pragma once
 
 #include <cstdint>
-#include <condition_variable>
-#include <deque>
 #include <filesystem>
 #include <functional>
 #include <memory>
-#include <mutex>
 #include <string>
-#include <thread>
 #include <chrono>
 #include <unordered_map>
 #include <vector>
@@ -27,6 +23,7 @@
 #include "engine/rhi/Swapchain.h"
 #include "engine/rhi/Sync.h"
 #include "engine/resources/mesh.h"
+#include "engine/resources/async_load_queue.h"
 #include "engine/resources/loaders.h"
 #include "engine/resources/resource_manager.h"
 #include "engine/resources/shader_program.h"
@@ -43,6 +40,8 @@ class ImGuiImplDiligent;
 } // namespace Diligent
 
 namespace engine::renderer {
+
+using AssetLoadingStats = resources::AssetLoadingStats;
 
 struct ImGuiImplDiligentDeleter final {
     void operator()(Diligent::ImGuiImplDiligent* ptr) const;
@@ -98,6 +97,11 @@ public:
     std::shared_ptr<resources::Mesh> loadMesh(const std::string& path);
     std::shared_ptr<resources::Texture> loadTexture(const std::string& path);
     std::shared_ptr<resources::ShaderProgram> loadShaderProgram(const std::string& path);
+    // The shared scheduler must outlive the renderer. Configure before init().
+    void setJobSystem(core::JobSystem* jobs);
+    void setAsyncLoadingEnabled(bool enabled);
+    void setUploadBudget(std::size_t maximumUploads, double milliseconds);
+    [[nodiscard]] AssetLoadingStats assetLoadingStats() const;
     resources::ResourceManager& resourceManager();
     const resources::ResourceManager& resourceManager() const;
     [[nodiscard]] rhi::Extent2D frameExtent() const;
@@ -155,24 +159,14 @@ private:
         bool reloadPending{false};
     };
     std::unordered_map<std::string, ShaderHotReloadEntry> m_shaderHotReloadEntries;
-    std::vector<std::thread> m_assetWorkers;
-    std::deque<std::function<void()>> m_assetTasks;
-    std::deque<std::function<void()>> m_mainThreadTasks;
-    std::mutex m_assetTaskMutex;
-    std::mutex m_mainThreadTaskMutex;
-    std::condition_variable m_assetTaskCv;
-    bool m_assetWorkersStopping{false};
+    core::JobSystem* m_jobSystem{nullptr};
+    resources::AsyncLoadQueue m_assetLoads;
     std::chrono::milliseconds m_hotReloadDebounce{175};
     bool m_initialized{false};
 
     bool initializePrimitivePipeline();
     bool initializeResourceSubsystem();
     bool initializeImGui();
-    void startAssetWorkers();
-    void stopAssetWorkers();
-    void enqueueBackgroundTask(std::function<void()> task);
-    void enqueueMainThreadTask(std::function<void()> task);
-    void processPendingMainThreadTasks();
     std::shared_ptr<resources::Mesh> requestMeshLoadFromDisk(const std::string& path);
     std::shared_ptr<resources::Texture> requestTextureLoadFromDisk(const std::string& path);
     std::shared_ptr<resources::ShaderProgram> requestShaderProgramLoadFromManifest(const std::string& path);
