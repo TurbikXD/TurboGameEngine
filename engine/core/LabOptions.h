@@ -17,6 +17,7 @@ struct LabOptions final {
     bool gpuUpload{true};
     bool waitForTracy{false};
     bool missingAsset{false};
+    bool stressScene{false}; // Explicit ordinary-app stress scene, independent of Tracy.
     double durationSeconds{0.0};
     double loadAtSeconds{6.0};
     std::size_t entityCount{4096U};
@@ -26,6 +27,7 @@ struct LabOptions final {
     double uploadBudgetMilliseconds{2.0};
 
     [[nodiscard]] bool active() const { return scene == "ecs" || scene == "loading"; }
+    [[nodiscard]] bool stressActive() const { return stressScene && !active(); }
 
     static std::size_t boundedCount(const std::string_view text, const std::size_t maximum) {
         if (text.empty()) { return 0U; }
@@ -60,6 +62,7 @@ struct LabOptions final {
         options.gpuUpload = environment("TGE_GPU_UPLOAD") != "0";
         options.waitForTracy = environment("TGE_WAIT_FOR_TRACY") == "1";
         options.missingAsset = environment("TGE_MISSING_ASSET") == "1";
+        options.stressScene = environment("TGE_STRESS_SCENE") == "1";
         options.jobWorkers = boundedCount(environment("TGE_JOB_WORKERS"), 256U);
         options.assetInFlightLimit = boundedCount(environment("TGE_ASSET_IN_FLIGHT"), 16U);
         const auto number = [](const char* name, const double fallback) {

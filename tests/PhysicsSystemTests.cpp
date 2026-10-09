@@ -1,8 +1,11 @@
+#include <array>
 #include <cmath>
 #include <cstdlib>
 #include <iostream>
 #include <string>
 #include <vector>
+
+#include <entt/entity/entity.hpp>
 
 #include "engine/core/EventBus.h"
 #include "engine/core/JobSystem.h"
@@ -267,6 +270,143 @@ bool runParallelEquivalenceTest() {
     return expect(serialPhysics.bodyCount() == parallelPhysics.bodyCount(), "parallel proxy count differs");
 }
 
+bool runParallelCollisionHierarchyAndRecycleTest() {
+    using namespace engine;
+    ecs::World serialWorld;
+    ecs::World parallelWorld;
+    const auto serialParent = serialWorld.createEntity();
+    const auto parallelParent = parallelWorld.createEntity();
+    ecs::Transform parentTransform;
+    parentTransform.position = glm::vec3(10.0F, -4.0F, 2.0F);
+    parentTransform.rotationEulerRadians = glm::vec3(0.0F, 0.1F, 0.0F);
+    serialWorld.addComponent<ecs::Transform>(serialParent, parentTransform);
+    parallelWorld.addComponent<ecs::Transform>(parallelParent, parentTransform);
+    std::vector<ecs::EntityId> serialIds;
+    std::vector<ecs::EntityId> parallelIds;
+    for (int pair = 0; pair < 128; ++pair) {
+        const glm::vec3 position(static_cast<float>(pair % 16) * 4.0F,
+                                 static_cast<float>(pair / 16) * 4.0F, 0.0F);
+        for (int member = 0; member < 2; ++member) {
+            const auto local = position + glm::vec3(static_cast<float>(member) * 0.7F, 0.0F, 0.0F);
+            const auto serial = spawnBox(serialWorld, local, glm::vec3(1.0F), false, 1.0F + static_cast<float>(member));
+            const auto parallel = spawnBox(parallelWorld, local, glm::vec3(1.0F), false, 1.0F + static_cast<float>(member));
+            serialWorld.addComponent<ecs::Hierarchy>(serial, ecs::Hierarchy{serialParent});
+            parallelWorld.addComponent<ecs::Hierarchy>(parallel, ecs::Hierarchy{parallelParent});
+            const auto velocity = glm::vec3(member == 0 ? 0.2F : -0.1F, 0.0F, 0.0F);
+            serialWorld.getComponent<ecs::Rigidbody>(serial)->velocity = velocity;
+            parallelWorld.getComponent<ecs::Rigidbody>(parallel)->velocity = velocity;
+            serialIds.push_back(serial);
+            parallelIds.push_back(parallel);
+        }
+    }
+    core::EventBus serialEvents;
+    core::EventBus parallelEvents;
+    std::array<std::size_t, 3> serialCounts{};
+    std::array<std::size_t, 3> parallelCounts{};
+    serialEvents.subscribe<ecs::CollisionEnterEvent>([&](const auto&) { ++serialCounts[0]; });
+    serialEvents.subscribe<ecs::CollisionStayEvent>([&](const auto&) { ++serialCounts[1]; });
+    serialEvents.subscribe<ecs::CollisionExitEvent>([&](const auto&) { ++serialCounts[2]; });
+    parallelEvents.subscribe<ecs::CollisionEnterEvent>([&](const auto&) { ++parallelCounts[0]; });
+    parallelEvents.subscribe<ecs::CollisionStayEvent>([&](const auto&) { ++parallelCounts[1]; });
+    parallelEvents.subscribe<ecs::CollisionExitEvent>([&](const auto&) { ++parallelCounts[2]; });
+    ecs::PhysicsSystem serialPhysics;
+    ecs::PhysicsSystem parallelPhysics;
+    auto settings = serialPhysics.settings();
+    settings.gravity = glm::vec3(0.0F);
+    serialPhysics.setSettings(settings);
+    parallelPhysics.setSettings(settings);
+    core::JobSystem jobs(true, 3U);
+    parallelPhysics.setJobSystem(&jobs);
+
+    const auto compare = [&]() {
+        if (!expect(serialPhysics.bodyCount() == parallelPhysics.bodyCount() &&
+                    serialPhysics.activeCollisionCount() == parallelPhysics.activeCollisionCount() &&
+                    serialPhysics.broadphasePairCount() == parallelPhysics.broadphasePairCount() &&
+                    serialCounts == parallelCounts, "parallel collision counts/events differ")) {
+            return false;
+        }
+        for (std::size_t index = 0; index < serialIds.size(); ++index) {
+            const auto* serialTransform = serialWorld.getComponent<ecs::Transform>(serialIds[index]);
+            const auto* parallelTransform = parallelWorld.getComponent<ecs::Transform>(parallelIds[index]);
+            const auto* serialBody = serialWorld.getComponent<ecs::Rigidbody>(serialIds[index]);
+            const auto* parallelBody = parallelWorld.getComponent<ecs::Rigidbody>(parallelIds[index]);
+            if (!expect((serialTransform != nullptr) == (parallelTransform != nullptr) &&
+                        (serialBody != nullptr) == (parallelBody != nullptr), "parallel sparse components differ")) {
+                return false;
+            }
+            if (serialTransform != nullptr && !expect(
+                    glm::length(serialTransform->position - parallelTransform->position) < 1e-5F &&
+                    glm::length(serialTransform->rotationEulerRadians - parallelTransform->rotationEulerRadians) < 1e-5F,
+                    "parallel hierarchy collision changed a transform")) {
+                return false;
+            }
+            if (serialBody != nullptr && !expect(
+                    glm::length(serialBody->velocity - parallelBody->velocity) < 1e-5F &&
+                    glm::length(serialBody->angularVelocity - parallelBody->angularVelocity) < 1e-5F,
+                    "parallel hierarchy collision changed a body velocity")) {
+                return false;
+            }
+        }
+        return true;
+    };
+    const auto update = [&]() {
+        serialPhysics.update(serialWorld, 1.0 / 60.0, serialEvents);
+        parallelPhysics.update(parallelWorld, 1.0 / 60.0, parallelEvents);
+        return compare();
+    };
+    if (!update() || !expect(serialCounts[0] > 0U && serialPhysics.activeCollisionCount() > 0U,
+                            "Hierarchy collision fixture generated no contacts") ||
+        !expect(jobs.stats().submitted > 0U, "Physics fixture did not submit jobs")) {
+        return false;
+    }
+
+    const auto serialDeleted = serialIds.front();
+    const auto parallelDeleted = parallelIds.front();
+    serialPhysics.forgetEntity(serialDeleted, serialEvents);
+    parallelPhysics.forgetEntity(parallelDeleted, parallelEvents);
+    serialWorld.destroyEntity(serialDeleted);
+    parallelWorld.destroyEntity(parallelDeleted);
+    serialIds.front() = spawnBox(serialWorld, glm::vec3(-100.0F), glm::vec3(1.0F), false, 1.0F);
+    parallelIds.front() = spawnBox(parallelWorld, glm::vec3(-100.0F), glm::vec3(1.0F), false, 1.0F);
+    if (!expect(serialIds.front() != serialDeleted && parallelIds.front() != parallelDeleted &&
+                entt::to_entity(static_cast<entt::entity>(serialIds.front() - 1U)) ==
+                entt::to_entity(static_cast<entt::entity>(serialDeleted - 1U)),
+                "Physics fixture did not reuse a slot with a new generation")) {
+        return false;
+    }
+    serialWorld.destroyEntity(serialDeleted);
+    parallelWorld.destroyEntity(parallelDeleted);
+    serialWorld.removeComponent<ecs::Collider>(serialDeleted);
+    parallelWorld.removeComponent<ecs::Collider>(parallelDeleted);
+    serialWorld.removeComponent<ecs::Collider>(serialIds[2]);
+    parallelWorld.removeComponent<ecs::Collider>(parallelIds[2]);
+    serialWorld.removeComponent<ecs::Rigidbody>(serialIds[3]);
+    parallelWorld.removeComponent<ecs::Rigidbody>(parallelIds[3]);
+    serialWorld.removeComponent<ecs::Transform>(serialIds[4]);
+    parallelWorld.removeComponent<ecs::Transform>(parallelIds[4]);
+    if (!update() || !expect(serialWorld.isAlive(serialIds.front()) && parallelWorld.isAlive(parallelIds.front()),
+                            "Stale contact handle affected a replacement body")) {
+        return false;
+    }
+
+    serialWorld.destroyEntity(serialParent);
+    parallelWorld.destroyEntity(parallelParent);
+    const auto newSerialParent = serialWorld.createEntity();
+    const auto newParallelParent = parallelWorld.createEntity();
+    ecs::Transform replacementParent;
+    replacementParent.position = glm::vec3(1000.0F);
+    serialWorld.addComponent<ecs::Transform>(newSerialParent, replacementParent);
+    parallelWorld.addComponent<ecs::Transform>(newParallelParent, replacementParent);
+    if (!expect(newSerialParent != serialParent && newParallelParent != parallelParent,
+                "Recreated hierarchy parent retained its stale handle")) {
+        return false;
+    }
+    for (int step = 0; step < 3; ++step) {
+        if (!update()) { return false; }
+    }
+    return true;
+}
+
 } // namespace
 
 int main() {
@@ -283,6 +423,9 @@ int main() {
         return EXIT_FAILURE;
     }
     if (!runParallelEquivalenceTest()) {
+        return EXIT_FAILURE;
+    }
+    if (!runParallelCollisionHierarchyAndRecycleTest()) {
         return EXIT_FAILURE;
     }
 

@@ -10,6 +10,9 @@ Read the [Russian project/code walkthrough](docs/project-code-guide.md): file ma
 startup and frame flow, ECS, editor, rendering, asynchronous assets, JobSystem,
 Tracy, debugging checkpoints, and a suggested reading order.
 
+[Runtime Delete and Tracy FPS troubleshooting](docs/runtime-delete.md): temporary
+Play-mode deletion, safe job boundaries, Stop restore, and profiling-build caveats.
+
 ## What Changed
 
 - Legacy internal backends (`rhi_opengl`, `rhi_vulkan`, `rhi_d3d12`) are no longer used by runtime.
@@ -78,6 +81,10 @@ texture/model loading and existing ECS render-transform preparation. Physics
 integration and collision proxies also use it. The former separate asset
 worker pool has been removed. Asset CPU work runs on `Job Worker N`; GPU
 finalization stays on the main thread with a count/time-limited pump.
+
+ECS entities, component storage and queries use EnTT through `engine_ecs`.
+See [the ECS threading contract](docs/ecs-entt.md) for versioned handles,
+stable phases and `World::forEachParallel` with the shared JobSystem.
 
 The lab preset uses optimized **Release with debug symbols**, Tracy 0.13.1,
 1280x720 and VSync off:

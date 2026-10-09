@@ -510,6 +510,20 @@ void PhysicsSystem::clear() {
     m_lastSleepingBodyCount = 0;
 }
 
+void PhysicsSystem::forgetEntity(const EntityId entity, core::EventBus& eventBus) {
+    std::vector<CollisionContact> ended;
+    for (auto it = m_activeContacts.begin(); it != m_activeContacts.end();) {
+        if (it->first.first == entity || it->first.second == entity) {
+            ended.push_back(it->second);
+            it = m_activeContacts.erase(it);
+        } else {
+            ++it;
+        }
+    }
+    // Publish after erasing so callbacks cannot invalidate this iteration.
+    for (const auto& contact : ended) { eventBus.publish(CollisionExitEvent{contact}); }
+}
+
 std::size_t PhysicsSystem::CollisionPairHash::operator()(const CollisionPair& pair) const {
     const std::size_t first = std::hash<EntityId>{}(pair.first);
     const std::size_t second = std::hash<EntityId>{}(pair.second);
@@ -523,145 +537,131 @@ void PhysicsSystem::update(World& world, const double dt, core::EventBus& eventB
     }
 
     const float dtSeconds = static_cast<float>(dt);
-
-    {
-        ENGINE_PROFILE_ZONE("Physics Integrate Bodies");
-        struct IntegrationItem final {
-            Transform* transform{nullptr};
-            Rigidbody* rigidbody{nullptr};
-            const Collider* collider{nullptr};
-        };
-
-        std::vector<IntegrationItem> items;
-        items.reserve(world.aliveCount());
-        world.forEach<Transform, Rigidbody>([&](EntityId entity, Transform& transform, Rigidbody& rigidbody) {
-            items.push_back(IntegrationItem{&transform, &rigidbody, world.getComponent<Collider>(entity)});
-        });
-
-        const auto integrateRange = [&](const std::size_t begin, const std::size_t end) {
-            ENGINE_PROFILE_ZONE("Job Physics Integrate");
-            for (std::size_t index = begin; index < end; ++index) {
-                IntegrationItem& item = items[index];
-                integrateBody(*item.transform, *item.rigidbody, item.collider, m_settings, dtSeconds);
-            }
-        };
-        if (m_jobSystem != nullptr) {
-            m_jobSystem->parallelFor(items.size(), 64U, integrateRange);
-        } else {
-            integrateRange(0U, items.size());
-        }
-    }
-
-    std::vector<BodyProxy> bodies;
-    {
-        ENGINE_PROFILE_ZONE("Physics Build Body Proxies");
-        struct ProxyItem final {
-            EntityId entity{kInvalidEntity};
-            Transform* transform{nullptr};
-            Rigidbody* rigidbody{nullptr};
-            Collider* collider{nullptr};
-        };
-
-        std::vector<ProxyItem> items;
-        items.reserve(world.aliveCount());
-        world.forEach<Transform, Collider>([&](EntityId entity, Transform& transform, Collider& collider) {
-            if (!collider.enabled) {
-                return;
-            }
-            items.push_back(ProxyItem{entity, &transform, world.getComponent<Rigidbody>(entity), &collider});
-        });
-
-        std::vector<BodyProxy> results(items.size());
-        std::vector<std::uint8_t> valid(items.size(), 0U);
-        const auto buildRange = [&](const std::size_t begin, const std::size_t end) {
-            ENGINE_PROFILE_ZONE("Job Physics Build Proxies");
-            for (std::size_t index = begin; index < end; ++index) {
-                const ProxyItem& item = items[index];
-                BodyProxy proxy{};
-                proxy.entity = item.entity;
-                proxy.transform = item.transform;
-                proxy.rigidbody = item.rigidbody;
-                proxy.collider = item.collider;
-                if (!computeWorldColliderShape(world, item.entity, *item.collider, proxy.worldShape)) {
-                    continue;
-                }
-
-                if (proxy.rigidbody != nullptr) {
-                    sanitizeRigidBody(*proxy.rigidbody);
-                }
-                proxy.worldBounds = computeWorldBounds(proxy.worldShape);
-                results[index] = proxy;
-                valid[index] = 1U;
-            }
-        };
-        if (m_jobSystem != nullptr) {
-            m_jobSystem->parallelFor(items.size(), 64U, buildRange);
-        } else {
-            buildRange(0U, items.size());
-        }
-
-        bodies.reserve(results.size());
-        for (std::size_t index = 0; index < results.size(); ++index) {
-            if (valid[index] == 0U) {
-                continue;
-            }
-            bodies.push_back(results[index]);
-        }
-    }
-
-    m_lastBodyCount = bodies.size();
-    std::vector<PotentialPair> potentialPairs;
-    {
-        ENGINE_PROFILE_ZONE("Physics Broadphase");
-        potentialPairs = buildBroadphasePairs(bodies, m_settings.broadphaseCellSize);
-    }
-    m_lastBroadphasePairCount = potentialPairs.size();
-
     std::unordered_map<CollisionPair, CollisionContact, CollisionPairHash> frameContacts;
-    const std::size_t iterations = std::max<std::size_t>(1, m_settings.solverIterations);
 
     {
-        ENGINE_PROFILE_ZONE("Physics Narrowphase and Solver");
-        for (std::size_t iteration = 0; iteration < iterations; ++iteration) {
-            for (const PotentialPair& potentialPair : potentialPairs) {
-                BodyProxy& bodyA = bodies[potentialPair.bodyIndexA];
-                BodyProxy& bodyB = bodies[potentialPair.bodyIndexB];
+        // EnTT removal can relocate components. Protect integration/proxy/solver
+        // pointers until all jobs finish; release before publishing user callbacks.
+        const auto phase = world.stablePhase();
 
-                const bool bodyASleeping = bodyA.rigidbody != nullptr && bodyA.rigidbody->isSleeping;
-                const bool bodyBSleeping = bodyB.rigidbody != nullptr && bodyB.rigidbody->isSleeping;
-                if (iteration > 0U && bodyASleeping && bodyBSleeping) {
+        {
+            ENGINE_PROFILE_ZONE("Physics Integrate Bodies");
+            world.forEachParallel<Transform, Rigidbody>(m_jobSystem, 64U,
+                [&](EntityId entity, Transform& transform, Rigidbody& rigidbody) {
+                    integrateBody(transform, rigidbody, world.getComponent<Collider>(entity), m_settings, dtSeconds);
+                });
+        }
+
+        std::vector<BodyProxy> bodies;
+        {
+            ENGINE_PROFILE_ZONE("Physics Build Body Proxies");
+            struct ProxyItem final {
+                EntityId entity{kInvalidEntity};
+                Transform* transform{nullptr};
+                Rigidbody* rigidbody{nullptr};
+                Collider* collider{nullptr};
+            };
+
+            std::vector<ProxyItem> items;
+            items.reserve(world.aliveCount());
+            world.forEach<Transform, Collider>([&](EntityId entity, Transform& transform, Collider& collider) {
+                if (!collider.enabled) {
+                    return;
+                }
+                items.push_back(ProxyItem{entity, &transform, world.getComponent<Rigidbody>(entity), &collider});
+            });
+
+            std::vector<BodyProxy> results(items.size());
+            std::vector<std::uint8_t> valid(items.size(), 0U);
+            const auto buildRange = [&](const std::size_t begin, const std::size_t end) {
+                ENGINE_PROFILE_ZONE("Job Physics Build Proxies");
+                for (std::size_t index = begin; index < end; ++index) {
+                    const ProxyItem& item = items[index];
+                    BodyProxy proxy{};
+                    proxy.entity = item.entity;
+                    proxy.transform = item.transform;
+                    proxy.rigidbody = item.rigidbody;
+                    proxy.collider = item.collider;
+                    if (!computeWorldColliderShape(world, item.entity, *item.collider, proxy.worldShape)) {
+                        continue;
+                    }
+
+                    if (proxy.rigidbody != nullptr) {
+                        sanitizeRigidBody(*proxy.rigidbody);
+                    }
+                    proxy.worldBounds = computeWorldBounds(proxy.worldShape);
+                    results[index] = proxy;
+                    valid[index] = 1U;
+                }
+            };
+            if (m_jobSystem != nullptr) {
+                m_jobSystem->parallelFor(items.size(), 64U, buildRange);
+            } else {
+                buildRange(0U, items.size());
+            }
+
+            bodies.reserve(results.size());
+            for (std::size_t index = 0; index < results.size(); ++index) {
+                if (valid[index] == 0U) {
                     continue;
                 }
-
-                CollisionContact contact{};
-                if (!intersectColliders(bodyA.entity, bodyA.worldShape, bodyB.entity, bodyB.worldShape, contact)) {
-                    continue;
-                }
-
-                if (iteration == 0U) {
-                    const CollisionContact canonicalContact = canonicalizeContact(contact);
-                    frameContacts[makeCollisionPair(canonicalContact.entityA, canonicalContact.entityB)] = canonicalContact;
-                }
-
-                resolveCollision(bodyA, bodyB, contact);
-                computeWorldColliderShape(world, bodyA.entity, *bodyA.collider, bodyA.worldShape);
-                computeWorldColliderShape(world, bodyB.entity, *bodyB.collider, bodyB.worldShape);
-                bodyA.worldBounds = computeWorldBounds(bodyA.worldShape);
-                bodyB.worldBounds = computeWorldBounds(bodyB.worldShape);
+                bodies.push_back(results[index]);
             }
         }
-    }
 
-    m_lastSleepingBodyCount = 0;
-    {
-        ENGINE_PROFILE_ZONE("Physics Sleep Update");
-        world.forEach<Rigidbody>([&](EntityId entity, Rigidbody& rigidbody) {
-            (void)entity;
-            updateSleepState(rigidbody, m_settings, dtSeconds);
-            if (rigidbody.isSleeping) {
-                ++m_lastSleepingBodyCount;
+        m_lastBodyCount = bodies.size();
+        std::vector<PotentialPair> potentialPairs;
+        {
+            ENGINE_PROFILE_ZONE("Physics Broadphase");
+            potentialPairs = buildBroadphasePairs(bodies, m_settings.broadphaseCellSize);
+        }
+        m_lastBroadphasePairCount = potentialPairs.size();
+
+        const std::size_t iterations = std::max<std::size_t>(1, m_settings.solverIterations);
+
+        {
+            ENGINE_PROFILE_ZONE("Physics Narrowphase and Solver");
+            for (std::size_t iteration = 0; iteration < iterations; ++iteration) {
+                for (const PotentialPair& potentialPair : potentialPairs) {
+                    BodyProxy& bodyA = bodies[potentialPair.bodyIndexA];
+                    BodyProxy& bodyB = bodies[potentialPair.bodyIndexB];
+
+                    const bool bodyASleeping = bodyA.rigidbody != nullptr && bodyA.rigidbody->isSleeping;
+                    const bool bodyBSleeping = bodyB.rigidbody != nullptr && bodyB.rigidbody->isSleeping;
+                    if (iteration > 0U && bodyASleeping && bodyBSleeping) {
+                        continue;
+                    }
+
+                    CollisionContact contact{};
+                    if (!intersectColliders(bodyA.entity, bodyA.worldShape, bodyB.entity, bodyB.worldShape, contact)) {
+                        continue;
+                    }
+
+                    if (iteration == 0U) {
+                        const CollisionContact canonicalContact = canonicalizeContact(contact);
+                        frameContacts[makeCollisionPair(canonicalContact.entityA, canonicalContact.entityB)] = canonicalContact;
+                    }
+
+                    resolveCollision(bodyA, bodyB, contact);
+                    computeWorldColliderShape(world, bodyA.entity, *bodyA.collider, bodyA.worldShape);
+                    computeWorldColliderShape(world, bodyB.entity, *bodyB.collider, bodyB.worldShape);
+                    bodyA.worldBounds = computeWorldBounds(bodyA.worldShape);
+                    bodyB.worldBounds = computeWorldBounds(bodyB.worldShape);
+                }
             }
-        });
+        }
+
+        m_lastSleepingBodyCount = 0;
+        {
+            ENGINE_PROFILE_ZONE("Physics Sleep Update");
+            world.forEach<Rigidbody>([&](EntityId entity, Rigidbody& rigidbody) {
+                (void)entity;
+                updateSleepState(rigidbody, m_settings, dtSeconds);
+                if (rigidbody.isSleeping) {
+                    ++m_lastSleepingBodyCount;
+                }
+            });
+        }
     }
 
     {

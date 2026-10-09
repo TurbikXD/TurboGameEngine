@@ -13,6 +13,7 @@ void prepareWorldMatrices(const World& world, const std::span<const EntityId> en
     if (entities.size() != matrices.size()) {
         throw std::invalid_argument("Transform batch input/output sizes differ");
     }
+    const auto phase = world.stablePhase();
     const auto range = [&](const std::size_t begin, const std::size_t end) {
         ENGINE_PROFILE_ZONE("Job Render Transforms");
         for (std::size_t index = begin; index < end; ++index) {

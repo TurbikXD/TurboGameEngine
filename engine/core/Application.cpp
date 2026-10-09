@@ -247,14 +247,8 @@ bool Application::init() {
     m_renderer.setGpuUploadEnabled(m_labOptions.gpuUpload);
     m_renderer.setUploadBudget(m_labOptions.uploadsPerFrame, m_labOptions.uploadBudgetMilliseconds);
     m_renderer.setAssetInFlightLimit(m_labOptions.assetInFlightLimit);
-#if defined(ENGINE_TRACY_PROFILE)
-    // Keep captures comparable regardless of a developer's local config.json.
-    m_config.width = 1280;
-    m_config.height = 720;
-    m_config.vsync = false;
-    m_config.initialState = "gameplay";
-#endif
-    if (m_labOptions.active()) {
+    // Instrumentation alone must not change the normal editor's scene/config.
+    if (m_labOptions.active() || m_labOptions.stressActive()) {
         m_config.width = 1280;
         m_config.height = 720;
         m_config.vsync = false;

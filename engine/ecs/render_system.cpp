@@ -16,6 +16,7 @@ void RenderSystem::render(
     renderer::RenderAdapter& renderer,
     const glm::mat4& viewProjectionMatrix) {
     ENGINE_PROFILE_ZONE("RenderSystem");
+    const auto phase = world.stablePhase();
     {
         ENGINE_PROFILE_ZONE("Render Gather");
         m_entities.clear();

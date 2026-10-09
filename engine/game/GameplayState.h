@@ -58,6 +58,7 @@ public:
     void renderUi(renderer::Renderer& renderer) override;
 
 private:
+    friend struct GameplayStateTestAccess; // Headless regression tests, no GPU/editor setup.
     enum class EditorMode : std::uint8_t {
         Edit = 0,
         Play
@@ -126,6 +127,7 @@ private:
         std::string label;
         SceneSnapshot before;
         bool changed{false};
+        ecs::EntityId entity{ecs::kInvalidEntity};
     };
 
     struct AssetEntry final {
@@ -170,12 +172,13 @@ private:
     void renderEntityContextMenu(ecs::EntityId entity);
     void enterPlayMode();
     void stopPlayMode();
+    [[nodiscard]] EntitySnapshot captureEntitySnapshot(ecs::EntityId entity) const;
     [[nodiscard]] SceneSnapshot captureSceneSnapshot() const;
     void restoreSceneSnapshot(const SceneSnapshot& snapshot);
     void pushHistorySnapshot(const std::string& label, SceneSnapshot snapshot);
     void recordSceneHistory(const std::string& label);
-    void beginSceneEdit(const std::string& label, const SceneSnapshot& before);
-    void trackEditedItem(const std::string& label, bool changed, const SceneSnapshot& before);
+    void beginSceneEdit(const std::string& label, SceneSnapshot before, ecs::EntityId entity);
+    void trackEditedItem(const std::string& label, bool changed, const EntitySnapshot& before);
     void commitSceneEdit();
     void cancelSceneEdit();
     void undoSceneEdit();
@@ -224,6 +227,8 @@ private:
     ecs::EntityId createEditorEntity(EditorEntityKind kind);
     ecs::EntityId duplicateEntity(ecs::EntityId entity);
     void deleteEntity(ecs::EntityId entity);
+    void deleteEntityNow(ecs::EntityId entity);
+    void applyPendingRuntimeDeletes();
     ecs::EntityId spawnStaticBody(
         const std::string& tag,
         const glm::vec3& position,
@@ -267,6 +272,7 @@ private:
     core::EventBus m_eventBus{};
     FreeCameraController m_cameraController{};
     std::deque<std::function<void()>> m_pendingSpawnJobs{};
+    std::vector<ecs::EntityId> m_pendingRuntimeDeletes{};
     std::vector<EditorHistoryEntry> m_undoStack{};
     std::vector<EditorHistoryEntry> m_redoStack{};
     std::vector<AssetEntry> m_projectAssets{};

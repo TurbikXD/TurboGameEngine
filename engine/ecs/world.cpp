@@ -2,66 +2,64 @@
 
 namespace engine::ecs {
 
-EntityId World::createEntity() {
-    if (!m_freeList.empty()) {
-        const EntityId recycled = m_freeList.back();
-        m_freeList.pop_back();
-        if (isValidEntityIndex(recycled)) {
-            auto& record = m_entities[recycled - 1];
-            record.alive = true;
-            return recycled;
-        }
+World::StablePhase::StablePhase(const World& world, const bool requireOwner) : m_world(world) {
+    if (requireOwner) {
+        world.requireOwnerThread();
     }
-
-    m_entities.push_back(EntityRecord{});
-    m_entities.back().alive = true;
-    return static_cast<EntityId>(m_entities.size());
+    m_ownsPhase = std::this_thread::get_id() == world.m_ownerThread;
+    if (m_ownsPhase) {
+        ++world.m_stablePhases;
+    }
 }
 
-void World::destroyEntity(EntityId entity) {
-    if (!isAlive(entity)) {
-        return;
+World::StablePhase::~StablePhase() {
+    if (m_ownsPhase) {
+        --m_world.m_stablePhases;
     }
+}
 
-    auto& record = m_entities[entity - 1];
-    record.alive = false;
-    ++record.generation;
-    m_freeList.push_back(entity);
+World::StablePhase World::stablePhase() const {
+    return StablePhase(*this);
+}
 
-    for (auto& [type, storage] : m_componentStores) {
-        (void)type;
-        storage->remove(entity);
+void World::requireOwnerThread() const {
+    if (std::this_thread::get_id() != m_ownerThread) {
+        throw std::logic_error("World structural operations and job gathering require its owner thread");
+    }
+}
+
+void World::requireStructuralChange() const {
+    // Check thread ownership first; workers must never read the owner's phase counter.
+    requireOwnerThread();
+    if (m_stablePhases != 0U) {
+        throw std::logic_error("World structure is frozen until iteration/jobs finish");
+    }
+}
+
+EntityId World::createEntity() {
+    requireStructuralChange();
+    return fromNative(m_registry.create());
+}
+
+void World::destroyEntity(const EntityId entity) {
+    requireStructuralChange();
+    if (isAlive(entity)) {
+        m_registry.destroy(toNative(entity));
     }
 }
 
 void World::clear() {
-    for (auto& [type, storage] : m_componentStores) {
-        (void)type;
-        storage->clear();
-    }
-    m_entities.clear();
-    m_freeList.clear();
+    requireStructuralChange();
+    // Keep entity storage so its versions invalidate handles across scene resets.
+    m_registry.clear();
 }
 
-bool World::isAlive(EntityId entity) const {
-    if (!isValidEntityIndex(entity)) {
-        return false;
-    }
-    return m_entities[entity - 1].alive;
+bool World::isAlive(const EntityId entity) const {
+    return entity != kInvalidEntity && m_registry.valid(toNative(entity));
 }
 
 std::size_t World::aliveCount() const {
-    std::size_t count = 0;
-    for (const auto& entityRecord : m_entities) {
-        if (entityRecord.alive) {
-            ++count;
-        }
-    }
-    return count;
-}
-
-bool World::isValidEntityIndex(EntityId entity) const {
-    return entity > 0 && static_cast<std::size_t>(entity - 1) < m_entities.size();
+    return m_registry.storage<entt::entity>()->free_list();
 }
 
 } // namespace engine::ecs

@@ -1115,9 +1115,11 @@ void GameplayState::onEnter() {
     if (!labActive()) { loadEditorLayout(); }
     bindCollisionEventHandlers();
     resetDemoScene();
-#if defined(ENGINE_TRACY_PROFILE)
-    if (!labActive()) { enterPlayMode(); }
-#endif
+    const auto* options = stack().labOptions();
+    if (options != nullptr && options->stressActive()) { enterPlayMode(); }
+    ENGINE_LOG_INFO("Scene ready: mode={} entities={} stress={}",
+        m_editorMode == EditorMode::Play ? "Play" : "Edit", m_world.aliveCount(),
+        options != nullptr && options->stressActive());
 }
 
 void GameplayState::onExit() {
@@ -1125,6 +1127,7 @@ void GameplayState::onExit() {
     if (!labActive()) { saveEditorLayout(); }
     setCameraLookActive(false);
     m_pendingSpawnJobs.clear();
+    m_pendingRuntimeDeletes.clear();
     m_undoStack.clear();
     m_redoStack.clear();
     m_editModeSnapshot.reset();
@@ -1484,23 +1487,23 @@ void GameplayState::createDemoScene() {
         0.42F,
         glm::vec2(1.0F, 1.0F));
 
-#if defined(ENGINE_TRACY_PROFILE)
-    // Deterministic wall of bodies: enough CPU work to expose physics and
-    // render submission costs without any input or random scene generation.
-    for (int row = 0; row < 32; ++row) {
-        for (int column = 0; column < 40; ++column) {
-            const float x = -12.675F + static_cast<float>(column) * 0.65F;
-            const float y = -1.75F + static_cast<float>((row + column) % 2) * 0.02F;
-            const float z = 0.35F + static_cast<float>(row) * 0.62F;
-            spawnDynamicBody(
-                "profile_body_" + std::to_string(row) + "_" + std::to_string(column),
-                glm::vec3(x, y, z),
-                glm::vec3(0.42F, 0.42F, 0.42F),
-                paletteColor(static_cast<std::size_t>(row * 40 + column)),
-                1.0F);
+    // Opt-in stress load. Compiling/connecting Tracy must not add physics bodies.
+    const auto* options = stack().labOptions();
+    if (options != nullptr && options->stressActive()) {
+        for (int row = 0; row < 32; ++row) {
+            for (int column = 0; column < 40; ++column) {
+                const float x = -12.675F + static_cast<float>(column) * 0.65F;
+                const float y = -1.75F + static_cast<float>((row + column) % 2) * 0.02F;
+                const float z = 0.35F + static_cast<float>(row) * 0.62F;
+                spawnDynamicBody(
+                    "profile_body_" + std::to_string(row) + "_" + std::to_string(column),
+                    glm::vec3(x, y, z),
+                    glm::vec3(0.42F, 0.42F, 0.42F),
+                    paletteColor(static_cast<std::size_t>(row * 40 + column)),
+                    1.0F);
+            }
         }
     }
-#endif
 
     m_sceneInitialized = true;
     m_selectedEntity = m_strikerEntity;
@@ -1617,6 +1620,7 @@ void GameplayState::renderLabUi(renderer::Renderer& rendererInstance) {
 }
 
 void GameplayState::resetDemoScene() {
+    m_pendingRuntimeDeletes.clear();
     m_world.clear();
     m_labEntities.clear();
     m_labLoadRequested = false;
@@ -1772,6 +1776,8 @@ void GameplayState::stopPlayMode() {
         return;
     }
 
+    // A pending Play deletion must never target the restored Edit scene's IDs.
+    m_pendingRuntimeDeletes.clear();
     if (m_editModeSnapshot.has_value()) {
         restoreSceneSnapshot(*m_editModeSnapshot);
         m_editModeSnapshot.reset();
@@ -1781,7 +1787,21 @@ void GameplayState::stopPlayMode() {
     m_lastCollisionMessage = "Returned to Edit mode.";
 }
 
+GameplayState::EntitySnapshot GameplayState::captureEntitySnapshot(const ecs::EntityId entity) const {
+    EntitySnapshot snapshot{};
+    snapshot.sourceId = entity;
+    if (const auto* component = m_world.getComponent<ecs::Transform>(entity)) { snapshot.transform = *component; }
+    if (const auto* component = m_world.getComponent<ecs::Tag>(entity)) { snapshot.tag = *component; }
+    if (const auto* component = m_world.getComponent<ecs::Hierarchy>(entity)) { snapshot.hierarchy = *component; }
+    if (const auto* component = m_world.getComponent<ecs::Camera>(entity)) { snapshot.camera = *component; }
+    if (const auto* component = m_world.getComponent<ecs::Rigidbody>(entity)) { snapshot.rigidbody = *component; }
+    if (const auto* component = m_world.getComponent<ecs::Collider>(entity)) { snapshot.collider = *component; }
+    if (const auto* component = m_world.getComponent<ecs::MeshRenderer>(entity)) { snapshot.meshRenderer = *component; }
+    return snapshot;
+}
+
 GameplayState::SceneSnapshot GameplayState::captureSceneSnapshot() const {
+    ENGINE_PROFILE_ZONE("Editor Scene Snapshot");
     SceneSnapshot snapshot{};
     snapshot.cameraEntity = m_cameraEntity;
     snapshot.strikerEntity = m_strikerEntity;
@@ -1792,36 +1812,14 @@ GameplayState::SceneSnapshot GameplayState::captureSceneSnapshot() const {
     snapshot.showcaseSphereLaunched = m_showcaseSphereLaunched;
 
     m_world.forEachEntity([&](const ecs::EntityId entity) {
-        EntitySnapshot entitySnapshot{};
-        entitySnapshot.sourceId = entity;
-        if (const auto* transform = m_world.getComponent<ecs::Transform>(entity)) {
-            entitySnapshot.transform = *transform;
-        }
-        if (const auto* tag = m_world.getComponent<ecs::Tag>(entity)) {
-            entitySnapshot.tag = *tag;
-        }
-        if (const auto* hierarchy = m_world.getComponent<ecs::Hierarchy>(entity)) {
-            entitySnapshot.hierarchy = *hierarchy;
-        }
-        if (const auto* camera = m_world.getComponent<ecs::Camera>(entity)) {
-            entitySnapshot.camera = *camera;
-        }
-        if (const auto* rigidbody = m_world.getComponent<ecs::Rigidbody>(entity)) {
-            entitySnapshot.rigidbody = *rigidbody;
-        }
-        if (const auto* collider = m_world.getComponent<ecs::Collider>(entity)) {
-            entitySnapshot.collider = *collider;
-        }
-        if (const auto* meshRenderer = m_world.getComponent<ecs::MeshRenderer>(entity)) {
-            entitySnapshot.meshRenderer = *meshRenderer;
-        }
-        snapshot.entities.push_back(std::move(entitySnapshot));
+        snapshot.entities.push_back(captureEntitySnapshot(entity));
     });
 
     return snapshot;
 }
 
 void GameplayState::restoreSceneSnapshot(const SceneSnapshot& snapshot) {
+    m_pendingRuntimeDeletes.clear();
     m_world.clear();
     m_physicsSystem.clear();
     m_pendingSpawnJobs.clear();
@@ -1942,32 +1940,49 @@ void GameplayState::recordSceneHistory(const std::string& label) {
     pushHistorySnapshot(label, captureSceneSnapshot());
 }
 
-void GameplayState::beginSceneEdit(const std::string& label, const SceneSnapshot& before) {
+void GameplayState::beginSceneEdit(const std::string& label, SceneSnapshot before, const ecs::EntityId entity) {
     if (!canEditScene() || m_pendingSceneEdit.has_value()) {
         return;
     }
-    m_pendingSceneEdit = PendingSceneEdit{label, before, false};
+    m_pendingSceneEdit = PendingSceneEdit{label, std::move(before), false, entity};
 }
 
-void GameplayState::trackEditedItem(const std::string& label, const bool changed, const SceneSnapshot& before) {
+void GameplayState::trackEditedItem(const std::string& label, const bool changed, const EntitySnapshot& before) {
     if (!canEditScene()) {
         return;
     }
 
-    if (ImGui::IsItemActivated()) {
-        beginSceneEdit(label, before);
+    const bool activated = ImGui::IsItemActivated();
+    if ((activated || changed) && m_pendingSceneEdit.has_value() &&
+        (m_pendingSceneEdit->label != label || m_pendingSceneEdit->entity != before.sourceId)) {
+        commitSceneEdit();
     }
-
-    if (changed) {
-        if (m_pendingSceneEdit.has_value()) {
-            m_pendingSceneEdit->changed = true;
+    if ((activated || changed) && !m_pendingSceneEdit.has_value()) {
+        // Widgets may already have changed their value. Capture the rest of the
+        // scene lazily, then restore this entity's pre-widget data in the snapshot.
+        // Idle widgets and subsequent drag frames never copy the whole scene.
+        SceneSnapshot snapshot = captureSceneSnapshot();
+        const auto entity = std::find_if(snapshot.entities.begin(), snapshot.entities.end(), [&](const EntitySnapshot& item) {
+            return item.sourceId == before.sourceId;
+        });
+        if (entity == snapshot.entities.end()) {
+            return;
+        }
+        *entity = before;
+        if (activated) {
+            beginSceneEdit(label, std::move(snapshot), before.sourceId);
         } else {
-            pushHistorySnapshot(label, before);
+            pushHistorySnapshot(label, std::move(snapshot));
             m_editorStatusMessage = label;
         }
     }
 
-    if (ImGui::IsItemDeactivatedAfterEdit()) {
+    if (changed && m_pendingSceneEdit.has_value()) {
+        m_pendingSceneEdit->changed = true;
+    }
+
+    if (ImGui::IsItemDeactivated() && m_pendingSceneEdit.has_value() &&
+        m_pendingSceneEdit->label == label && m_pendingSceneEdit->entity == before.sourceId) {
         commitSceneEdit();
     }
 }
@@ -2346,11 +2361,34 @@ ecs::EntityId GameplayState::duplicateEntity(const ecs::EntityId entity) {
 }
 
 void GameplayState::deleteEntity(const ecs::EntityId entity) {
-    if (!canEditScene() || !m_world.isAlive(entity)) {
+    if (!m_world.isAlive(entity)) {
         return;
     }
 
-    recordSceneHistory("Delete Entity");
+    if (m_editorMode == EditorMode::Play) {
+        // UI/input never mutate component storage during the frame. Drain on
+        // the main thread before the next physics/spawn step, after prior jobs.
+        if (std::find(m_pendingRuntimeDeletes.begin(), m_pendingRuntimeDeletes.end(), entity) ==
+            m_pendingRuntimeDeletes.end()) {
+            m_pendingRuntimeDeletes.push_back(entity);
+        }
+        m_editorStatusMessage = "Runtime delete queued: " + entityDisplayName(entity);
+        return;
+    }
+    deleteEntityNow(entity);
+}
+
+void GameplayState::applyPendingRuntimeDeletes() {
+    auto pending = std::move(m_pendingRuntimeDeletes);
+    m_pendingRuntimeDeletes.clear();
+    for (const auto entity : pending) {
+        deleteEntityNow(entity);
+    }
+}
+
+void GameplayState::deleteEntityNow(const ecs::EntityId entity) {
+    if (!m_world.isAlive(entity)) { return; }
+    if (canEditScene()) { recordSceneHistory("Delete Entity"); }
     m_world.forEachEntity([&](const ecs::EntityId candidate) {
         if (auto* hierarchy = m_world.getComponent<ecs::Hierarchy>(candidate);
             hierarchy != nullptr && hierarchy->parent == entity) {
@@ -2359,18 +2397,26 @@ void GameplayState::deleteEntity(const ecs::EntityId entity) {
     });
 
     const std::string deletedName = entityDisplayName(entity);
+    // Drop cached contact pairs before the free-list can reuse this entity ID.
+    m_physicsSystem.forgetEntity(entity, m_eventBus);
     m_world.destroyEntity(entity);
     if (m_cameraEntity == entity) {
         m_cameraEntity = ecs::kInvalidEntity;
+        setCameraLookActive(false);
     }
     if (m_strikerEntity == entity) {
         m_strikerEntity = ecs::kInvalidEntity;
     }
     if (m_showcaseSphereEntity == entity) {
         m_showcaseSphereEntity = ecs::kInvalidEntity;
+        m_showcaseSphereLaunched = false;
     }
+    if (m_hoveredEntity == entity) { m_hoveredEntity = ecs::kInvalidEntity; }
     if (m_selectedEntity == entity) {
         m_selectedEntity = ecs::kInvalidEntity;
+        m_gizmoEditSnapshot.reset();
+        m_gizmoWasUsing = false;
+        m_gizmoChanged = false;
     }
     ensureSelectedEntityValid();
     m_editorStatusMessage = "Deleted " + deletedName;
@@ -2958,6 +3004,9 @@ void GameplayState::updateFrameHistory() {
 
 void GameplayState::update(const double dt) {
     ENGINE_PROFILE_ZONE("Gameplay Update");
+    // Physics/transform parallelFor calls are joined before returning. Input
+    // and ImGui run on this same main thread; no ECS worker survives this boundary.
+    applyPendingRuntimeDeletes();
     if (!m_sceneInitialized) {
         createDemoScene();
     }
@@ -3359,7 +3408,7 @@ void GameplayState::renderEntityContextMenu(const ecs::EntityId entity) {
         renderCreateEntityMenu();
         ImGui::EndMenu();
     }
-    if (ImGui::MenuItem("Delete", "Delete", false, canEditScene() && m_world.isAlive(entity))) {
+    if (ImGui::MenuItem("Delete", "Delete", false, m_world.isAlive(entity))) {
         deleteEntity(entity);
     }
 }
@@ -3698,7 +3747,7 @@ void GameplayState::renderMainMenuBar() {
         if (ImGui::MenuItem("Duplicate Selected", "Ctrl+D", false, canEditScene() && m_world.isAlive(m_selectedEntity))) {
             duplicateEntity(m_selectedEntity);
         }
-        if (ImGui::MenuItem("Delete Selected", "Delete", false, canEditScene() && m_world.isAlive(m_selectedEntity))) {
+        if (ImGui::MenuItem("Delete Selected", "Delete", false, m_world.isAlive(m_selectedEntity))) {
             deleteEntity(m_selectedEntity);
         }
         ImGui::EndMenu();
@@ -4336,12 +4385,12 @@ void GameplayState::renderProjectPanel() {
 }
 
 void GameplayState::renderEntityComponentEditors(const ecs::EntityId entity) {
-    auto captureBeforeEdit = [this]() {
-        return canEditScene() ? captureSceneSnapshot() : SceneSnapshot{};
+    auto captureBeforeEdit = [this, entity]() {
+        return canEditScene() ? captureEntitySnapshot(entity) : EntitySnapshot{};
     };
 
     auto drawVec3Editor = [this, &captureBeforeEdit](const char* label, glm::vec3& value, const float speed, const char* format) {
-        const SceneSnapshot before = captureBeforeEdit();
+        const EntitySnapshot before = captureBeforeEdit();
         bool changed = false;
         ImGui::PushID(label);
         if (ImGui::BeginTable("##Vec3Table", 2, ImGuiTableFlags_SizingStretchSame)) {
@@ -4380,9 +4429,10 @@ void GameplayState::renderEntityComponentEditors(const ecs::EntityId entity) {
 
     if (auto* meshRenderer = m_world.getComponent<ecs::MeshRenderer>(entity)) {
         if (ImGui::CollapsingHeader("Mesh Renderer", ImGuiTreeNodeFlags_DefaultOpen)) {
-            SceneSnapshot before = captureBeforeEdit();
-            if (const bool changed = ImGui::Checkbox("Visible", &meshRenderer->visible)) {
-                trackEditedItem("Edit Mesh Visibility", changed, before);
+            EntitySnapshot before = captureBeforeEdit();
+            const bool visibleChanged = ImGui::Checkbox("Visible", &meshRenderer->visible);
+            trackEditedItem("Edit Mesh Visibility", visibleChanged, before);
+            if (visibleChanged) {
                 wakeEntity(entity);
             }
             before = captureBeforeEdit();
@@ -4399,10 +4449,11 @@ void GameplayState::renderEntityComponentEditors(const ecs::EntityId entity) {
             static constexpr const char* kPrimitiveLabels[] = {"Triangle"};
             int primitiveIndex = static_cast<int>(meshRenderer->primitiveType);
             before = captureBeforeEdit();
-            if (ImGui::Combo("Primitive", &primitiveIndex, kPrimitiveLabels, IM_ARRAYSIZE(kPrimitiveLabels))) {
+            const bool primitiveChanged = ImGui::Combo("Primitive", &primitiveIndex, kPrimitiveLabels, IM_ARRAYSIZE(kPrimitiveLabels));
+            if (primitiveChanged) {
                 meshRenderer->primitiveType = static_cast<ecs::PrimitiveType>(primitiveIndex);
-                trackEditedItem("Edit Primitive", true, before);
             }
+            trackEditedItem("Edit Primitive", primitiveChanged, before);
 
             before = captureBeforeEdit();
             const bool meshChanged = ImGui::InputText("Mesh", &meshRenderer->meshId);
@@ -4427,14 +4478,15 @@ void GameplayState::renderEntityComponentEditors(const ecs::EntityId entity) {
 
     if (auto* camera = m_world.getComponent<ecs::Camera>(entity)) {
         if (ImGui::CollapsingHeader("Camera", ImGuiTreeNodeFlags_DefaultOpen)) {
-            SceneSnapshot before = captureBeforeEdit();
+            EntitySnapshot before = captureBeforeEdit();
             trackEditedItem("Edit Camera Active", ImGui::Checkbox("Active", &camera->active), before);
             float fovDegrees = glm::degrees(camera->verticalFovRadians);
             before = captureBeforeEdit();
-            if (ImGui::SliderFloat("Vertical FOV", &fovDegrees, 20.0F, 110.0F, "%.1f deg")) {
+            const bool fovChanged = ImGui::SliderFloat("Vertical FOV", &fovDegrees, 20.0F, 110.0F, "%.1f deg");
+            if (fovChanged) {
                 camera->verticalFovRadians = glm::radians(fovDegrees);
-                trackEditedItem("Edit Camera FOV", true, before);
             }
+            trackEditedItem("Edit Camera FOV", fovChanged, before);
             before = captureBeforeEdit();
             trackEditedItem(
                 "Edit Near Plane",
@@ -4452,7 +4504,7 @@ void GameplayState::renderEntityComponentEditors(const ecs::EntityId entity) {
         if (ImGui::CollapsingHeader("Rigidbody", ImGuiTreeNodeFlags_DefaultOpen)) {
             bool massPropertiesDirty = false;
             bool changed = false;
-            SceneSnapshot before = captureBeforeEdit();
+            EntitySnapshot before = captureBeforeEdit();
             bool fieldChanged = ImGui::Checkbox("Use Gravity", &rigidbody->useGravity);
             trackEditedItem("Edit Gravity", fieldChanged, before);
             changed |= fieldChanged;
@@ -4522,17 +4574,18 @@ void GameplayState::renderEntityComponentEditors(const ecs::EntityId entity) {
 
     if (auto* collider = m_world.getComponent<ecs::Collider>(entity)) {
         if (ImGui::CollapsingHeader("Collider", ImGuiTreeNodeFlags_DefaultOpen)) {
-            SceneSnapshot before = captureBeforeEdit();
+            EntitySnapshot before = captureBeforeEdit();
             trackEditedItem("Edit Collider Enabled", ImGui::Checkbox("Enabled", &collider->enabled), before);
             drawVec3Editor("Offset", collider->offset, 0.02F, "%.2f");
 
             static constexpr const char* kColliderLabels[] = {"AABB", "Sphere"};
             int colliderIndex = static_cast<int>(collider->type);
             before = captureBeforeEdit();
-            if (ImGui::Combo("Shape", &colliderIndex, kColliderLabels, IM_ARRAYSIZE(kColliderLabels))) {
+            const bool shapeChanged = ImGui::Combo("Shape", &colliderIndex, kColliderLabels, IM_ARRAYSIZE(kColliderLabels));
+            if (shapeChanged) {
                 collider->type = static_cast<ecs::ColliderType>(colliderIndex);
-                trackEditedItem("Edit Collider Shape", true, before);
             }
+            trackEditedItem("Edit Collider Shape", shapeChanged, before);
 
             if (collider->type == ecs::ColliderType::Aabb) {
                 drawVec3Editor("Half Extents", collider->aabb.halfExtents, 0.02F, "%.2f");
@@ -4578,6 +4631,7 @@ void GameplayState::renderEntityComponentEditors(const ecs::EntityId entity) {
 }
 
 void GameplayState::renderInspectorPanel() {
+    ENGINE_PROFILE_ZONE("Inspector UI");
     if (!m_showInspectorPanel) {
         return;
     }
@@ -4650,7 +4704,7 @@ void GameplayState::renderInspectorPanel() {
         ImGui::Separator();
 
         if (auto* tag = m_world.getComponent<ecs::Tag>(m_selectedEntity)) {
-            const SceneSnapshot before = canEditScene() ? captureSceneSnapshot() : SceneSnapshot{};
+            const EntitySnapshot before = canEditScene() ? captureEntitySnapshot(m_selectedEntity) : EntitySnapshot{};
             const bool changed = ImGui::InputText("Name", &tag->value);
             trackEditedItem("Rename Entity", changed, before);
         } else if (ImGui::Button("Add Tag")) {
