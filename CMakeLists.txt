@@ -331,6 +331,7 @@ if(MSVC)
     set_property(SOURCE engine/rhi_diligent/DiligentDevice.cpp APPEND PROPERTY COMPILE_OPTIONS /GR)
 endif()
 set_engine_warnings(engine_rhi_diligent)
+enable_engine_tracy(engine_rhi_diligent)
 
 add_library(engine_rhi STATIC
     engine/rhi/RHI.cpp
@@ -344,6 +345,7 @@ add_library(engine_renderer STATIC
     engine/renderer/Renderer.cpp
     engine/resources/resource_manager.cpp
     engine/resources/async_load_queue.cpp
+    engine/resources/image_mips.cpp
     engine/resources/loaders.cpp
     engine/ecs/render_system.cpp
     engine/ecs/transform_utils.cpp
@@ -461,7 +463,18 @@ target_link_libraries(engine_transform_batch_tests PRIVATE engine_renderer)
 set_engine_warnings(engine_transform_batch_tests)
 add_test(NAME engine_transform_batch_tests COMMAND engine_transform_batch_tests)
 
-set_tests_properties(engine_physics_tests engine_job_system_tests engine_async_load_tests engine_transform_batch_tests
+add_executable(engine_texture_loader_tests tests/TextureLoaderTests.cpp)
+target_link_libraries(engine_texture_loader_tests PRIVATE engine_renderer)
+set_engine_warnings(engine_texture_loader_tests)
+add_test(NAME engine_texture_loader_tests COMMAND engine_texture_loader_tests)
+
+# Explicit hardware integration test; not a default CTest on headless CI.
+add_executable(engine_gpu_upload_tests tests/GpuUploadTests.cpp)
+target_link_libraries(engine_gpu_upload_tests PRIVATE engine_renderer engine_platform engine_rhi_diligent glfw)
+set_engine_warnings(engine_gpu_upload_tests)
+copy_pix_runtime_dll(engine_gpu_upload_tests)
+
+set_tests_properties(engine_physics_tests engine_job_system_tests engine_async_load_tests engine_transform_batch_tests engine_texture_loader_tests
     PROPERTIES TIMEOUT 60)
 
 if(COMMAND copy_required_dlls)

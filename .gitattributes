@@ -9,6 +9,8 @@
 *.csv -text whitespace=cr-at-eol
 # Multi-megabyte raw zone exports are evidence, not useful line-by-line diffs.
 reports/**/zones.csv -diff
+# Keep diagnostic evidence byte-for-byte, including native line endings/spaces.
+reports/**/*.log -text -whitespace
 *.tracy binary
 *.png binary
 *.jpg binary

@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "engine/core/JobSystem.h"
+#include "engine/core/LabOptions.h"
 
 namespace {
 
@@ -38,6 +39,23 @@ bool runParallelForTest() {
         }
     }
     return expect(jobs.workerCount() == 3U, "explicit worker count was not respected");
+}
+
+bool runWorkerCountOptionTest() {
+    using engine::core::LabOptions;
+    if (!expect(LabOptions::boundedCount("4", 256U) == 4U &&
+                LabOptions::boundedCount("24", 256U) == 24U &&
+                LabOptions::boundedCount("256", 256U) == 256U,
+                "Worker options did not preserve explicit counts")) { return false; }
+    for (const auto* invalid : {"", "0", "-1", "+24", "24.5", "24junk", " 24", "257", "999999999999999999999"}) {
+        if (!expect(LabOptions::boundedCount(invalid, 256U) == 0U, "Invalid worker option was accepted")) { return false; }
+    }
+    engine::core::JobSystem jobs(true, 24U);
+    std::atomic_size_t visits{0U};
+    jobs.parallelFor(4096U, 64U, [&visits](const std::size_t begin, const std::size_t end) {
+        visits.fetch_add(end - begin, std::memory_order_relaxed);
+    });
+    return expect(jobs.workerCount() == 24U && visits == 4096U, "24-worker scheduler lost ranges");
 }
 
 bool runDispatchAndWaitTest() {
@@ -199,7 +217,7 @@ bool runShutdownAndStressTest() {
 } // namespace
 
 int main() {
-    if (!runParallelForTest() || !runDispatchAndWaitTest() || !runDisabledAndExceptionTest()
+    if (!runWorkerCountOptionTest() || !runParallelForTest() || !runDispatchAndWaitTest() || !runDisabledAndExceptionTest()
         || !runNestedAndDependencyTest() || !runExceptionAndBoundaryTest()
         || !runPriorityIsolationTest() || !runShutdownAndStressTest()) {
         return EXIT_FAILURE;

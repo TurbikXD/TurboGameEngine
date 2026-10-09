@@ -227,7 +227,8 @@ bool launchDetachedProcess(
 
 namespace engine::core {
 
-Application::Application(rhi::BackendType backend) : m_backend(backend) {}
+Application::Application(rhi::BackendType backend)
+    : m_backend(backend), m_labOptions(LabOptions::fromEnvironment()), m_jobs(true, m_labOptions.jobWorkers) {}
 
 Application::~Application() {
     shutdown();
@@ -240,11 +241,12 @@ bool Application::init() {
     ENGINE_LOG_INFO("Application init started");
 
     m_config = Config::load("config.json");
-    m_labOptions = LabOptions::fromEnvironment();
     m_stateStack.setServices(&m_jobs, &m_labOptions);
     m_renderer.setJobSystem(&m_jobs);
     m_renderer.setAsyncLoadingEnabled(m_labOptions.asyncLoading);
+    m_renderer.setGpuUploadEnabled(m_labOptions.gpuUpload);
     m_renderer.setUploadBudget(m_labOptions.uploadsPerFrame, m_labOptions.uploadBudgetMilliseconds);
+    m_renderer.setAssetInFlightLimit(m_labOptions.assetInFlightLimit);
 #if defined(ENGINE_TRACY_PROFILE)
     // Keep captures comparable regardless of a developer's local config.json.
     m_config.width = 1280;
@@ -328,9 +330,9 @@ int Application::run() {
     }
     ENGINE_PROFILE_MESSAGE("LAB_RUN_START");
     const auto runStart = std::chrono::steady_clock::now();
-    ENGINE_LOG_INFO("LAB_RUN_START scene={} parallel_ecs={} async_loading={} entities={} workers={}",
+    ENGINE_LOG_INFO("LAB_RUN_START scene={} parallel_ecs={} async_loading={} entities={} workers={} asset_in_flight={}",
         m_labOptions.scene, m_labOptions.parallelEcs, m_labOptions.asyncLoading,
-        m_labOptions.entityCount, m_jobs.workerCount());
+        m_labOptions.entityCount, m_jobs.workerCount(), m_renderer.assetLoadingStats().inFlightLimit);
     FrameTimer timer;
     timer.reset();
 

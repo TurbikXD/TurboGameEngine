@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <cstring>
 #include <fstream>
+#include <mutex>
 #include <optional>
 #include <stdexcept>
 #include <string>
@@ -13,6 +14,8 @@
 #include <utility>
 
 #include "engine/core/Log.h"
+#include "engine/core/Profiling.h"
+#include "engine/rhi/UploadQueue.h"
 #include "engine/platform/Window.h"
 #include "engine/rhi/CommandBuffer.h"
 #include "engine/rhi/Pipeline.h"
@@ -41,6 +44,7 @@
 #include "third_party/DiligentEngine/DiligentCore/Common/interface/RefCntAutoPtr.hpp"
 #include "third_party/DiligentEngine/DiligentCore/Graphics/GraphicsEngine/interface/Buffer.h"
 #include "third_party/DiligentEngine/DiligentCore/Graphics/GraphicsEngine/interface/DeviceContext.h"
+#include "third_party/DiligentEngine/DiligentCore/Graphics/GraphicsEngine/interface/Fence.h"
 #include "third_party/DiligentEngine/DiligentCore/Graphics/GraphicsEngine/interface/InputLayout.h"
 #include "third_party/DiligentEngine/DiligentCore/Graphics/GraphicsEngine/interface/PipelineState.h"
 #include "third_party/DiligentEngine/DiligentCore/Graphics/GraphicsEngine/interface/RenderDevice.h"
@@ -403,6 +407,211 @@ private:
     bool m_expectsTexture{false};
 };
 
+class DiligentUploadTicket final : public IUploadTicket {
+public:
+    DiligentUploadTicket(Diligent::IFence* fence, Diligent::IDeviceContext* graphics, std::uint64_t value) :
+        m_fence(fence), m_graphics(graphics), m_value(value) {}
+    ~DiligentUploadTicket() override {
+        // Usually already complete. Covers discarded submissions as well.
+        if (submitted) { wait(); }
+    }
+    bool isComplete() const override { return submitted && m_fence->GetCompletedValue() >= m_value; }
+    std::uint64_t value() const override { return m_value; }
+    void wait() const override { if (submitted) { m_fence->Wait(m_value); } }
+    void acquire() override {
+        ENGINE_PROFILE_ZONE("Upload Graphics Acquire");
+        if (!isComplete()) { throw std::logic_error("Upload acquired before GPU completion"); }
+        if (!m_acquired) {
+            // CPU observation alone is not a Vulkan cross-queue memory dependency.
+            // This is a GPU-side wait, not a CPU stall; next graphics use supplies
+            // the normal COPY_DEST/COMMON -> shader/vertex/index state barrier.
+            m_graphics->DeviceWaitForFence(m_fence, m_value);
+            m_acquired = true;
+        }
+    }
+    bool submitted{false}; // published with AsyncLoadQueue's release/acquire flag
+    std::vector<Diligent::RefCntAutoPtr<Diligent::IDeviceObject>> destinations;
+private:
+    Diligent::RefCntAutoPtr<Diligent::IFence> m_fence;
+    Diligent::RefCntAutoPtr<Diligent::IDeviceContext> m_graphics;
+    std::uint64_t m_value;
+    bool m_acquired{false}; // renderer thread only
+};
+
+class DiligentUploadQueue final : public IUploadQueue {
+public:
+    DiligentUploadQueue(Diligent::IRenderDevice* device, Diligent::IDeviceContext* graphics,
+                       Diligent::IDeviceContext* transfer) :
+        m_device(device), m_graphics(graphics), m_transfer(transfer) {
+        Diligent::FenceDesc desc;
+        desc.Name = "TGE upload timeline";
+        desc.Type = Diligent::FENCE_TYPE_GENERAL;
+        m_device->CreateFence(desc, &m_fence);
+        if (!m_fence) { throw std::runtime_error("Unable to create GPU upload fence"); }
+    }
+    ~DiligentUploadQueue() override { waitIdle(); }
+    UploadSubmission submit(const UploadRequest& request) override {
+        ENGINE_PROFILE_ZONE("Upload Transfer Submit");
+        if (request.buffers.empty() && request.imageMips.empty()) {
+            throw std::invalid_argument("Empty GPU upload batch");
+        }
+        // One immediate context must never be recorded concurrently by jobs.
+        std::unique_lock lock(m_mutex);
+        {
+        ENGINE_PROFILE_ZONE("Upload Transfer Record");
+        UploadSubmission result;
+        auto ticket = std::make_shared<DiligentUploadTicket>(m_fence, m_graphics, m_value + 1U);
+        ticket->destinations.reserve(request.buffers.size() + 1U);
+        result.buffers.reserve(request.buffers.size());
+        const auto mask = (Diligent::Uint64{1} << m_graphics->GetDesc().ContextId) |
+                          (Diligent::Uint64{1} << m_transfer->GetDesc().ContextId);
+        std::vector<Diligent::StateTransitionDesc> releaseBarriers;
+        releaseBarriers.reserve(request.buffers.size() + 1U);
+        const bool d3d12 = m_device->GetDeviceInfo().Type == Diligent::RENDER_DEVICE_TYPE_D3D12;
+        try {
+            for (const auto& upload : request.buffers) {
+                if (upload.desc.dynamic || upload.desc.size == 0 || upload.data.size() != upload.desc.size ||
+                    upload.desc.size % 4U != 0) {
+                    throw std::invalid_argument("Upload expects a nonempty static, 4-byte-aligned buffer");
+                }
+                Diligent::BufferDesc desc;
+                desc.Name = "TGE streamed mesh buffer";
+                desc.Size = upload.desc.size;
+                desc.Usage = Diligent::USAGE_DEFAULT;
+                desc.ImmediateContextMask = mask;
+                desc.BindFlags = upload.desc.usage == BufferUsage::Vertex ? Diligent::BIND_VERTEX_BUFFER :
+                                 upload.desc.usage == BufferUsage::Index ? Diligent::BIND_INDEX_BUFFER :
+                                 Diligent::BIND_UNIFORM_BUFFER;
+                Diligent::RefCntAutoPtr<Diligent::IBuffer> buffer;
+                m_device->CreateBuffer(desc, nullptr, &buffer);
+                if (!buffer) { throw std::runtime_error("GPU upload buffer allocation failed"); }
+                ticket->destinations.emplace_back(buffer.RawPtr());
+                m_transfer->UpdateBuffer(buffer, 0, desc.Size, upload.data.data(), Diligent::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
+                if (d3d12) {
+                    releaseBarriers.emplace_back(buffer, Diligent::RESOURCE_STATE_UNKNOWN,
+                        Diligent::RESOURCE_STATE_COMMON, Diligent::STATE_TRANSITION_FLAG_UPDATE_STATE);
+                }
+                result.buffers.push_back(std::make_unique<DiligentBuffer>(upload.desc, std::move(buffer)));
+                result.bytes += upload.data.size();
+            }
+            if (!request.imageMips.empty()) {
+                Diligent::TextureDesc desc;
+                desc.Name = "TGE streamed texture";
+                desc.Type = Diligent::RESOURCE_DIM_TEX_2D;
+                desc.Width = request.imageDesc.width;
+                desc.Height = request.imageDesc.height;
+                desc.Format = toDiligentFormat(request.imageDesc.format);
+                desc.BindFlags = Diligent::BIND_SHADER_RESOURCE;
+                desc.Usage = Diligent::USAGE_DEFAULT;
+                desc.ImmediateContextMask = mask;
+                desc.MipLevels = static_cast<Diligent::Uint32>(request.imageMips.size());
+                auto width = desc.Width;
+                auto height = desc.Height;
+                std::size_t expectedLevels = 1;
+                if (request.imageDesc.generateMipmaps) {
+                    while (width > 1 || height > 1) {
+                        width = std::max(1U, width / 2U); height = std::max(1U, height / 2U); ++expectedLevels;
+                    }
+                }
+                if (desc.Width == 0 || desc.Height == 0 || expectedLevels != request.imageMips.size()) {
+                    throw std::invalid_argument("Incomplete GPU texture mip chain");
+                }
+                Diligent::RefCntAutoPtr<Diligent::ITexture> texture;
+                m_device->CreateTexture(desc, nullptr, &texture);
+                if (!texture) { throw std::runtime_error("GPU upload texture allocation failed"); }
+                ticket->destinations.emplace_back(texture.RawPtr());
+                width = desc.Width; height = desc.Height;
+                for (Diligent::Uint32 mip = 0; mip < desc.MipLevels; ++mip) {
+                    const auto& level = request.imageMips[mip];
+                    if (level.width != width || level.height != height ||
+                        level.pixels.size() != static_cast<std::uint64_t>(width) * height * 4U) {
+                        throw std::invalid_argument("Invalid GPU texture mip dimensions/data");
+                    }
+                    Diligent::TextureSubResData data;
+                    data.pData = level.pixels.data();
+                    data.Stride = static_cast<Diligent::Uint64>(width) * 4U;
+                    const Diligent::Box region{0, width, 0, height, 0, 1};
+                    m_transfer->UpdateTexture(texture, mip, 0, region, data,
+                        Diligent::RESOURCE_STATE_TRANSITION_MODE_NONE, Diligent::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
+                    result.bytes += level.pixels.size();
+                    width = std::max(1U, width / 2U); height = std::max(1U, height / 2U);
+                }
+                if (d3d12) {
+                    releaseBarriers.emplace_back(texture, Diligent::RESOURCE_STATE_UNKNOWN,
+                        Diligent::RESOURCE_STATE_COMMON, Diligent::STATE_TRANSITION_FLAG_UPDATE_STATE);
+                }
+                auto* srv = texture->GetDefaultView(Diligent::TEXTURE_VIEW_SHADER_RESOURCE);
+                if (!srv) { throw std::runtime_error("GPU texture SRV allocation failed"); }
+                result.image = std::make_unique<DiligentImage>(request.imageDesc, std::move(texture),
+                    Diligent::RefCntAutoPtr<Diligent::ITextureView>{srv});
+            }
+            // D3D12 requires COMMON when transferring ownership to graphics.
+            // UpdateTexture temporarily transitions individual mips and restores
+            // their previous state; unlike UpdateBuffer it does not leave the
+            // tracked resource in COPY_DEST. Let Diligent use the tracked state.
+            if (!releaseBarriers.empty()) {
+                m_transfer->TransitionResourceStates(static_cast<Diligent::Uint32>(releaseBarriers.size()), releaseBarriers.data());
+            }
+            m_transfer->EnqueueSignal(m_fence, ++m_value);
+            ticket->submitted = true;
+            m_transfer->Flush();
+            // Separate contexts are not retired by swapchain Present().
+            m_transfer->FinishFrame();
+            result.ticket = std::move(ticket);
+            return result;
+        } catch (...) {
+            // Partial recording must not leave resources or a fence unsubmitted.
+            m_transfer->WaitForIdle();
+            m_transfer->FinishFrame();
+            throw;
+        }
+        }
+    }
+    void waitIdle() override {
+        ENGINE_PROFILE_ZONE("Upload Transfer Shutdown");
+        std::lock_guard lock(m_mutex);
+        m_transfer->WaitForIdle();
+        m_transfer->FinishFrame();
+    }
+private:
+    Diligent::RefCntAutoPtr<Diligent::IRenderDevice> m_device;
+    Diligent::RefCntAutoPtr<Diligent::IDeviceContext> m_graphics;
+    Diligent::RefCntAutoPtr<Diligent::IDeviceContext> m_transfer;
+    Diligent::RefCntAutoPtr<Diligent::IFence> m_fence;
+    std::mutex m_mutex;
+    std::uint64_t m_value{0};
+};
+
+// Same mechanism as Diligent Tutorial23_CommandQueues. Never manufacture a
+// "copy queue" from an ordinary graphics context when the adapter lacks one.
+bool configureUploadContexts(Diligent::IEngineFactory* factory, Diligent::EngineCreateInfo& info,
+                             std::array<Diligent::ImmediateContextCreateInfo, 2>& contexts) {
+    Diligent::Uint32 count = 0;
+    factory->EnumerateAdapters(info.GraphicsAPIVersion, count, nullptr);
+    if (count == 0) { return false; }
+    std::vector<Diligent::GraphicsAdapterInfo> adapters(count);
+    factory->EnumerateAdapters(info.GraphicsAPIVersion, count, adapters.data());
+    const auto adapterId = info.AdapterId == Diligent::DEFAULT_ADAPTER_ID ? 0U : info.AdapterId;
+    if (adapterId >= count) { return false; }
+    const auto& adapter = adapters[adapterId];
+    int graphics = -1;
+    int transfer = -1;
+    for (Diligent::Uint32 q = 0; q < adapter.NumQueues; ++q) {
+        if (adapter.Queues[q].MaxDeviceContexts == 0) { continue; }
+        const auto type = adapter.Queues[q].QueueType & Diligent::COMMAND_QUEUE_TYPE_PRIMARY_MASK;
+        if (type == Diligent::COMMAND_QUEUE_TYPE_GRAPHICS && graphics < 0) { graphics = static_cast<int>(q); }
+        if (type == Diligent::COMMAND_QUEUE_TYPE_TRANSFER && transfer < 0) { transfer = static_cast<int>(q); }
+    }
+    if (graphics < 0 || transfer < 0) { return false; }
+    contexts[0] = {"TGE Graphics", static_cast<Diligent::Uint8>(graphics)};
+    contexts[1] = {"TGE Upload Transfer", static_cast<Diligent::Uint8>(transfer)};
+    info.AdapterId = adapterId;
+    info.pImmediateContextInfo = contexts.data();
+    info.NumImmediateContexts = 2;
+    info.Features.NativeFence = Diligent::DEVICE_FEATURE_STATE_OPTIONAL;
+    return true;
+}
+
 } // namespace
 
 struct DiligentDevice::Impl {
@@ -420,10 +629,12 @@ struct DiligentDevice::Impl {
 
     Diligent::RefCntAutoPtr<Diligent::IRenderDevice> renderDevice;
     Diligent::RefCntAutoPtr<Diligent::IDeviceContext> immediateContext;
+    Diligent::RefCntAutoPtr<Diligent::IDeviceContext> transferContext;
     Diligent::RefCntAutoPtr<Diligent::ISwapChain> swapChain;
     Diligent::RefCntAutoPtr<Diligent::IShaderSourceInputStreamFactory> shaderSourceFactory;
 
     std::string selectedDeviceName{"unknown"};
+    std::unique_ptr<IUploadQueue> uploads; // destroyed before contexts/device
 };
 
 namespace {
@@ -842,7 +1053,17 @@ DiligentDevice::DiligentDevice(const DeviceCreateDesc& desc) : m_impl(std::make_
             // on the 4096-object scene. Reserve headroom for the supported
             // 16384-object lab scene and multiple frames in flight (~8 MiB).
             createInfo.GPUDescriptorHeapDynamicSize[0] = 262144U;
-            m_impl->d3d12Factory->CreateDeviceAndContextsD3D12(createInfo, &m_impl->renderDevice, &m_impl->immediateContext);
+            std::array<Diligent::ImmediateContextCreateInfo, 2> contextInfo{};
+            if (desc.enableUploadQueue && m_impl->d3d12Factory->LoadD3D12()) {
+                // CreateDevice clamps an unspecified API version to 11.0;
+                // EnumerateAdapters does not. Use the same effective minimum.
+                createInfo.GraphicsAPIVersion = std::max(createInfo.GraphicsAPIVersion, Diligent::Version{11, 0});
+                configureUploadContexts(m_impl->baseFactory, createInfo, contextInfo);
+            }
+            Diligent::IDeviceContext* contexts[2]{};
+            m_impl->d3d12Factory->CreateDeviceAndContextsD3D12(createInfo, &m_impl->renderDevice, contexts);
+            m_impl->immediateContext.Attach(contexts[0]);
+            m_impl->transferContext.Attach(contexts[1]);
             break;
         }
 #endif
@@ -856,7 +1077,12 @@ DiligentDevice::DiligentDevice(const DeviceCreateDesc& desc) : m_impl(std::make_
             m_impl->baseFactory = m_impl->vkFactory;
             Diligent::EngineVkCreateInfo createInfo{};
             configureCommonEngineOptions(createInfo, desc.enableValidation);
-            m_impl->vkFactory->CreateDeviceAndContextsVk(createInfo, &m_impl->renderDevice, &m_impl->immediateContext);
+            std::array<Diligent::ImmediateContextCreateInfo, 2> contextInfo{};
+            if (desc.enableUploadQueue) { configureUploadContexts(m_impl->baseFactory, createInfo, contextInfo); }
+            Diligent::IDeviceContext* contexts[2]{};
+            m_impl->vkFactory->CreateDeviceAndContextsVk(createInfo, &m_impl->renderDevice, contexts);
+            m_impl->immediateContext.Attach(contexts[0]);
+            m_impl->transferContext.Attach(contexts[1]);
             break;
         }
 #endif
@@ -915,9 +1141,21 @@ DiligentDevice::DiligentDevice(const DeviceCreateDesc& desc) : m_impl(std::make_
     if (!m_impl->renderDevice || !m_impl->immediateContext) {
         throw std::runtime_error("Diligent failed to create render device or immediate context");
     }
+    if (m_impl->transferContext) {
+        m_impl->uploads = std::make_unique<DiligentUploadQueue>(m_impl->renderDevice,
+            m_impl->immediateContext, m_impl->transferContext);
+        ENGINE_LOG_INFO("GPU_UPLOAD_QUEUE enabled backend={} graphics_context={} transfer_context={}",
+            m_impl->selectedDeviceName, m_impl->immediateContext->GetDesc().ContextId,
+            m_impl->transferContext->GetDesc().ContextId);
+    } else {
+        ENGINE_LOG_INFO("GPU_UPLOAD_QUEUE disabled backend={} requested={} (bounded main-thread fallback)",
+            m_impl->selectedDeviceName, desc.enableUploadQueue);
+    }
 }
 
 DiligentDevice::~DiligentDevice() = default;
+
+IUploadQueue* DiligentDevice::uploadQueue() { return m_impl->uploads.get(); }
 
 std::unique_ptr<ISwapchain> DiligentDevice::createSwapchain(const SwapchainDesc& desc) {
     if (!m_impl || !m_impl->renderDevice || !m_impl->immediateContext || desc.width == 0 || desc.height == 0) {

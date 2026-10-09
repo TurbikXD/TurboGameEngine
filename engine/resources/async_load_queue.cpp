@@ -38,6 +38,8 @@ void reportError(const AsyncLoadQueue::OnError& callback, const std::string& err
 } // namespace
 
 struct AsyncLoadQueue::Completion final {
+    std::shared_ptr<rhi::IUploadTicket> ticket;
+    std::uint64_t bytes{0};
     Finalize finalize;
     OnError onError;
     std::exception_ptr failure;
@@ -82,6 +84,26 @@ void AsyncLoadQueue::setUploadBudget(const std::size_t maximumUploads, const dou
 }
 
 void AsyncLoadQueue::submit(Work work, OnError onError) {
+    if (!work) {
+        submitPrepared({}, std::move(onError));
+        return;
+    }
+    submitPrepared([work = std::move(work)]() mutable { return Prepared{work(), {}, 0}; }, std::move(onError));
+}
+
+void AsyncLoadQueue::setInFlightLimit(const std::size_t maximumAssets) {
+    requireOwner();
+    if (maximumAssets > 16U) { throw std::invalid_argument("Asset in-flight limit exceeds 16"); }
+    if (!m_completions.empty()) { throw std::logic_error("Configure asset limit before submitting requests"); }
+    m_maximumInFlight = maximumAssets;
+}
+
+std::size_t AsyncLoadQueue::inFlightLimit() const {
+    return m_maximumInFlight != 0U ? m_maximumInFlight :
+        std::clamp<std::size_t>(m_jobs != nullptr ? m_jobs->workerCount() * 2U : 1U, 1U, 16U);
+}
+
+void AsyncLoadQueue::submitPrepared(Prepare work, OnError onError) {
     ENGINE_PROFILE_ZONE("Asset Dispatch");
     requireOwner();
     ++m_state->counters.submitted;
@@ -96,7 +118,11 @@ void AsyncLoadQueue::submit(Work work, OnError onError) {
         auto completion = std::make_shared<Completion>();
         completion->onError = std::move(onError);
         try {
-            completion->finalize = work();
+            auto prepared = work();
+            completion->ticket = std::move(prepared.ticket);
+            completion->bytes = prepared.bytes;
+            completion->finalize = std::move(prepared.finalize);
+            if (completion->ticket) { completion->ticket->wait(); }
         } catch (...) {
             completion->failure = std::current_exception();
         }
@@ -123,7 +149,7 @@ void AsyncLoadQueue::dispatchPending() {
     std::erase_if(m_handles, [this](const auto& handle) { return m_jobs->isComplete(handle); });
     // Keep far below enkiTS's task-pipe capacity: a saturated pipe may execute
     // work inline in dispatch(), which would run asset IO on the render thread.
-    const auto limit = std::clamp<std::size_t>(m_jobs->workerCount() * 2U, 1U, 16U);
+    const auto limit = inFlightLimit();
     // Include decoded-but-not-uploaded records in the limit. This also bounds
     // decoded staging memory while a slow GPU pump catches up.
     while (!m_waiting.empty() && m_completions.size() - m_waiting.size() < limit) {
@@ -140,7 +166,10 @@ void AsyncLoadQueue::dispatchPending() {
                 [state, work = std::move(request.work), completion]() mutable {
                     ENGINE_PROFILE_ZONE("Asset Decode Job");
                     try {
-                        completion->finalize = work();
+                        auto prepared = work();
+                        completion->ticket = std::move(prepared.ticket);
+                        completion->bytes = prepared.bytes;
+                        completion->finalize = std::move(prepared.finalize);
                     } catch (...) {
                         completion->failure = std::current_exception();
                     }
@@ -168,6 +197,12 @@ void AsyncLoadQueue::finalize(const std::shared_ptr<Completion>& completion) {
         if (!completion->finalize) {
             throw std::runtime_error("Asset job returned no finalization callback");
         }
+        if (completion->ticket) {
+            completion->ticket->acquire();
+            ++m_state->counters.gpuUploads;
+            m_state->counters.gpuBytes += completion->bytes;
+            m_state->counters.lastGpuFence = std::max(m_state->counters.lastGpuFence, completion->ticket->value());
+        }
         loaded = completion->finalize();
     } catch (...) {
         error = currentError();
@@ -190,7 +225,8 @@ void AsyncLoadQueue::pump() {
     dispatchPending();
     while (!m_stopped && m_state->counters.uploadedLastFrame < m_maximumUploads) {
         const auto ready = std::find_if(m_completions.begin(), m_completions.end(), [](const auto& completion) {
-            return completion->ready.load(std::memory_order_acquire);
+            return completion->ready.load(std::memory_order_acquire) &&
+                   (completion->failure || !completion->ticket || completion->ticket->isComplete());
         });
         if (ready == m_completions.end()) {
             break;
@@ -214,6 +250,9 @@ void AsyncLoadQueue::pump() {
     ENGINE_PROFILE_PLOT("Assets Pending Uploads", static_cast<std::int64_t>(current.pendingUploads));
     ENGINE_PROFILE_PLOT("Assets Loaded", static_cast<std::int64_t>(current.loaded));
     ENGINE_PROFILE_PLOT("Assets Failed", static_cast<std::int64_t>(current.failed));
+    ENGINE_PROFILE_PLOT("Uploads GPU Pending", static_cast<std::int64_t>(current.pendingGpu));
+    ENGINE_PROFILE_PLOT("Uploads GPU Bytes", static_cast<std::int64_t>(current.gpuBytes));
+    ENGINE_PROFILE_PLOT("Uploads GPU Fence", static_cast<std::int64_t>(current.lastGpuFence));
 }
 
 void AsyncLoadQueue::stop() {
@@ -236,6 +275,9 @@ void AsyncLoadQueue::stop() {
     m_handles.clear();
     m_waiting.clear();
     for (const auto& completion : m_completions) {
+        // Join above establishes CPU publication; never release payloads while
+        // the GPU still references them, even if the asset was cancelled.
+        if (completion->ticket) { completion->ticket->wait(); }
         reportError(completion->onError, "Asset loading cancelled during shutdown");
         ++m_state->counters.cancelled;
     }
@@ -245,12 +287,18 @@ void AsyncLoadQueue::stop() {
 AssetLoadingStats AsyncLoadQueue::stats() const {
     requireOwner();
     auto result = m_state->counters;
+    result.inFlightLimit = inFlightLimit();
     result.pendingCpu = m_state->pendingCpu.load(std::memory_order_acquire) + m_waiting.size();
     result.pendingUploads = static_cast<std::size_t>(std::count_if(
         m_completions.begin(), m_completions.end(), [](const auto& completion) {
             return completion->ready.load(std::memory_order_acquire);
         }));
     result.asyncEnabled = m_asyncEnabled && m_jobs != nullptr && m_jobs->enabled();
+    for (const auto& completion : m_completions) {
+        if (completion->ready.load(std::memory_order_acquire) && completion->ticket && !completion->ticket->isComplete()) {
+            ++result.pendingGpu;
+        }
+    }
     return result;
 }
 

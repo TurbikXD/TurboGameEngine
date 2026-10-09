@@ -1,0 +1,153 @@
+[2026-10-08 21:23:41.515] [info] [engine] Logger initialized
+[2026-10-08 21:23:41.520] [info] [engine] Application init started
+[2026-10-08 21:23:41.523] [info] [engine] Config file 'config.json' not found, using defaults
+[2026-10-08 21:23:41.573] [info] [engine] Initializing Diligent backend with device 'd3d12'
+[2026-10-08 21:23:42.095] [info] [engine] GPU_UPLOAD_QUEUE disabled backend=d3d12 requested=false (bounded main-thread fallback)
+[2026-10-08 21:23:42.099] [info] [engine] Renderer initialized with backend Diligent
+[2026-10-08 21:23:42.118] [info] [engine] Placeholder mesh ready: vertices=4, indices=6
+[2026-10-08 21:23:42.128] [info] [engine] Fallback white texture ready: 1x1
+[2026-10-08 21:23:42.142] [info] [engine] Shader program loaded '__fallback_shader__': vert='assets/shaders_hlsl/textured.vert.hlsl' frag='assets/shaders_hlsl/textured.frag.hlsl'
+[2026-10-08 21:23:42.143] [info] [engine] Resource subsystem initialized
+[2026-10-08 21:23:42.159] [info] [engine] ImGui layer initialized
+[2026-10-08 21:23:42.159] [info] [engine] StateStack push
+[2026-10-08 21:23:42.159] [info] [engine] Entered GameplayState editor scene
+[2026-10-08 21:23:42.159] [info] [engine] LAB_SCENE_READY scene=loading render_entities=16 total_entities=22
+[2026-10-08 21:23:42.160] [info] [engine] Application init complete, backend=Diligent
+[2026-10-08 21:23:42.160] [info] [engine] LAB_READY_FOR_TRACY
+[2026-10-08 21:23:42.292] [info] [engine] LAB_RUN_START scene=loading parallel_ecs=true async_loading=true entities=4096 workers=4
+[2026-10-08 21:23:42.294] [info] [engine] ResourceManager cache miss [class engine::resources::Mesh] '__diligent_cube__'
+[2026-10-08 21:23:42.295] [info] [engine] ResourceManager cache miss [class engine::resources::Texture] 'assets/textures/DGLogo.png'
+[2026-10-08 21:23:42.295] [info] [engine] ResourceManager cache miss [class engine::resources::ShaderProgram] 'assets/shaders_hlsl/textured.shader.json'
+[2026-10-08 21:23:42.295] [info] [engine] ResourceManager cache hit [class engine::resources::Mesh] '__diligent_cube__'
+[2026-10-08 21:23:42.295] [info] [engine] ResourceManager cache hit [class engine::resources::Texture] 'assets/textures/DGLogo.png'
+[2026-10-08 21:23:42.296] [info] [engine] ResourceManager cache hit [class engine::resources::ShaderProgram] 'assets/shaders_hlsl/textured.shader.json'
+[2026-10-08 21:23:42.296] [info] [engine] ResourceManager cache hit [class engine::resources::Mesh] '__diligent_cube__'
+[2026-10-08 21:23:42.296] [info] [engine] ResourceManager cache hit [class engine::resources::Texture] 'assets/textures/DGLogo.png'
+[2026-10-08 21:23:42.296] [info] [engine] ResourceManager cache hit [class engine::resources::ShaderProgram] 'assets/shaders_hlsl/textured.shader.json'
+[2026-10-08 21:23:42.297] [info] [engine] ResourceManager cache hit [class engine::resources::Mesh] '__diligent_cube__'
+[2026-10-08 21:23:42.297] [info] [engine] ResourceManager cache hit [class engine::resources::Texture] 'assets/textures/DGLogo.png'
+[2026-10-08 21:23:42.297] [info] [engine] ResourceManager cache hit [class engine::resources::ShaderProgram] 'assets/shaders_hlsl/textured.shader.json'
+[2026-10-08 21:23:42.297] [info] [engine] ResourceManager cache hit [class engine::resources::Mesh] '__diligent_cube__'
+[2026-10-08 21:23:42.297] [info] [engine] ResourceManager cache hit [class engine::resources::Texture] 'assets/textures/DGLogo.png'
+[2026-10-08 21:23:42.298] [info] [engine] ResourceManager cache hit [class engine::resources::ShaderProgram] 'assets/shaders_hlsl/textured.shader.json'
+[2026-10-08 21:23:42.298] [info] [engine] ResourceManager cache hit [class engine::resources::Mesh] '__diligent_cube__'
+[2026-10-08 21:23:42.298] [info] [engine] ResourceManager cache hit [class engine::resources::Texture] 'assets/textures/DGLogo.png'
+[2026-10-08 21:23:42.298] [info] [engine] ResourceManager cache hit [class engine::resources::ShaderProgram] 'assets/shaders_hlsl/textured.shader.json'
+[2026-10-08 21:23:42.298] [info] [engine] ResourceManager cache hit [class engine::resources::Mesh] '__diligent_cube__'
+[2026-10-08 21:23:42.299] [info] [engine] ResourceManager cache hit [class engine::resources::Texture] 'assets/textures/DGLogo.png'
+[2026-10-08 21:23:42.299] [info] [engine] ResourceManager cache hit [class engine::resources::ShaderProgram] 'assets/shaders_hlsl/textured.shader.json'
+[2026-10-08 21:23:42.299] [info] [engine] ResourceManager cache hit [class engine::resources::Mesh] '__diligent_cube__'
+[2026-10-08 21:23:42.299] [info] [engine] ResourceManager cache hit [class engine::resources::Texture] 'assets/textures/DGLogo.png'
+[2026-10-08 21:23:42.299] [info] [engine] ResourceManager cache hit [class engine::resources::ShaderProgram] 'assets/shaders_hlsl/textured.shader.json'
+[2026-10-08 21:23:42.300] [info] [engine] ResourceManager cache hit [class engine::resources::Mesh] '__diligent_cube__'
+[2026-10-08 21:23:42.300] [info] [engine] ResourceManager cache hit [class engine::resources::Texture] 'assets/textures/DGLogo.png'
+[2026-10-08 21:23:42.300] [info] [engine] ResourceManager cache hit [class engine::resources::ShaderProgram] 'assets/shaders_hlsl/textured.shader.json'
+[2026-10-08 21:23:42.300] [info] [engine] ResourceManager cache hit [class engine::resources::Mesh] '__diligent_cube__'
+[2026-10-08 21:23:42.300] [info] [engine] ResourceManager cache hit [class engine::resources::Texture] 'assets/textures/DGLogo.png'
+[2026-10-08 21:23:42.300] [info] [engine] ResourceManager cache hit [class engine::resources::ShaderProgram] 'assets/shaders_hlsl/textured.shader.json'
+[2026-10-08 21:23:42.301] [info] [engine] ResourceManager cache hit [class engine::resources::Mesh] '__diligent_cube__'
+[2026-10-08 21:23:42.301] [info] [engine] ResourceManager cache hit [class engine::resources::Texture] 'assets/textures/DGLogo.png'
+[2026-10-08 21:23:42.301] [info] [engine] ResourceManager cache hit [class engine::resources::ShaderProgram] 'assets/shaders_hlsl/textured.shader.json'
+[2026-10-08 21:23:42.301] [info] [engine] ResourceManager cache hit [class engine::resources::Mesh] '__diligent_cube__'
+[2026-10-08 21:23:42.301] [info] [engine] ResourceManager cache hit [class engine::resources::Texture] 'assets/textures/DGLogo.png'
+[2026-10-08 21:23:42.302] [info] [engine] ResourceManager cache hit [class engine::resources::ShaderProgram] 'assets/shaders_hlsl/textured.shader.json'
+[2026-10-08 21:23:42.302] [info] [engine] ResourceManager cache hit [class engine::resources::Mesh] '__diligent_cube__'
+[2026-10-08 21:23:42.302] [info] [engine] ResourceManager cache hit [class engine::resources::Texture] 'assets/textures/DGLogo.png'
+[2026-10-08 21:23:42.302] [info] [engine] ResourceManager cache hit [class engine::resources::ShaderProgram] 'assets/shaders_hlsl/textured.shader.json'
+[2026-10-08 21:23:42.302] [info] [engine] ResourceManager cache hit [class engine::resources::Mesh] '__diligent_cube__'
+[2026-10-08 21:23:42.302] [info] [engine] ResourceManager cache hit [class engine::resources::Texture] 'assets/textures/DGLogo.png'
+[2026-10-08 21:23:42.302] [info] [engine] ResourceManager cache hit [class engine::resources::ShaderProgram] 'assets/shaders_hlsl/textured.shader.json'
+[2026-10-08 21:23:42.303] [info] [engine] ResourceManager cache hit [class engine::resources::Mesh] '__diligent_cube__'
+[2026-10-08 21:23:42.303] [info] [engine] ResourceManager cache hit [class engine::resources::Texture] 'assets/textures/DGLogo.png'
+[2026-10-08 21:23:42.303] [info] [engine] ResourceManager cache hit [class engine::resources::ShaderProgram] 'assets/shaders_hlsl/textured.shader.json'
+[2026-10-08 21:23:42.303] [info] [engine] ResourceManager cache hit [class engine::resources::Mesh] '__diligent_cube__'
+[2026-10-08 21:23:42.303] [info] [engine] ResourceManager cache hit [class engine::resources::Texture] 'assets/textures/DGLogo.png'
+[2026-10-08 21:23:42.303] [info] [engine] ResourceManager cache hit [class engine::resources::ShaderProgram] 'assets/shaders_hlsl/textured.shader.json'
+[2026-10-08 21:23:42.313] [info] [engine] Texture loaded 'assets/textures/DGLogo.png': 512x512 channels=4
+[2026-10-08 21:23:42.329] [info] [engine] Shader program loaded 'assets/shaders_hlsl/textured.shader.json': vert='assets/shaders_hlsl/textured.vert.hlsl' frag='assets/shaders_hlsl/textured.frag.hlsl'
+[2026-10-08 21:23:43.293] [info] [engine] Frame dt stats: avg=0.675ms min=0.282ms max=50.053ms samples=1481
+[2026-10-08 21:23:44.294] [info] [engine] Frame dt stats: avg=0.563ms min=0.282ms max=10.332ms samples=1778
+[2026-10-08 21:23:45.295] [info] [engine] Frame dt stats: avg=0.551ms min=0.275ms max=9.750ms samples=1815
+[2026-10-08 21:23:46.296] [info] [engine] Frame dt stats: avg=0.555ms min=0.279ms max=9.920ms samples=1805
+[2026-10-08 21:23:47.297] [info] [engine] Frame dt stats: avg=0.549ms min=0.276ms max=9.891ms samples=1822
+[2026-10-08 21:23:48.297] [info] [engine] LAB_LOAD_START elapsed=6.0043521 asset_dir=C:\tge\lab1-assets
+[2026-10-08 21:23:48.298] [info] [engine] ResourceManager cache miss [class engine::resources::Texture] 'C:\tge\lab1-assets\texture_00.png'
+[2026-10-08 21:23:48.298] [info] [engine] ResourceManager cache miss [class engine::resources::Texture] 'C:\tge\lab1-assets\texture_01.png'
+[2026-10-08 21:23:48.298] [info] [engine] ResourceManager cache miss [class engine::resources::Texture] 'C:\tge\lab1-assets\texture_02.png'
+[2026-10-08 21:23:48.298] [info] [engine] ResourceManager cache miss [class engine::resources::Texture] 'C:\tge\lab1-assets\texture_03.png'
+[2026-10-08 21:23:48.298] [info] [engine] ResourceManager cache miss [class engine::resources::Texture] 'C:\tge\lab1-assets\texture_04.png'
+[2026-10-08 21:23:48.298] [info] [engine] ResourceManager cache miss [class engine::resources::Texture] 'C:\tge\lab1-assets\texture_05.png'
+[2026-10-08 21:23:48.298] [info] [engine] ResourceManager cache miss [class engine::resources::Texture] 'C:\tge\lab1-assets\texture_06.png'
+[2026-10-08 21:23:48.299] [info] [engine] ResourceManager cache miss [class engine::resources::Texture] 'C:\tge\lab1-assets\texture_07.png'
+[2026-10-08 21:23:48.299] [info] [engine] ResourceManager cache miss [class engine::resources::Texture] 'C:\tge\lab1-assets\texture_08.png'
+[2026-10-08 21:23:48.299] [info] [engine] ResourceManager cache miss [class engine::resources::Texture] 'C:\tge\lab1-assets\texture_09.png'
+[2026-10-08 21:23:48.299] [info] [engine] ResourceManager cache miss [class engine::resources::Texture] 'C:\tge\lab1-assets\texture_10.png'
+[2026-10-08 21:23:48.299] [info] [engine] ResourceManager cache miss [class engine::resources::Texture] 'C:\tge\lab1-assets\texture_11.png'
+[2026-10-08 21:23:48.299] [info] [engine] ResourceManager cache miss [class engine::resources::Mesh] 'C:\tge\lab1-assets\mesh_00.obj'
+[2026-10-08 21:23:48.299] [info] [engine] ResourceManager cache miss [class engine::resources::Mesh] 'C:\tge\lab1-assets\mesh_01.obj'
+[2026-10-08 21:23:48.300] [info] [engine] ResourceManager cache miss [class engine::resources::Mesh] 'C:\tge\lab1-assets\mesh_02.obj'
+[2026-10-08 21:23:48.300] [info] [engine] ResourceManager cache miss [class engine::resources::Mesh] 'C:\tge\lab1-assets\mesh_03.obj'
+[2026-10-08 21:23:48.302] [info] [engine] Frame dt stats: avg=0.560ms min=0.278ms max=9.848ms samples=1788
+[2026-10-08 21:23:48.414] [info] [engine] Texture loaded 'C:\tge\lab1-assets\texture_02.png': 2048x2048 channels=4
+[2026-10-08 21:23:48.419] [info] [engine] Texture loaded 'C:\tge\lab1-assets\texture_00.png': 2048x2048 channels=4
+[2026-10-08 21:23:48.423] [info] [engine] Texture loaded 'C:\tge\lab1-assets\texture_01.png': 2048x2048 channels=4
+[2026-10-08 21:23:48.427] [info] [engine] Texture loaded 'C:\tge\lab1-assets\texture_03.png': 2048x2048 channels=4
+[2026-10-08 21:23:48.509] [info] [engine] Texture loaded 'C:\tge\lab1-assets\texture_04.png': 2048x2048 channels=4
+[2026-10-08 21:23:48.520] [info] [engine] Texture loaded 'C:\tge\lab1-assets\texture_05.png': 2048x2048 channels=4
+[2026-10-08 21:23:48.526] [info] [engine] Texture loaded 'C:\tge\lab1-assets\texture_06.png': 2048x2048 channels=4
+[2026-10-08 21:23:48.530] [info] [engine] Texture loaded 'C:\tge\lab1-assets\texture_07.png': 2048x2048 channels=4
+[2026-10-08 21:23:48.614] [info] [engine] Texture loaded 'C:\tge\lab1-assets\texture_08.png': 2048x2048 channels=4
+[2026-10-08 21:23:48.629] [info] [engine] Texture loaded 'C:\tge\lab1-assets\texture_09.png': 2048x2048 channels=4
+[2026-10-08 21:23:48.639] [info] [engine] Texture loaded 'C:\tge\lab1-assets\texture_10.png': 2048x2048 channels=4
+[2026-10-08 21:23:48.645] [info] [engine] Texture loaded 'C:\tge\lab1-assets\texture_11.png': 2048x2048 channels=4
+[2026-10-08 21:23:48.949] [info] [engine] Mesh loaded 'C:\tge\lab1-assets\mesh_00.obj': vertices=66049, indices=393216
+[2026-10-08 21:23:48.989] [info] [engine] Mesh loaded 'C:\tge\lab1-assets\mesh_01.obj': vertices=66049, indices=393216
+[2026-10-08 21:23:48.995] [info] [engine] Mesh loaded 'C:\tge\lab1-assets\mesh_02.obj': vertices=66049, indices=393216
+[2026-10-08 21:23:48.999] [info] [engine] Mesh loaded 'C:\tge\lab1-assets\mesh_03.obj': vertices=66049, indices=393216
+[2026-10-08 21:23:48.999] [info] [engine] LAB_LOAD_COMPLETE elapsed=6.7041498 loaded=18 failed=0 cancelled=0
+[2026-10-08 21:23:49.298] [info] [engine] Frame dt stats: avg=0.684ms min=0.278ms max=16.680ms samples=1464
+[2026-10-08 21:23:50.299] [info] [engine] Frame dt stats: avg=0.550ms min=0.280ms max=10.337ms samples=1820
+[2026-10-08 21:23:51.300] [info] [engine] Frame dt stats: avg=0.554ms min=0.278ms max=10.465ms samples=1807
+[2026-10-08 21:23:52.301] [info] [engine] Frame dt stats: avg=0.552ms min=0.277ms max=9.867ms samples=1812
+[2026-10-08 21:23:53.301] [info] [engine] Frame dt stats: avg=0.543ms min=0.276ms max=4.881ms samples=1842
+[2026-10-08 21:23:54.302] [info] [engine] Frame dt stats: avg=0.558ms min=0.277ms max=9.999ms samples=1793
+[2026-10-08 21:23:55.303] [info] [engine] Frame dt stats: avg=0.562ms min=0.277ms max=4.824ms samples=1782
+[2026-10-08 21:23:56.304] [info] [engine] Frame dt stats: avg=0.574ms min=0.281ms max=10.332ms samples=1743
+[2026-10-08 21:23:57.305] [info] [engine] Frame dt stats: avg=0.555ms min=0.278ms max=11.365ms samples=1803
+[2026-10-08 21:23:58.305] [info] [engine] Frame dt stats: avg=0.567ms min=0.276ms max=9.970ms samples=1764
+[2026-10-08 21:23:59.306] [info] [engine] Frame dt stats: avg=0.591ms min=0.275ms max=10.434ms samples=1693
+[2026-10-08 21:24:00.293] [info] [engine] Application shutdown started
+[2026-10-08 21:24:00.302] [info] [engine] Exited GameplayState editor scene
+[2026-10-08 21:24:00.312] [info] [engine] LAB_SHUTDOWN pending_cpu=0 pending_uploads=0
+[2026-10-08 21:24:00.374] [info] [engine] Renderer shutdown complete
+[2026-10-08 21:24:00.403] [info] [engine] Application shutdown complete
+[2026-10-08 21:24:00.403] [info] [engine] Logger shutdown
+[39mDiligent Engine: Info: D3D12-capable adapter found: NVIDIA GeForce RTX 5070 (11944 MB)
+[39m[39mDiligent Engine: Info: Created dynamic memory page. Size: 1.00 MB; GPU virtual address 0x61c0000
+[39m[39mDiligent Engine: Info: Can not disable SeparablePrograms
+[39m[39mDiligent Engine: Info: Max device shader model: 6_7
+[39m[39mDiligent Engine: Info: Created dynamic memory page. Size: 1.00 MB; GPU virtual address 0x76c0000
+[39m[39mDiligent Engine: Info: Created dynamic memory page. Size: 1.00 MB; GPU virtual address 0x78a0000
+[39m[39mDiligent Engine: Info: Created dynamic memory page. Size: 16.00 MB; GPU virtual address 0x9200000
+[39m[39mDiligent Engine: Info: SAMPLER     dynamic descriptor allocator of immediate context usage stats: peak descriptor count: 0/0
+[39m[39mDiligent Engine: Info: CBV_SRV_UAV dynamic descriptor allocator of immediate context usage stats: peak descriptor count: 32/256
+[39m[39mDiligent Engine: Info: Dynamic heap of immediate context usage stats:
+                       Peak used/aligned/allocated size: 16.05 MB / 16.05 MB / 17.00 MB (17 pages). Peak efficiency (used/aligned): 100.0%. Peak utilization (used/allocated): 94.4%
+[39m[39mDiligent Engine: Info: Dynamic memory manager usage stats:
+                       Total allocated memory: 19.00 MB
+[39m[39mDiligent Engine: Info: D3D12 query manager peak usage:
+QUERY_TYPE_OCCLUSION          :    0/ 128
+QUERY_TYPE_BINARY_OCCLUSION   :    0/ 128
+QUERY_TYPE_TIMESTAMP          :    0/ 512
+QUERY_TYPE_PIPELINE_STATISTICS:    0/ 128
+QUERY_TYPE_DURATION           :    0/ 512
+[39m[39mDiligent Engine: Info: Command list manager: created 0 allocators
+[39m[39mDiligent Engine: Info: Command list manager: created 0 allocators
+[39m[39mDiligent Engine: Info: Command list manager: created 12 allocators
+[39m[39mDiligent Engine: Info: D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER     GPU heap max allocated size (static|dynamic): 0/1024 (0.00%) | 0/1024 (0.00%).
+[39m[39mDiligent Engine: Info: D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV GPU heap max allocated size (static|dynamic): 0/16384 (0.00%) | 768/262144 (0.29%).
+[39m[39mDiligent Engine: Info: D3D12_DESCRIPTOR_HEAP_TYPE_DSV         CPU heap allocated pool count: 1. Max descriptors: 1/1024 (0.10%).
+[39m[39mDiligent Engine: Info: D3D12_DESCRIPTOR_HEAP_TYPE_RTV         CPU heap allocated pool count: 1. Max descriptors: 16/1024 (1.56%).
+[39m[39mDiligent Engine: Info: D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER     CPU heap allocated pool count: 1. Max descriptors: 0/2048 (0.00%).
+[39m[39mDiligent Engine: Info: D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV CPU heap allocated pool count: 1. Max descriptors: 185/8192 (2.26%).
+[39m

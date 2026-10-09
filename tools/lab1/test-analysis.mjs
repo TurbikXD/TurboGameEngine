@@ -49,6 +49,38 @@ for(const run of loadingSummary.runs) {
   assert.equal(run.loadingProgress.completeFramesDuringLoad,15);
   assert.equal(run.loadingProgress.wallTimeMs,1500);
 }
+// The dedicated upload A/B must remain an independent, accurately labelled experiment.
+const gpuManifest = {...loadingManifest, compareGpuUpload: true};
+fs.writeFileSync(path.join(temp,'gpu-runs.json'), JSON.stringify(gpuManifest));
+const gpu = spawnSync(process.execPath,[script,path.join(temp,'gpu-runs.json')],{encoding:'utf8'});
+assert.equal(gpu.status,0,gpu.stderr);
+const gpuReport = fs.readFileSync(path.join(temp,'measurements.md'),'utf8');
+assert.match(gpuReport,/GPU upload A\/B/);
+assert.match(gpuReport,/CPU mip generation/);
+const workerManifest = {...loadingManifest, compareWorkers: true, beforeWorkers: 4, afterWorkers: 24, workerComparisonInFlight: 16,
+  runs: loadingManifest.runs.map(run => ({...run, jobs:'1', asyncLoading:'1', gpuUpload:'1',
+    requestedWorkers:run.mode === 'before' ? 4 : 24, assetInFlight:16,
+    runtimeConfig:{workers:run.mode === 'before' ? 4 : 24, assetInFlight:16, parallelEcs:'true', asyncLoading:'true'}}))};
+const workerPath = path.join(temp,'worker-runs.json');
+fs.writeFileSync(workerPath, JSON.stringify(workerManifest));
+const workers = spawnSync(process.execPath,[script,workerPath],{encoding:'utf8'});
+assert.equal(workers.status,0,workers.stderr);
+const workerReport = fs.readFileSync(path.join(temp,'measurements.md'),'utf8');
+assert.match(workerReport,/Workers 4 vs 24/);
+assert.match(workerReport,/4 workers/); assert.match(workerReport,/24 workers/);
+assert.doesNotMatch(workerReport,/loading\/before \(sync\)/);
+const workerSummary = JSON.parse(fs.readFileSync(path.join(temp,'summary.json'),'utf8'));
+assert.equal(workerSummary.loadingAggregates.length,2);
+assert.equal(workerSummary.loadingAggregates[0].median_ms,1500);
+workerManifest.runs[0].runtimeConfig.workers = 24;
+fs.writeFileSync(workerPath, JSON.stringify(workerManifest));
+const wrongWorkers = spawnSync(process.execPath,[script,workerPath],{encoding:'utf8'});
+assert.notEqual(wrongWorkers.status,0); assert.match(wrongWorkers.stderr,/Worker configuration was not verified/);
+workerManifest.runs[0].runtimeConfig.workers = 4;
+workerManifest.runs[0].assetInFlight = 8;
+fs.writeFileSync(workerPath, JSON.stringify(workerManifest));
+const confoundedLimit = spawnSync(process.execPath,[script,workerPath],{encoding:'utf8'});
+assert.notEqual(confoundedLimit.status,0); assert.match(confoundedLimit.stderr,/Worker configuration was not verified/);
 fs.writeFileSync(path.join(temp,'before-1-messages.csv'),'MessageName,total_ns\n');
 const missing=spawnSync(process.execPath,[script,path.join(temp,'runs.json')],{encoding:'utf8'});
 assert.notEqual(missing.status,0); assert.match(missing.stderr,/LAB_RUN_START missing/);

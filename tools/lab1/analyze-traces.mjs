@@ -8,13 +8,36 @@ if (!process.argv[2]) throw new Error('Usage: node tools/lab1/analyze-traces.mjs
 const base = path.dirname(manifestPath);
 const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8').replace(/^\uFEFF/, ''));
 if (manifest.schema !== 1 || manifest.runsPerMode < 3) throw new Error('Expected schema 1 and at least three runs per mode.');
+if (manifest.compareWorkers) {
+  if (manifest.compareGpuUpload || manifest.includeUnboundedPump ||
+      !Number.isInteger(manifest.beforeWorkers) || !Number.isInteger(manifest.afterWorkers) ||
+      manifest.beforeWorkers < 1 || manifest.afterWorkers < 1 || manifest.beforeWorkers > 256 || manifest.afterWorkers > 256 ||
+      manifest.beforeWorkers === manifest.afterWorkers || !Number.isInteger(manifest.workerComparisonInFlight) ||
+      manifest.workerComparisonInFlight < 1 || manifest.workerComparisonInFlight > 16) {
+    throw new Error('Invalid or confounded worker-count experiment.');
+  }
+  for (const run of manifest.runs) {
+    const expected = run.mode === 'before' ? manifest.beforeWorkers : manifest.afterWorkers;
+    if (!['before', 'after'].includes(run.mode) || run.requestedWorkers !== expected ||
+        run.runtimeConfig?.workers !== expected || run.assetInFlight !== manifest.workerComparisonInFlight ||
+        run.runtimeConfig?.assetInFlight !== manifest.workerComparisonInFlight ||
+        run.jobs !== '1' || run.asyncLoading !== '1' || run.gpuUpload !== '1' ||
+        run.runtimeConfig?.parallelEcs !== 'true' || run.runtimeConfig?.asyncLoading !== 'true') {
+      throw new Error(`Worker configuration was not verified or other toggles changed in ${run.id}.`);
+    }
+  }
+}
 const targetZones = new Set([
   'Main Frame', 'Render Prepare Transforms', 'Physics Integrate Bodies', 'Physics Build Body Proxies',
   'Render Gather', 'Render Submit', 'Job Render Transforms', 'Job Wait', 'Present',
   'PhysicsSystem Update', 'Physics Broadphase', 'Physics Narrowphase and Solver',
+  'Job Physics Integrate', 'Job Physics Build Proxies',
   'Asset Dispatch', 'Asset Synchronous Load', 'Asset Decode Job', 'Load Texture CPU', 'Decode Texture',
   'Load Mesh CPU', 'Parse Mesh Data', 'Asset Main Thread Tasks', 'Asset GPU Finalize',
   'Upload Texture GPU', 'Upload Mesh GPU', 'Asset Shutdown Join',
+  'Load Mesh Transfer Job', 'Load Texture Transfer Job', 'Upload Build CPU Mips',
+  'Upload Transfer Submit', 'Upload Transfer Record', 'Upload Graphics Acquire',
+  'Upload Mesh Publish', 'Upload Texture Publish', 'Upload Transfer Shutdown',
 ]);
 function parseCsv(line) {
   const row = []; let value = '', quoted = false;
@@ -106,7 +129,7 @@ for (const run of manifest.runs) {
     if (run.scene === 'ecs' && !zones.has('Render Prepare Transforms')) throw new Error(`Task #2 target zone is absent in ${run.id}.`);
   }
   if (run.scene === 'loading' && run.mode === 'after' && completeFramesDuringLoad === 0) throw new Error(`No complete frame progressed during async loading in ${run.id}. Inspect the raw trace.`);
-  runs.push({ id: run.id, scene: run.scene, mode: run.mode, repeat: run.repeat,
+  runs.push({ id: run.id, scene: run.scene, mode: run.mode, repeat: run.repeat, workers: run.runtimeConfig?.workers ?? null,
     markers_ns_since_start: Object.fromEntries(markers), exclusions,
     loadingProgress: markers.has('LAB_LOAD_COMPLETE') ? { completeFramesDuringLoad, wallTimeMs:(markers.get('LAB_LOAD_COMPLETE') - markers.get('LAB_LOAD_START')) / 1e6 } : null,
     windows: windows.map(window => ({ name: window.name, start_ns_since_start: window.start, end_ns_since_start: window.end,
@@ -133,10 +156,15 @@ for (const scene of [...new Set(runs.map(run => run.scene))]) {
     }
   }
 }
+const loadingAggregates = [];
+for (const mode of [...new Set(runs.filter(run => run.scene === 'loading').map(run => run.mode))]) {
+  const values = runs.filter(run => run.scene === 'loading' && run.mode === mode).map(run => run.loadingProgress.wallTimeMs).sort((a,b) => a-b);
+  loadingAggregates.push({ mode, runs: values.length, median_ms: quantile(values, 0.5), min_ms: values[0], max_ms: values.at(-1) });
+}
 const summary = { method: { independentUnit: 'one application run', aggregation: 'median of each per-run metric; frame samples are not independent trials',
   quantile: manifest.quantile, timeOrigin: 'Tracy LAB_RUN_START message; CSV ns_since_start and message total_ns are nanoseconds in the same clock',
   censoring: 'only positive-duration spans wholly contained in the specified interval', significance: 'No statistical significance claim; N is small.' },
-  manifest: path.basename(manifestPath), runs, aggregates };
+  manifest: path.basename(manifestPath), runs, aggregates, loadingAggregates };
 fs.writeFileSync(path.join(base, 'summary.json'), JSON.stringify(summary, null, 2) + '\n');
 function writeCsv(file, records) {
   const keys = Object.keys(records[0] ?? {});
@@ -144,17 +172,21 @@ function writeCsv(file, records) {
   fs.writeFileSync(path.join(base, file), [keys.map(quote).join(','), ...records.map(row => keys.map(key => quote(row[key])).join(','))].join('\n') + '\n');
 }
 writeCsv('aggregate.csv', aggregates);
-writeCsv('per-run.csv', runs.flatMap(run => run.windows.flatMap(window => Object.entries(window.zones).map(([zone, statistics]) => ({ id:run.id, scene:run.scene, mode:run.mode, repeat:run.repeat, window:window.name, zone, ...statistics })))));
+writeCsv('per-run.csv', runs.flatMap(run => run.windows.flatMap(window => Object.entries(window.zones).map(([zone, statistics]) => ({ id:run.id, scene:run.scene, mode:run.mode, repeat:run.repeat, workers:run.workers, window:window.name, zone, ...statistics })))));
 const fmt = value => value === null || value === undefined ? '—' : value.toFixed(3);
+const modeLabel = mode => manifest.compareWorkers ? `${mode === 'before' ? manifest.beforeWorkers : manifest.afterWorkers} workers` : mode;
 const report = [
-  '# ЛР 1 — воспроизводимые замеры Tracy', '',
+  manifest.compareWorkers ? `# Workers ${manifest.beforeWorkers} vs ${manifest.afterWorkers} — замеры Tracy` : '# ЛР 1 — воспроизводимые замеры Tracy', '',
   `Сборка: ${manifest.configuration}; Tracy ${manifest.tracyVersion}; SHA-256 app: \`${manifest.executableSha256}\`.`,
   `CPU: ${(manifest.hardware?.cpu ?? []).map(cpu=>cpu.model).join('; ') || 'UNKNOWN'}; физических ядер: ${manifest.hardware?.physicalCores ?? 'UNKNOWN'}; логических: ${manifest.hardware?.logicalProcessors ?? 'UNKNOWN'}; RAM: ${manifest.hardware?.ramBytes ? (manifest.hardware.ramBytes / 1024**3).toFixed(1) + ' GiB' : 'UNKNOWN'}.`,
   `ОС: ${manifest.hardware?.os ? `${manifest.hardware.os.name}, ${manifest.hardware.os.version}, build ${manifest.hardware.os.build}` : 'UNKNOWN'}; обнаруженные GPU: ${(manifest.hardware?.detectedGpus ?? []).map(gpu=>`${gpu.name} (driver ${gpu.driverVersion})`).join('; ') || 'UNKNOWN'}. Активный адаптер проверяется по журналу рендера.`,
   `Фактические workers из LAB_RUN_START: ${[...new Set(manifest.runs.map(run=>run.runtimeConfig?.workers).filter(n=>n!==undefined))].join(', ') || 'UNKNOWN'}. Настройки и контекст сборки сохранены в runs.json.`,
   `На режим выполнено ${manifest.runsPerMode} независимых запусков приложения. Порядок A/B чередуется между повторениями.`,
-  'В исходном движке уже существовал отдельный пул асинхронной загрузки на 4 потока. Он мигрирован на общую job system. Режим loading/before (sync) — контролируемое отключение async для демонстрации L1, а не утверждение, что исходный движок всегда загружал синхронно или создавал неограниченное число потоков.',
-  'Режим loading/after: общий scheduler + ограниченный GPU-памп (1 ресурс/кадр, мягкий бюджет 2 мс). Если включён legacy-pump: тот же новый scheduler с лимитами 65536 ресурсов/кадр и 60000 мс, имитирующий прежнюю неограниченную обработку готовых ресурсов; это изоляция эффекта пампа, а не запуск старого бинарника.',
+  manifest.compareWorkers ? `Worker-count A/B: before=${manifest.beforeWorkers}, after=${manifest.afterWorkers}. Jobs, async decode и GPU transfer включены в обоих режимах. Меняется только число workers. Asset in-flight limit зафиксирован на ${manifest.workerComparisonInFlight} в обоих режимах (без этого стандартный лимит зависел бы от workers). Публикация: 1 ресурс/кадр, 2 мс; ECS: 4096 объектов. Это отдельная серия, не прежние L1/CPU-vs-GPU upload замеры.`
+    : 'В исходном движке уже существовал отдельный пул асинхронной загрузки на 4 потока. Он мигрирован на общую job system. Режим loading/before (sync) — контролируемое отключение async для демонстрации L1, а не утверждение, что исходный движок всегда загружал синхронно или создавал неограниченное число потоков.',
+  manifest.compareWorkers ? '' : manifest.compareGpuUpload
+    ? 'GPU upload A/B: оба режима используют общий scheduler и async CPU decode. before: GPU upload/GenerateMips в main pump. after: CPU mip generation в jobs + отдельная transfer-очередь Diligent + настоящий GPU fence; main только GPU-side acquire и публикация. В обоих режимах лимит публикаций 1 ресурс/кадр, бюджет 2 мс. Это эффект всей upload pipeline, а не изолированный тест одного GPU copy.'
+    : 'Режим loading/after: общий scheduler + ограниченный GPU-памп (1 ресурс/кадр, мягкий бюджет 2 мс); отдельная transfer-очередь отключена. Если включён legacy-pump: тот же новый scheduler с лимитами 65536 ресурсов/кадр и 60000 мс, имитирующий прежнюю неограниченную обработку готовых ресурсов; это изоляция эффекта пампа, а не запуск старого бинарника.',
   'Прогрев: первые 3 с после LAB_RUN_START исключены. Основной диапазон: +3…+14 с; загрузка запускается на +6 с.',
   'Для загрузки дополнительно показано окно LAB_LOAD_START −1…+5 с. Времена отсчитываются по сообщениям Tracy, а не времени запуска процесса или подключения.',
   'Квантили вычислены линейной интерполяцией R-7 отдельно для каждого прогона. В таблице — медиана соответствующей метрики между прогонами.',
@@ -162,10 +194,12 @@ const report = [
   '| Сцена / окно | Зона | Режим | N | Count¹ | Mean, мс | Median, мс | p95, мс | p99, мс | Max, мс |',
   '|---|---|---|---:|---:|---:|---:|---:|---:|---:|',
 ];
-for (const row of aggregates) report.push(`| ${row.scene} / ${row.window} | ${row.zone} | ${row.mode} | ${row.runs} | ${row.count} | ${fmt(row.mean_ms)} | ${fmt(row.median_ms)} | ${fmt(row.p95_ms)} | ${fmt(row.p99_ms)} | ${fmt(row.max_ms)} |`);
+for (const row of aggregates) report.push(`| ${row.scene} / ${row.window} | ${row.zone} | ${modeLabel(row.mode)} | ${row.runs} | ${row.count} | ${fmt(row.mean_ms)} | ${fmt(row.median_ms)} | ${fmt(row.p95_ms)} | ${fmt(row.p99_ms)} | ${fmt(row.max_ms)} |`);
 report.push('', '¹ Count — медиана числа полных вызовов/кадров на прогон. Max — медиана максимумов отдельных прогонов; абсолютный максимум каждого запуска сохранён в per-run.csv.', '',
   '## Сравнение целевых зон', '', '| Сцена / окно | Зона | Метрика | До, мс | После, мс | Снижение времени² |', '|---|---|---|---:|---:|---:|');
-for (const before of aggregates.filter(row => row.mode === 'before' && ['Main Frame','Render Prepare Transforms','Physics Integrate Bodies','Physics Build Body Proxies'].includes(row.zone))) {
+const comparedZones = ['Main Frame','Render Prepare Transforms','Physics Integrate Bodies','Physics Build Body Proxies','Asset Main Thread Tasks','Asset GPU Finalize'];
+if (manifest.compareWorkers) comparedZones.push('Decode Texture','Parse Mesh Data','Upload Build CPU Mips','Upload Transfer Submit','Upload Transfer Record');
+for (const before of aggregates.filter(row => row.mode === 'before' && comparedZones.includes(row.zone))) {
   const after = aggregates.find(row => row.mode === 'after' && row.scene === before.scene && row.window === before.window && row.zone === before.zone);
   if (!after) continue;
   const comparedMetrics = before.zone === 'Main Frame' ? ['median_ms','p95_ms','p99_ms','max_ms'] : ['mean_ms','median_ms'];
@@ -180,6 +214,10 @@ for (const run of runs) {
   report.push(`| ${run.id} | ${run.loadingProgress?.completeFramesDuringLoad ?? '—'} | ${fmt(run.loadingProgress?.wallTimeMs)} | ${frame.count_over_16_67ms} | ${frame.count_over_50ms} |`);
 }
 report.push('', '³ В основном фиксированном диапазоне. Полные кадры внутри загрузки считаются по двум Tracy-маркерам; не совпадают с числом кадров, пересекающих событие.');
+if (loadingAggregates.length) {
+  report.push('', '## Полное время загрузки по независимым прогонам', '', '| Режим | N | Median, мс | Min, мс | Max, мс |', '|---|---:|---:|---:|---:|');
+  for (const row of loadingAggregates) report.push(`| ${modeLabel(row.mode)} | ${row.runs} | ${fmt(row.median_ms)} | ${fmt(row.min_ms)} | ${fmt(row.max_ms)} |`);
+}
 report.push('', '² Отрицательное значение означает регрессию. Это описательное сравнение медиан метрик прогонов.', '',
   '## Артефакты и проверка', '',
   '- runs.json: параметры, порядок, SHA-256 executable и исходных ресурсов, коды завершения.',

@@ -23,6 +23,7 @@
 #include "engine/platform/Window.h"
 #include "engine/rhi_diligent/DiligentDevice.h"
 #include "engine/resources/loaders.h"
+#include "engine/resources/image_mips.h"
 #include "third_party/DiligentEngine/DiligentCore/Common/interface/GeometryPrimitives.h"
 #include "third_party/DiligentEngine/DiligentCore/Common/interface/RefCntAutoPtr.hpp"
 #include "third_party/DiligentEngine/DiligentCore/Graphics/GraphicsEngine/interface/SwapChain.h"
@@ -344,6 +345,7 @@ bool Renderer::init(
     deviceDesc.enableValidation = true;
 #endif
     deviceDesc.diligentDeviceType = diligentDeviceType;
+    deviceDesc.enableUploadQueue = m_gpuUploadEnabled;
 
     m_device = rhi::createDevice(backend, deviceDesc, &error);
     if (!m_device) {
@@ -408,12 +410,23 @@ void Renderer::setAsyncLoadingEnabled(const bool enabled) {
     m_assetLoads.setAsyncEnabled(enabled);
 }
 
+void Renderer::setGpuUploadEnabled(const bool enabled) {
+    if (m_device) { throw std::logic_error("Configure GPU upload queue before Renderer::init"); }
+    m_gpuUploadEnabled = enabled;
+}
+
 void Renderer::setUploadBudget(const std::size_t maximumUploads, const double milliseconds) {
     m_assetLoads.setUploadBudget(maximumUploads, milliseconds);
 }
 
+void Renderer::setAssetInFlightLimit(const std::size_t maximumAssets) {
+    m_assetLoads.setInFlightLimit(maximumAssets);
+}
+
 AssetLoadingStats Renderer::assetLoadingStats() const {
-    return m_assetLoads.stats();
+    auto result = m_assetLoads.stats();
+    result.gpuUploadEnabled = result.asyncEnabled && m_device && m_device->uploadQueue();
+    return result;
 }
 
 bool Renderer::initializePrimitivePipeline() {
@@ -693,6 +706,50 @@ std::shared_ptr<resources::Mesh> Renderer::requestMeshLoadFromDisk(const std::st
     mesh->path = path;
     mesh->setLoadState(resources::ResourceLoadState::Loading);
 
+    if (auto* uploads = m_device->uploadQueue(); uploads && m_assetLoads.stats().asyncEnabled) {
+        m_assetLoads.submitPrepared([uploads, mesh, path]() -> resources::AsyncLoadQueue::Prepared {
+            ENGINE_PROFILE_ZONE("Load Mesh Transfer Job");
+            struct Payload final {
+                resources::MeshData data;
+                rhi::UploadSubmission gpu;
+            };
+            auto payload = std::make_shared<Payload>();
+            std::string error;
+            if (!resources::loadMeshData(path, payload->data, &error) || payload->data.vertices.empty()) {
+                throw std::runtime_error("Mesh decode failed: " + error);
+            }
+            std::array<rhi::BufferUpload, 2> buffers{};
+            buffers[0].desc.size = payload->data.vertices.size() * sizeof(resources::MeshVertex);
+            buffers[0].desc.usage = rhi::BufferUsage::Vertex;
+            buffers[0].desc.vertexLayout = rhi::VertexLayout::Position3Normal3Uv2;
+            buffers[0].data = std::as_bytes(std::span{payload->data.vertices});
+            buffers[1].desc.size = payload->data.indices.size() * sizeof(std::uint32_t);
+            buffers[1].desc.usage = rhi::BufferUsage::Index;
+            buffers[1].data = std::as_bytes(std::span{payload->data.indices});
+            rhi::UploadRequest request;
+            request.buffers = std::span{buffers}.first(payload->data.indices.empty() ? 1U : 2U);
+            payload->gpu = uploads->submit(request);
+            return {[mesh, path, payload]() mutable {
+                ENGINE_PROFILE_ZONE("Upload Mesh Publish");
+                mesh->data = std::move(payload->data);
+                mesh->vertexCount = static_cast<std::uint32_t>(mesh->data.vertices.size());
+                mesh->indexCount = static_cast<std::uint32_t>(mesh->data.indices.size());
+                mesh->vertexBuffer = std::move(payload->gpu.buffers[0]);
+                if (payload->gpu.buffers.size() > 1) { mesh->indexBuffer = std::move(payload->gpu.buffers[1]); }
+                mesh->lastError.clear();
+                mesh->setLoadState(resources::ResourceLoadState::Loaded);
+                ENGINE_LOG_INFO("Mesh loaded '{}' via GPU transfer: vertices={}, indices={}", path,
+                    mesh->vertexCount, mesh->indexCount);
+                return true;
+            }, payload->gpu.ticket, payload->gpu.bytes};
+        }, [mesh, path](const std::string& error) {
+            mesh->lastError = error;
+            mesh->setLoadState(resources::ResourceLoadState::Failed);
+            ENGINE_LOG_ERROR("Mesh transfer failed '{}': {}", path, error);
+        });
+        return mesh;
+    }
+
     m_assetLoads.submit([this, mesh, path]() -> resources::AsyncLoadQueue::Finalize {
         ENGINE_PROFILE_ZONE("Load Mesh CPU");
         resources::MeshData meshData;
@@ -773,6 +830,47 @@ std::shared_ptr<resources::Texture> Renderer::requestTextureLoadFromDisk(const s
     auto texture = std::make_shared<resources::Texture>();
     texture->path = path;
     texture->setLoadState(resources::ResourceLoadState::Loading);
+
+    if (auto* uploads = m_device->uploadQueue(); uploads && m_assetLoads.stats().asyncEnabled) {
+        m_assetLoads.submitPrepared([uploads, texture, path]() -> resources::AsyncLoadQueue::Prepared {
+            ENGINE_PROFILE_ZONE("Load Texture Transfer Job");
+            struct Payload final {
+                resources::TextureData data;
+                rhi::UploadSubmission gpu;
+            };
+            auto payload = std::make_shared<Payload>();
+            std::string error;
+            if (!resources::loadTextureDataRgba8(path, payload->data, &error)) {
+                throw std::runtime_error("Texture decode failed: " + error);
+            }
+            const auto width = static_cast<std::uint32_t>(payload->data.width);
+            const auto height = static_cast<std::uint32_t>(payload->data.height);
+            const auto tail = resources::buildRgba8MipTail(width, height, payload->data.pixels);
+            std::vector<rhi::ImageMipUpload> mips;
+            mips.reserve(tail.size() + 1U);
+            mips.push_back({width, height, payload->data.pixels});
+            for (const auto& level : tail) { mips.push_back({level.width, level.height, level.pixels}); }
+            rhi::UploadRequest request;
+            request.imageDesc = {width, height, rhi::ImageFormat::RGBA8, true};
+            request.imageMips = mips;
+            payload->gpu = uploads->submit(request);
+            return {[texture, path, payload]() mutable {
+                ENGINE_PROFILE_ZONE("Upload Texture Publish");
+                texture->data = std::move(payload->data);
+                texture->image = std::move(payload->gpu.image);
+                texture->lastError.clear();
+                texture->setLoadState(resources::ResourceLoadState::Loaded);
+                ENGINE_LOG_INFO("Texture loaded '{}' via GPU transfer: {}x{}", path,
+                    texture->data.width, texture->data.height);
+                return true;
+            }, payload->gpu.ticket, payload->gpu.bytes};
+        }, [texture, path](const std::string& error) {
+            texture->lastError = error;
+            texture->setLoadState(resources::ResourceLoadState::Failed);
+            ENGINE_LOG_ERROR("Texture transfer failed '{}': {}", path, error);
+        });
+        return texture;
+    }
 
     m_assetLoads.submit([this, texture, path]() -> resources::AsyncLoadQueue::Finalize {
         ENGINE_PROFILE_ZONE("Load Texture CPU");
@@ -1501,6 +1599,7 @@ void Renderer::shutdown() {
     }
 
     m_assetLoads.stop();
+    if (m_device && m_device->uploadQueue()) { m_device->uploadQueue()->waitIdle(); }
     m_activeCommandBuffer = nullptr;
     m_frames.clear();
     m_imguiFrameOpen = false;

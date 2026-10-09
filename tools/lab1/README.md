@@ -1,5 +1,7 @@
 # ЛР 1: ресурсы, замеры и стабильность
 
+Допфича upload queue: [архитектура и защита](../../docs/lab1/gpu-upload-queue.md). Запуск A/B: `Invoke-Lab1Measurements.ps1 -Scene loading -CompareGpuUpload -Runs 3`; живое демо: `Launch-Lab1Demo.ps1 -Scene loading -Mode after -GpuUpload -Tracy`. Обычный runner явно отключает transfer queue, сохраняя исходную методику L1; отдельный флаг сравнивает main upload и transfer при async decode в обоих режимах.
+
 Нужны Windows PowerShell, Node.js (без npm-пакетов), Release-приложение с Tracy 0.13.1 и инструменты той же версии.
 
 ```powershell
@@ -41,3 +43,17 @@ Stress проверяет отсутствующие ресурсы, автом�
 ```
 
 Команды запускаются по очереди после закрытия предыдущего окна. Launcher открывает видимое приложение; по умолчанию ожидание профилировщика выключено. С `-Tracy` заранее откройте GUI Tracy 0.13.1 и сразу подключитесь к `127.0.0.1`: после инициализации движок ждёт подключения до 10 секунд. Загрузка начинается на +6 секунде, приложение закрывается само через заданное время. Окружение текущей PowerShell-сессии восстанавливается сразу после старта дочернего процесса. Launcher не запускает второй экземпляр при активном замере.
+
+## Сравнение количества workers
+
+[Результаты 4 vs 24 от 09.10.2026](../../docs/lab1/workers-4-vs-24.md): 12 настоящих трейсов, условия эксперимента и ограничения.
+
+```powershell
+.\tools\lab1\Invoke-Lab1Measurements.ps1 -Scene all -CompareWorkers -BeforeWorkers 4 -AfterWorkers 24 -Runs 3
+# Живое демо с 24 workers и тем же контролируемым лимитом ресурсов:
+.\tools\lab1\Launch-Lab1Demo.ps1 -Scene loading -Mode after -GpuUpload -Workers 24 -AssetInFlight 16 -Tracy
+```
+
+Это самостоятельный A/B: в **обоих** режимах включены jobs, async decode и transfer queue. Меняется только размер общего CPU-пула. Before/after здесь означают 4/24 workers, а не отключение jobs/async/upload. Asset in-flight limit фиксирован на 16 (параметр -WorkerComparisonInFlight), иначе он автоматически менялся бы вместе с workers. Публикация остаётся 1 ресурс/кадр и 2 мс. Runner проверяет реальные workers и in-flight по LAB_RUN_START, активную transfer queue и успешную загрузку всех 16 ресурсов; анализатор отвергает несовпадающие настройки. Старые результаты не смешиваются с новой серией.
+
+Обычный app читает `TGE_JOB_WORKERS` при создании Application: 1…256 — явный размер пула; 0/пустое/невалидное значение — прежний auto с максимумом 4. `TGE_ASSET_IN_FLIGHT`: 1…16 — фиксированный лимит, 0/пустое/невалидное — прежний min(2×workers,16). Переменные меняются только для запускаемого процесса, настройки Windows не меняются. Значение 24 само по себе не меняет постоянный дефолт.

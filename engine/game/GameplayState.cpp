@@ -1590,7 +1590,7 @@ void GameplayState::renderLabUi(renderer::Renderer& rendererInstance) {
                         stack().labElapsedSeconds(), loads.loaded, loads.failed, loads.cancelled);
     }
     ImGui::SetNextWindowPos(ImVec2(16.0F, 16.0F), ImGuiCond_Always);
-    ImGui::SetNextWindowSize(ImVec2(430.0F, 235.0F), ImGuiCond_Always);
+    ImGui::SetNextWindowSize(ImVec2(490.0F, 265.0F), ImGuiCond_Always);
     ImGui::Begin("TurboGameEngine / Lab 1", nullptr,
                  ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoCollapse);
     ImGui::Text("Scene: %s | Objects: %zu", options.scene.c_str(), m_labEntities.size());
@@ -1600,6 +1600,10 @@ void GameplayState::renderLabUi(renderer::Renderer& rendererInstance) {
     ImGui::Text("Elapsed: %.1fs | CPU: %zu | Uploads: %zu", stack().labElapsedSeconds(),
                 loads.pendingCpu, loads.pendingUploads);
     ImGui::Text("Ready: %zu | Failed: %zu | Pump: %.2fms", loads.loaded, loads.failed, loads.lastPumpMilliseconds);
+    ImGui::Text("Upload: %s | GPU pending: %zu | Fence: %llu", loads.gpuUploadEnabled ? "transfer queue" : "main pump",
+                loads.pendingGpu, static_cast<unsigned long long>(loads.lastGpuFence));
+    ImGui::Text("Transfer completed: %zu | Data: %.1f MiB", loads.gpuUploads,
+                static_cast<double>(loads.gpuBytes) / (1024.0 * 1024.0));
     if (options.scene == "loading" && !m_labLoadRequested) {
         ImGui::Text("Load batch at %.1f seconds", options.loadAtSeconds);
     } else {

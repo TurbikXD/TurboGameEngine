@@ -28,7 +28,11 @@
 
 Реализованы общий work-stealing scheduler (библиотека enkiTS), приоритеты, зависимости `dispatchAfter`, наблюдаемость Tracy (workers/dispatch/wait/queue plots), backpressure loader и несколько потребителей задач. Наличие функций можно показать в коде; баллы определяет преподаватель.
 
-Не заявляются собственные lock-free/fibers, L2 выделенный streaming-пул, текстурный streaming по mip, L3 copy queue/fence и runtime-анализ read/write. Физические stages сохранены как дополнение, но их прежние цифры не подменяют новый эксперимент по выбранной задаче №2.
+Дополнительно внедрена [GPU upload queue: copy context + настоящий GPU fence](gpu-upload-queue.md): jobs загружают mesh/texture, main публикует после GPU completion; D3D12/Vulkan с transfer queue, fallback для остальных. Новые проверки/Tracy-замеры отделены от исторической серии ниже.
+
+[Проверка 08.10.2026](gpu-upload-results.md): GPU readback D3D12/Vulkan, transfer stress 6/6, 6 Tracy-запусков. Mean main finalize 5,228 → 0,549 мс, p99 кадра 2,974 → 0,954 мс; полная загрузка 0,721 → 1,053 с (регрессия, явно отражена).
+
+Не заявляются собственные lock-free/fibers, L2 streaming-пул, texture streaming по mip и runtime-анализ read/write. Физические stages сохранены как дополнение, но их прежние цифры не подменяют эксперимент выбранной задачи №2.
 
 ## Реальные проверки и результаты
 

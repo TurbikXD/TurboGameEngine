@@ -110,6 +110,7 @@ struct BarrierDesc final {
 struct DeviceCreateDesc final {
     platform::Window* window{nullptr};
     bool enableValidation{false};
+    bool enableUploadQueue{true};
     std::string diligentDeviceType{"auto"};
 };
 

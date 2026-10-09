@@ -7,9 +7,20 @@ param(
     [string]$AssetDirectory = 'C:\tge\lab1-assets',
     [string]$OutputDirectory = '',
     [switch]$IncludeUnboundedPump,
+    [switch]$CompareGpuUpload,
+    [switch]$CompareWorkers,
+    [ValidateRange(1,256)][int]$BeforeWorkers = 4,
+    [ValidateRange(1,256)][int]$AfterWorkers = 24,
+    [ValidateRange(1,16)][int]$WorkerComparisonInFlight = 16,
     [string]$Node = 'node'
 )
 $ErrorActionPreference = 'Stop'
+if ($CompareGpuUpload -and ($Scene -ne 'loading' -or $IncludeUnboundedPump)) {
+    throw 'CompareGpuUpload requires -Scene loading and cannot combine with IncludeUnboundedPump.'
+}
+if ($CompareWorkers -and ($CompareGpuUpload -or $IncludeUnboundedPump -or $BeforeWorkers -eq $AfterWorkers)) {
+    throw 'CompareWorkers needs distinct worker counts and cannot combine with feature-toggle experiments.'
+}
 Set-StrictMode -Version Latest
 $project = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..'))
 if (-not $OutputDirectory) { $OutputDirectory = Join-Path $project ('reports\lab1\' + (Get-Date -Format 'yyyyMMdd-HHmmss')) }
@@ -80,6 +91,10 @@ $manifest = [ordered]@{
     quantile = 'linear interpolation (R-7)'; order = 'AB on odd repetitions, BA on even repetitions'
     assetDirectory = [IO.Path]::GetFullPath($AssetDirectory); runs = @()
     includeUnboundedPump = [bool]$IncludeUnboundedPump
+    compareGpuUpload = [bool]$CompareGpuUpload
+    compareWorkers = [bool]$CompareWorkers
+    beforeWorkers = $BeforeWorkers; afterWorkers = $AfterWorkers
+    workerComparisonInFlight = $WorkerComparisonInFlight
     boundedUploadsPerFrame = 1; boundedUploadBudgetMs = 2
     ecsEntities = 4096; missingAsset = 0
     hardware = $machineContext; buildContext = $buildContext
@@ -88,7 +103,7 @@ if (Test-Path -LiteralPath (Join-Path $AssetDirectory 'manifest.json')) {
     $manifest.assetManifest = Get-Content -LiteralPath (Join-Path $AssetDirectory 'manifest.json') -Raw | ConvertFrom-Json
 }
 $manifestPath = Join-Path $OutputDirectory 'runs.json'
-$environmentNames = @('TGE_LAB_SCENE','TGE_JOBS','TGE_ASYNC_LOADING','TGE_BENCHMARK_ASSET_DIR','TGE_DEMO_SECONDS','TGE_LOAD_AT_SECONDS','TGE_WAIT_FOR_TRACY','TGE_UPLOADS_PER_FRAME','TGE_UPLOAD_BUDGET_MS','TGE_ECS_ENTITIES','TGE_MISSING_ASSET')
+$environmentNames = @('TGE_LAB_SCENE','TGE_JOBS','TGE_ASYNC_LOADING','TGE_GPU_UPLOAD','TGE_BENCHMARK_ASSET_DIR','TGE_DEMO_SECONDS','TGE_LOAD_AT_SECONDS','TGE_WAIT_FOR_TRACY','TGE_UPLOADS_PER_FRAME','TGE_UPLOAD_BUDGET_MS','TGE_ECS_ENTITIES','TGE_MISSING_ASSET','TGE_JOB_WORKERS','TGE_ASSET_IN_FLIGHT')
 $previous = @{}
 foreach ($name in $environmentNames) { $previous[$name] = [Environment]::GetEnvironmentVariable($name, 'Process') }
 function Save-Manifest { $manifest | ConvertTo-Json -Depth 12 | Set-Content -LiteralPath $manifestPath -Encoding UTF8 }
@@ -120,8 +135,12 @@ try {
                 $trace = Join-Path $runDirectory 'trace.tracy'
                 $env:TGE_LAB_SCENE = $currentScene
                 # Each experiment changes only its own feature toggle.
-                $env:TGE_JOBS = if ($currentScene -eq 'ecs' -and $mode -eq 'before') { '0' } else { '1' }
-                $env:TGE_ASYNC_LOADING = if ($currentScene -eq 'loading' -and $mode -eq 'before') { '0' } else { '1' }
+                $env:TGE_JOBS = if (-not $CompareWorkers -and $currentScene -eq 'ecs' -and $mode -eq 'before') { '0' } else { '1' }
+                $env:TGE_ASYNC_LOADING = if (-not $CompareWorkers -and -not $CompareGpuUpload -and $currentScene -eq 'loading' -and $mode -eq 'before') { '0' } else { '1' }
+                # Preserve the original L1 experiment; copy queue is its own A/B.
+                $env:TGE_GPU_UPLOAD = if ($CompareWorkers -or ($CompareGpuUpload -and $mode -eq 'after')) { '1' } else { '0' }
+                $env:TGE_JOB_WORKERS = if ($CompareWorkers) { if ($mode -eq 'before') { "$BeforeWorkers" } else { "$AfterWorkers" } } else { '0' }
+                $env:TGE_ASSET_IN_FLIGHT = if ($CompareWorkers) { "$WorkerComparisonInFlight" } else { '0' }
                 $env:TGE_BENCHMARK_ASSET_DIR = $manifest.assetDirectory
                 $env:TGE_DEMO_SECONDS = '18'
                 $env:TGE_LOAD_AT_SECONDS = '6'
@@ -129,10 +148,10 @@ try {
                 $env:TGE_ECS_ENTITIES = '4096'; $env:TGE_MISSING_ASSET = '0'
                 $env:TGE_UPLOADS_PER_FRAME = if ($mode -eq 'legacy-pump') { '65536' } else { '1' }
                 $env:TGE_UPLOAD_BUDGET_MS = if ($mode -eq 'legacy-pump') { '60000' } else { '2' }
-                $record = [ordered]@{ id=$id; scene=$currentScene; mode=$mode; repeat=$repeat; jobs=$env:TGE_JOBS; asyncLoading=$env:TGE_ASYNC_LOADING; uploadsPerFrame=$env:TGE_UPLOADS_PER_FRAME; uploadBudgetMs=$env:TGE_UPLOAD_BUDGET_MS; startedUtc=[DateTime]::UtcNow.ToString('o'); trace="$id/trace.tracy"; zones="$id/zones.csv"; messages="$id/messages.csv"; status='running' }
+                $record = [ordered]@{ id=$id; scene=$currentScene; mode=$mode; repeat=$repeat; jobs=$env:TGE_JOBS; asyncLoading=$env:TGE_ASYNC_LOADING; gpuUpload=$env:TGE_GPU_UPLOAD; requestedWorkers=[int]$env:TGE_JOB_WORKERS; assetInFlight=[int]$env:TGE_ASSET_IN_FLIGHT; uploadsPerFrame=$env:TGE_UPLOADS_PER_FRAME; uploadBudgetMs=$env:TGE_UPLOAD_BUDGET_MS; startedUtc=[DateTime]::UtcNow.ToString('o'); trace="$id/trace.tracy"; zones="$id/zones.csv"; messages="$id/messages.csv"; status='running' }
                 $manifest.runs += $record
                 Save-Manifest
-                Write-Host "Capturing $id (3 s warmup inside a 15 s trace; application exits itself)."
+                Write-Host "Capturing $id workers=$env:TGE_JOB_WORKERS (3 s warmup inside a 15 s trace; application exits itself)."
                 if ((Get-FileHash -LiteralPath $App -Algorithm SHA256).Hash -ne $manifest.executableSha256) { throw 'Measured executable changed between runs. Start a fresh experiment.' }
                 $appProcess = Start-Process -FilePath $App -WorkingDirectory (Split-Path $App) -WindowStyle Hidden -PassThru -RedirectStandardOutput (Join-Path $runDirectory 'app.stdout.log') -RedirectStandardError (Join-Path $runDirectory 'app.stderr.log')
                 $null = $appProcess.Handle
@@ -159,7 +178,26 @@ try {
                 if ($logs -match 'LAB_RUN_START scene=(\S+) parallel_ecs=(\S+) async_loading=(\S+) entities=(\d+) workers=(\d+)') {
                     $record.runtimeConfig = [ordered]@{ scene=$Matches[1]; parallelEcs=$Matches[2]; asyncLoading=$Matches[3]; entities=[int]$Matches[4]; workers=[int]$Matches[5] }
                 } else { throw "Actual worker/configuration log missing in $id." }
+                if ($CompareWorkers) {
+                    if ($record.runtimeConfig.workers -ne $record.requestedWorkers -or
+                        $record.runtimeConfig.parallelEcs -ne 'true' -or $record.runtimeConfig.asyncLoading -ne 'true') {
+                        throw "Requested worker configuration was not applied in $id."
+                    }
+                    if ($logs -match 'LAB_RUN_START[^\r\n]+asset_in_flight=(\d+)') {
+                        $record.runtimeConfig['assetInFlight'] = [int]$Matches[1]
+                    } else { throw "Asset in-flight configuration log missing in $id." }
+                    if ($record.runtimeConfig.assetInFlight -ne $WorkerComparisonInFlight) {
+                        throw "Fixed asset in-flight limit was not applied in $id."
+                    }
+                }
                 if ($logs -notmatch 'Application shutdown complete') { throw "Graceful shutdown marker missing in $id." }
+                if ($logs -match '\[error\]|Diligent Engine:\s*(ERROR|Error|Fatal)|Debug assertion failed') { throw "Engine errors found in $id." }
+                if (($CompareGpuUpload -and $mode -eq 'after') -or $CompareWorkers) {
+                    if ($logs -notmatch 'GPU_UPLOAD_QUEUE enabled' -or
+                        ($currentScene -eq 'loading' -and [regex]::Matches($logs, 'via GPU transfer:').Count -lt 16)) {
+                        throw "Dedicated GPU transfer path was not actually used for all 16 assets in $id."
+                    }
+                }
                 if ($currentScene -eq 'loading') {
                     if ($logs -notmatch 'LAB_LOAD_COMPLETE elapsed=\S+ loaded=(\d+) failed=(\d+) cancelled=(\d+)') { throw "Loading did not complete in $id." }
                     if ([int]$Matches[1] -lt 16 -or [int]$Matches[2] -ne 0 -or [int]$Matches[3] -ne 0) { throw "Unexpected resource counts in ${id}: $($Matches[0])" }

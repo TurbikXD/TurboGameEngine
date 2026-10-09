@@ -1,5 +1,7 @@
 # ЛР 1: сценарий защиты на три минуты
 
+Для допфичи выделить 30–45 секунд: [GPU upload showcase](gpu-upload-queue.md) (`Launch-Lab1Demo -GpuUpload`). Показать Upload=transfer queue, fence/bytes; Tracy workers Transfer Record против прежнего main Upload Texture GPU; в коде EnqueueSignal после copy и Loaded только после completed fence. Отдельный hardware readback-тест проверяет реальный GPU результат.
+
 До выступления: собрать `profile-release`, выполнить тесты, `New-BenchmarkAssets.ps1`, три прогона каждого режима и stress. Открыть `measurements.md` из текущего каталога результатов и соответствующие Tracy-трейсы. Версия GUI — 0.13.1, как в клиенте. Команды и параметры: [инструкция запуска](../../tools/lab1/README.md).
 
 | Время | Показать | Короткое объяснение |

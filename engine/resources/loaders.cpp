@@ -3,8 +3,10 @@
 #include <cmath>
 #include <cstdint>
 #include <fstream>
+#include <limits>
 #include <memory>
 #include <string>
+#include <utility>
 
 #include <assimp/Importer.hpp>
 #include <assimp/postprocess.h>
@@ -20,6 +22,100 @@
 namespace engine::resources {
 
 namespace {
+
+bool isPpmWhitespace(const int character) {
+    return character == ' ' || character == '\t' || character == '\r' ||
+           character == '\n' || character == '\f' || character == '\v';
+}
+
+void skipPpmSeparators(std::istream& input) {
+    for (;;) {
+        const auto character = input.peek();
+        if (isPpmWhitespace(character)) {
+            input.get();
+        } else if (character == '#') {
+            input.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+        } else {
+            return;
+        }
+    }
+}
+
+bool readPpmNumber(std::istream& input, std::uint32_t& value) {
+    skipPpmSeparators(input);
+    value = 0;
+    bool hasDigits = false;
+    for (;;) {
+        const auto character = input.peek();
+        if (character < '0' || character > '9') {
+            return hasDigits && (character == std::char_traits<char>::eof() ||
+                                 isPpmWhitespace(character) || character == '#');
+        }
+        const auto digit = static_cast<std::uint32_t>(input.get() - '0');
+        if (value > (std::numeric_limits<std::uint32_t>::max() - digit) / 10U) {
+            return false;
+        }
+        value = value * 10U + digit;
+        hasDigits = true;
+    }
+}
+
+// stb_image supports binary P5/P6, but the engine's editable PPM assets are P3.
+// The caller has already consumed the two-byte magic; inspect contents, not extension.
+bool loadPlainPpm(std::ifstream& input, TextureData& output, std::string* errorMessage) {
+    const auto fail = [errorMessage](const char* message) {
+        if (errorMessage != nullptr) { *errorMessage = message; }
+        return false;
+    };
+    std::uint32_t width = 0;
+    std::uint32_t height = 0;
+    std::uint32_t maximum = 0;
+    if (!isPpmWhitespace(input.peek()) || !readPpmNumber(input, width) ||
+        !readPpmNumber(input, height) || !readPpmNumber(input, maximum)) {
+        return fail("Invalid P3 PPM header");
+    }
+    if (width == 0 || height == 0 || width > STBI_MAX_DIMENSIONS || height > STBI_MAX_DIMENSIONS ||
+        maximum == 0 || maximum > 65535U) {
+        return fail("Invalid P3 PPM dimensions or maximum sample value");
+    }
+    const auto pixelCount = static_cast<std::uint64_t>(width) * height;
+    // Match stb_image's signed-int allocation bound and reject overflow before resize.
+    if (pixelCount > static_cast<std::uint64_t>(std::numeric_limits<int>::max()) / 4U) {
+        return fail("P3 PPM image is too large");
+    }
+    const auto rasterStart = input.tellg();
+    input.seekg(0, std::ios::end);
+    const auto rasterEnd = input.tellg();
+    // Each RGB sample needs at least one digit and a separator (except the last).
+    // A tiny malformed file must not cause a huge allocation from its header.
+    if (rasterStart < 0 || rasterEnd < rasterStart ||
+        static_cast<std::uint64_t>(rasterEnd - rasterStart) < pixelCount * 6U - 1U) {
+        return fail("Truncated P3 PPM pixel data");
+    }
+    input.seekg(rasterStart);
+
+    TextureData decoded;
+    decoded.width = static_cast<std::int32_t>(width);
+    decoded.height = static_cast<std::int32_t>(height);
+    decoded.pixels.resize(static_cast<std::size_t>(pixelCount) * 4U);
+    for (std::size_t pixel = 0; pixel < static_cast<std::size_t>(pixelCount); ++pixel) {
+        for (std::size_t channel = 0; channel < 3U; ++channel) {
+            std::uint32_t sample = 0;
+            if (!readPpmNumber(input, sample) || sample > maximum) {
+                return fail("Invalid or truncated P3 PPM RGB sample");
+            }
+            decoded.pixels[pixel * 4U + channel] =
+                static_cast<std::uint8_t>((sample * 255U + maximum / 2U) / maximum);
+        }
+        decoded.pixels[pixel * 4U + 3U] = 255U;
+    }
+    skipPpmSeparators(input);
+    if (input.peek() != std::char_traits<char>::eof()) {
+        return fail("Unexpected data after P3 PPM pixels");
+    }
+    output = std::move(decoded);
+    return true;
+}
 
 void buildMissingNormals(MeshData& meshData) {
     if (meshData.indices.size() < 3U) {
@@ -162,6 +258,14 @@ bool loadMeshData(const std::string& path, MeshData& outMeshData, std::string* e
 
 bool loadTextureDataRgba8(const std::string& path, TextureData& outTextureData, std::string* errorMessage) {
     ENGINE_PROFILE_ZONE("Decode Texture");
+    if (errorMessage != nullptr) { errorMessage->clear(); }
+    {
+        std::ifstream input(path, std::ios::binary);
+        char magic[2]{};
+        if (input.read(magic, sizeof(magic)) && magic[0] == 'P' && magic[1] == '3') {
+            return loadPlainPpm(input, outTextureData, errorMessage);
+        }
+    }
     int width = 0;
     int height = 0;
     int channels = 0;

@@ -16,6 +16,7 @@ class IPipelineLayout;
 class IGraphicsPipeline;
 class IBindGroupLayout;
 class IBindGroup;
+class IUploadQueue;
 
 class IQueue {
 public:
@@ -43,6 +44,8 @@ public:
     virtual std::unique_ptr<ISemaphore> createSemaphore() = 0;
     virtual std::unique_ptr<IFence> createFence(bool signaled) = 0;
     virtual IQueue& graphicsQueue() = 0;
+    // nullptr means unsupported: keep the bounded renderer-thread upload path.
+    virtual IUploadQueue* uploadQueue() { return nullptr; }
     virtual BackendType backendType() const = 0;
 };
 

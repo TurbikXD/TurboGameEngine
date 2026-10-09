@@ -1,0 +1,15 @@
+Test project C:/tge/clion-vs2022b-dbg
+    Start 1: engine_physics_tests
+1/5 Test #1: engine_physics_tests .............   Passed    0.15 sec
+    Start 2: engine_job_system_tests
+2/5 Test #2: engine_job_system_tests ..........   Passed    0.07 sec
+    Start 3: engine_async_load_tests
+3/5 Test #3: engine_async_load_tests ..........   Passed    3.13 sec
+    Start 4: engine_transform_batch_tests
+4/5 Test #4: engine_transform_batch_tests .....   Passed    0.45 sec
+    Start 5: engine_texture_loader_tests
+5/5 Test #5: engine_texture_loader_tests ......   Passed    0.11 sec
+
+100% tests passed, 0 tests failed out of 5
+
+Total Test time (real) =   4.05 sec

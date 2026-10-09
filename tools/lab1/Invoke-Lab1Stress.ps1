@@ -4,7 +4,9 @@ param(
     [string]$AssetDirectory = 'C:\tge\lab1-assets',
     [string]$OutputDirectory = '',
     [ValidateRange(30,3600)][int]$LongSessionSeconds = 60,
-    [ValidateRange(2,20)][int]$RepeatedStarts = 3
+    [ValidateRange(2,20)][int]$RepeatedStarts = 3,
+    [switch]$GpuUpload,
+    [ValidateRange(0,256)][int]$Workers = 0
 )
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
@@ -17,7 +19,7 @@ if (Get-Process -Name app -ErrorAction SilentlyContinue) { throw 'An app is alre
 if (-not (Test-Path -LiteralPath (Join-Path $AssetDirectory 'manifest.json'))) { throw 'Generate benchmark assets first.' }
 $null = New-Item -ItemType Directory -Path $OutputDirectory -Force
 $missing = Join-Path $OutputDirectory 'intentionally-absent-assets'
-$names = @('TGE_LAB_SCENE','TGE_JOBS','TGE_ASYNC_LOADING','TGE_BENCHMARK_ASSET_DIR','TGE_DEMO_SECONDS','TGE_LOAD_AT_SECONDS','TGE_WAIT_FOR_TRACY','TGE_UPLOADS_PER_FRAME','TGE_UPLOAD_BUDGET_MS','TGE_ECS_ENTITIES','TGE_MISSING_ASSET')
+$names = @('TGE_LAB_SCENE','TGE_JOBS','TGE_ASYNC_LOADING','TGE_GPU_UPLOAD','TGE_BENCHMARK_ASSET_DIR','TGE_DEMO_SECONDS','TGE_LOAD_AT_SECONDS','TGE_WAIT_FOR_TRACY','TGE_UPLOADS_PER_FRAME','TGE_UPLOAD_BUDGET_MS','TGE_ECS_ENTITIES','TGE_MISSING_ASSET','TGE_JOB_WORKERS','TGE_ASSET_IN_FLIGHT')
 $previous = @{}
 foreach ($name in $names) { $previous[$name] = [Environment]::GetEnvironmentVariable($name,'Process') }
 $scenarios = @(
@@ -30,6 +32,8 @@ $results = @()
 try {
     foreach ($scenario in $scenarios) {
         $env:TGE_LAB_SCENE='loading'; $env:TGE_JOBS='1'; $env:TGE_ASYNC_LOADING='1'; $env:TGE_WAIT_FOR_TRACY='0'
+        $env:TGE_JOB_WORKERS="$Workers"; $env:TGE_ASSET_IN_FLIGHT='0'
+        $env:TGE_GPU_UPLOAD = if ($GpuUpload) { '1' } else { '0' }
         $env:TGE_UPLOADS_PER_FRAME='1'; $env:TGE_UPLOAD_BUDGET_MS='2'
         $env:TGE_ECS_ENTITIES='4096'; $env:TGE_MISSING_ASSET='0'
         $env:TGE_BENCHMARK_ASSET_DIR=[IO.Path]::GetFullPath($scenario.assets)
@@ -50,11 +54,19 @@ try {
             $record.passed=($null -ne $record.exitCode -and $record.exitCode -eq 0)
             $record.shutdownMarkerFound=($logs -match 'Application shutdown complete')
             $record.passed=$record.passed -and $record.shutdownMarkerFound
+            $record.gpuUploadRequested = [bool]$GpuUpload
+            if ($GpuUpload) {
+                $record.transferQueueEnabled = ($logs -match 'GPU_UPLOAD_QUEUE enabled')
+                $record.passed = $record.passed -and $record.transferQueueEnabled
+            }
+            $resourceErrors = @($logs -split "`n" | Where-Object {
+                $_ -match '(Texture|Mesh) (load|transfer) failed' -and $_ -notmatch 'cancelled during shutdown'
+            })
             if ($scenario.expectFailureLog) {
-                $record.expectedMissingResourceLog=($logs -match '(Texture|Mesh) load failed')
+                $record.expectedMissingResourceLog=($resourceErrors.Count -gt 0)
                 $record.passed=$record.passed -and $record.expectedMissingResourceLog
             } else {
-                $record.unexpectedResourceErrors=($logs -match '(Texture|Mesh) load failed')
+                $record.unexpectedResourceErrors=($resourceErrors.Count -gt 0)
                 $record.passed=$record.passed -and -not $record.unexpectedResourceErrors
             }
             if ($scenario.name -eq 'exit-with-live-loading') {

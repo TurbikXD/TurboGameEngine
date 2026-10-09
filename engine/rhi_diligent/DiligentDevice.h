@@ -48,6 +48,7 @@ public:
     std::unique_ptr<ISemaphore> createSemaphore() override;
     std::unique_ptr<IFence> createFence(bool signaled) override;
     IQueue& graphicsQueue() override;
+    IUploadQueue* uploadQueue() override;
     BackendType backendType() const override;
 
     Diligent::IRenderDevice* nativeRenderDevice() const;

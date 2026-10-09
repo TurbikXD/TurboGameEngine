@@ -1,8 +1,10 @@
 #pragma once
 
 #include <algorithm>
+#include <charconv>
 #include <cstdlib>
 #include <string>
+#include <string_view>
 
 namespace engine::core {
 
@@ -12,15 +14,26 @@ struct LabOptions final {
     std::string assetDirectory;
     bool parallelEcs{true};
     bool asyncLoading{true};
+    bool gpuUpload{true};
     bool waitForTracy{false};
     bool missingAsset{false};
     double durationSeconds{0.0};
     double loadAtSeconds{6.0};
     std::size_t entityCount{4096U};
+    std::size_t jobWorkers{0U}; // 0 preserves the conservative automatic default.
+    std::size_t assetInFlightLimit{0U}; // 0 keeps the normal workers-dependent limit.
     std::size_t uploadsPerFrame{1U};
     double uploadBudgetMilliseconds{2.0};
 
     [[nodiscard]] bool active() const { return scene == "ecs" || scene == "loading"; }
+
+    static std::size_t boundedCount(const std::string_view text, const std::size_t maximum) {
+        if (text.empty()) { return 0U; }
+        std::size_t value = 0;
+        const auto parsed = std::from_chars(text.data(), text.data() + text.size(), value);
+        return parsed.ec == std::errc{} && parsed.ptr == text.data() + text.size() && value <= maximum
+                   ? value : 0U;
+    }
 
     static std::string environment(const char* name) {
 #if defined(_MSC_VER)
@@ -44,8 +57,11 @@ struct LabOptions final {
         options.assetDirectory = environment("TGE_BENCHMARK_ASSET_DIR");
         options.parallelEcs = environment("TGE_JOBS") != "0";
         options.asyncLoading = environment("TGE_ASYNC_LOADING") != "0";
+        options.gpuUpload = environment("TGE_GPU_UPLOAD") != "0";
         options.waitForTracy = environment("TGE_WAIT_FOR_TRACY") == "1";
         options.missingAsset = environment("TGE_MISSING_ASSET") == "1";
+        options.jobWorkers = boundedCount(environment("TGE_JOB_WORKERS"), 256U);
+        options.assetInFlightLimit = boundedCount(environment("TGE_ASSET_IN_FLIGHT"), 16U);
         const auto number = [](const char* name, const double fallback) {
             const std::string value = environment(name);
             if (value.empty()) { return fallback; }

@@ -100,7 +100,9 @@ public:
     // The shared scheduler must outlive the renderer. Configure before init().
     void setJobSystem(core::JobSystem* jobs);
     void setAsyncLoadingEnabled(bool enabled);
+    void setGpuUploadEnabled(bool enabled); // before init(), controls device contexts
     void setUploadBudget(std::size_t maximumUploads, double milliseconds);
+    void setAssetInFlightLimit(std::size_t maximumAssets);
     [[nodiscard]] AssetLoadingStats assetLoadingStats() const;
     resources::ResourceManager& resourceManager();
     const resources::ResourceManager& resourceManager() const;
@@ -161,6 +163,7 @@ private:
     std::unordered_map<std::string, ShaderHotReloadEntry> m_shaderHotReloadEntries;
     core::JobSystem* m_jobSystem{nullptr};
     resources::AsyncLoadQueue m_assetLoads;
+    bool m_gpuUploadEnabled{true};
     std::chrono::milliseconds m_hotReloadDebounce{175};
     bool m_initialized{false};
 

@@ -1,0 +1,13 @@
+Test project C:/tge/profile
+    Start 1: engine_physics_tests
+1/4 Test #1: engine_physics_tests .............   Passed    0.42 sec
+    Start 2: engine_job_system_tests
+2/4 Test #2: engine_job_system_tests ..........   Passed    0.42 sec
+    Start 3: engine_async_load_tests
+3/4 Test #3: engine_async_load_tests ..........   Passed    4.33 sec
+    Start 4: engine_transform_batch_tests
+4/4 Test #4: engine_transform_batch_tests .....   Passed    0.41 sec
+
+100% tests passed, 0 tests failed out of 4
+
+Total Test time (real) =   5.64 sec

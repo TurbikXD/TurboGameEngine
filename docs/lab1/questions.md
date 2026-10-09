@@ -16,7 +16,7 @@
 
 **Где гарантия видимости CPU-данных?** Worker завершает запись, делает `ready.store(true, release)`. Pump читает `ready.load(acquire)` и только затем использует результат. Сами deque принадлежат главному потоку; workers их не изменяют. См. [async_load_queue.cpp](../../engine/resources/async_load_queue.cpp).
 
-**Почему GPU upload не в worker?** Используется общий graphics/immediate context и существующий Diligent/RHI путь. У него нет внедрённой L3 copy queue/fence-схемы. CPU читает/декодирует в фоне, GPU-объект создаётся и публикуется в main pump.
+**Почему GPU upload теперь можно выполнять в worker?** Добавлен отдельный Diligent transfer context и настоящий GPU fence для D3D12/Vulkan. Jobs записывают copies под mutex, main только опрашивает fence и публикует handles после GPU completion. Workers не используют graphics context. На неподдерживаемом backend/adapter и при TGE_GPU_UPLOAD=0 — прежний main pump. [Подробности](gpu-upload-queue.md).
 
 **2 мс — строгая верхняя граница кадра?** Нет. Это условие прекратить запуск следующих финализаций; один драйверный upload не прерывается и может длиться дольше. Есть дополнительный лимит одного ресурса на кадр. Зону pump и худший кадр нужно смотреть в Tracy.
 
@@ -46,4 +46,4 @@
 
 **Можно ли суммировать worker time для времени кадра?** Нет: задачи выполняются одновременно. Для задержки нужна охватывающая main-зона и `Main Frame`; суммы worker time описывают CPU work, а не elapsed time.
 
-**Какие ограничения остались?** Нет L2 отдельного streaming-пула, L3 copy queue, fibers и runtime read/write-analyzer. Shader manifest фоновый, сама компиляция/чтение source в Diligent пока main. Приоритеты не прерывают работающий decoder; shutdown ждёт завершения библиотечного IO. Это границы реализации, а не обещанные допфичи.
+**Какие ограничения остались?** Нет L2 streaming-пула, fibers и runtime read/write-analyzer. Copy queue есть для D3D12/Vulkan с transfer-capable adapter; ready-handle publication остаётся main-thread. Shader manifest фоновый, компиляция/чтение source в Diligent пока main. Приоритеты не прерывают decoder; shutdown ждёт библиотечного IO и GPU uploads.
