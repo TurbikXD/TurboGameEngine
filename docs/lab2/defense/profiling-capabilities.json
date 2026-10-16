@@ -1,0 +1,461 @@
+{
+  "schemaVersion": 1,
+  "capturedDate": "2026-10-16",
+  "scope": "LocalWindowsCLion capabilities, current engine memory contracts and isolatedWSLLinux diagnostic plan; no IDE/global configuration edits.",
+  "localTools": {
+    "clion": {
+      "root": "C:/Users/rocco/AppData/Local/Programs/CLion",
+      "version": "2026.1",
+      "buildNumber": "261.22158.273",
+      "productInfo": "product-info.json"
+    },
+    "windowsBuild": {
+      "generator": "Visual Studio 17 2022",
+      "architecture": "x64",
+      "compiler": "MSVC19.44.35221.0",
+      "compilerPath": "C:/Program Files/Microsoft Visual Studio/2022/Professional/VC/Tools/MSVC/14.44.35207/bin/Hostx64/x64/cl.exe",
+      "cmakeVersion": "4.2.2",
+      "cmakeCommand": "C:/Users/rocco/AppData/Local/Programs/CLion/bin/cmake/win/x64/bin/cmake.exe",
+      "configuredTrees": {
+        "C:/tge/profile": "Release app selected; multiconfig",
+        "C:/tge/clion-vs2022b-rel": "Debug tests selected; multiconfig"
+      },
+      "debugFlags": [
+        "/Zi",
+        "/Ob0",
+        "/Od",
+        "/RTC1"
+      ],
+      "debugLinkFlags": [
+        "/debug",
+        "/INCREMENTAL"
+      ],
+      "debugRuntime": "MultiThreadedDebugDLL(/MDd)",
+      "sanitizerInstrumentationInExistingProject": "No /fsanitize or EnableASAN setting found; dependency sanitizer options OFF.",
+      "asanComponentsFound": [
+        "bin/Hostx64/x64/clang_rt.asan_dynamic-x86_64.dll",
+        "bin/Hostx64/x64/clang_rt.asan_dbg_dynamic-x86_64.dll",
+        "lib/x64/clang_rt.asan_dynamic-x86_64.lib"
+      ],
+      "asanAvailabilityLimit": "Files exist; instrumented binary execution was not validated on Windows.",
+      "binaries": [
+        {
+          "path": "C:/tge/clion-vs2022b-rel/Debug/engine_scripting_tests.exe",
+          "modifiedLocal": "2026-10-16T15:16:40.594421",
+          "bytes": 7815168
+        },
+        {
+          "path": "C:/tge/clion-vs2022b-rel/Debug/engine_react_runtime_tests.exe",
+          "modifiedLocal": "2026-10-16T15:16:44.453581",
+          "bytes": 7643648
+        },
+        {
+          "path": "C:/tge/clion-vs2022b-rel/Debug/engine_gameplay_state_tests.exe",
+          "modifiedLocal": "2026-10-16T05:38:18.915572",
+          "bytes": 58912768
+        }
+      ]
+    },
+    "wsl": {
+      "distribution": "Ubuntu-24.04",
+      "userHome": "/home/rocco",
+      "tools": {
+        "cmake": {
+          "path": "/usr/bin/cmake",
+          "version": "3.28.3"
+        },
+        "ctest": {
+          "path": "/usr/bin/ctest",
+          "version": "3.28.3"
+        },
+        "g++": {
+          "path": "/usr/bin/g++",
+          "version": "13.3.0"
+        },
+        "python3": {
+          "path": "/usr/bin/python3",
+          "version": "3.12.3"
+        },
+        "valgrind": null,
+        "clang": null,
+        "clang++": null,
+        "perf": null,
+        "ninja": null
+      },
+      "runtimesFound": [
+        "/usr/lib/gcc/x86_64-linux-gnu/13/libasan.so",
+        "/usr/lib/gcc/x86_64-linux-gnu/13/liblsan.so",
+        "/usr/lib/gcc/x86_64-linux-gnu/13/libubsan.so"
+      ],
+      "initialLinuxBuildSearch": "NoLinuxcache found at/home/rocco(maxdepth3), or workspacebuild/build_verify/cmake-build-debug(maxdepth3, excludinghidden/dependency trees). Existing discovered caches areWindowsgenerators. This bounded search is not a whole-disk claim.",
+      "existingPrototype": "build/scripting-check/CMakeLists.txt is a headless prototype with hardcodedWindowsTURBO_ROOT andWindowscaches; not modified.",
+      "newHarness": "tools/verify_lab2_memory/CMakeLists.txt; isolatedLinuxbuild, noFetchContent/downloads.",
+      "existingWindowsLuauCli": "build/react-check/luau/luau.exe (PE executable; not a Linux sanitizer target)."
+    }
+  },
+  "capabilities": {
+    "nativeWindowsClionCpuCapture": false,
+    "nativeWindowsClionBuiltInHeapLeakCapture": false,
+    "cpuSnapshotImportIsCapture": false,
+    "nativeWindowsValgrind": false,
+    "wslValgrindInstalled": false,
+    "nativeWindowsMsvcAsan": {
+      "supportedByCompilerDocs": true,
+      "runtimeFilesPresent": true,
+      "existingBuildInstrumented": false,
+      "detects": "Memory corruption; notWindowsLSan."
+    },
+    "nativeWindowsLeakSanitizer": false,
+    "crtDebugHeapAvailableInToolchain": true,
+    "crtLeakCheckIntegratedInEngine": false,
+    "currentClionMemoryIndicators": "IDEJVM/clangd, not engineheap.",
+    "debuggerMemoryView": "Raw memory bytes, not leak attribution.",
+    "wslGccSanitizerBuild": "Locally feasible without apt; separateLinuxCPUcoverage."
+  },
+  "observations": {
+    "clionProfilerAttempt": {
+      "provenance": "Parent actually invoked Profile app in CLionUI; reported2026-10-16.",
+      "error": "Error running app: Perf profiler is not available for selected toolchain",
+      "image": "evidence/clion-profiler-unavailable.jpg",
+      "result": "Native profiler data was not collected."
+    },
+    "windowsCTest": {
+      "provenance": "Parentreported fresh rebuild and full WindowsCTest run2026-10-16.",
+      "passed": 19,
+      "total": 19,
+      "elapsedSeconds": 35.96,
+      "scope": "Functionalregression; notsanitizer/heapleakproof."
+    },
+    "crtCodeSearch": "No _CrtDumpMemoryLeaks/_CrtMemCheckpoint/_CrtMemDifference hooks in engine/app/tests. ScriptEditorTests.cpp29–30 onlyredirectsCRTassertoutput.",
+    "windowsRuntimeBaselineRun1": {
+      "resultReference": "memory-windows-run1/summary.json",
+      "capturedSummary": {
+        "startedUtc": "2026-10-16T12:21:15.227142+00:00",
+        "app": "C:\\tge\\profile\\Release\\app.exe",
+        "appSha256": "23dd0699fbaa8d370b2fa54a57774c106e146c084f81de32c2f60ecacee765b5",
+        "configuration": "Release / D3D12 / 1280x720 / vsync",
+        "requestedSeconds": 300,
+        "elapsedSeconds": 304.156,
+        "exitCode": 0,
+        "samples": 304,
+        "spawnResetCycles": 0,
+        "reloadRequests": 29,
+        "appliedReloadCallbacks": 0,
+        "postWarmupPrivateMiBPerMinute": 12.679397401231224,
+        "postWarmupPrivateMiBRange": [
+          571.96875,
+          695.234375
+        ],
+        "handleRange": [
+          410,
+          766
+        ],
+        "complete": true,
+        "limits": "Windows process counters do not identify native/GPU leaks. A bounded run cannot prove that all engine paths are leak-free."
+      },
+      "qualification": "Process exited0 but runtime logged LuauOOM and regression investigation found canceled pendingDestroy ownership; completed timer is not a passing stability result."
+    },
+    "linuxFinalSanitizerRun": {
+      "status": "passed_exercised_paths",
+      "testProcessRuns": 11,
+      "allExitCodesZero": true,
+      "sanitizerDiagnosticsFound": false,
+      "sanitizerOptions": {
+        "ASAN_OPTIONS": "detect_leaks=1:halt_on_error=1:symbolize=1",
+        "LSAN_OPTIONS": "exitcode=23:report_objects=1",
+        "UBSAN_OPTIONS": "halt_on_error=1:print_stacktrace=1"
+      },
+      "suppressions": [],
+      "sameVmLifecycle": [
+        {
+          "phase": "normal_gc_pacing",
+          "cycles": 120,
+          "passed": true,
+          "wallSeconds": 50.322304364,
+          "baselineVmBytes": 3476060,
+          "endBeforeFullGcVmBytes": 6814692,
+          "endAfterFullGcVmBytes": 3527060,
+          "fullGcDeltaFromBaselineBytes": 51000,
+          "settledVmByteRange": [
+            6219740,
+            8146484
+          ],
+          "allSettledAliveEntities16": true,
+          "allSettledRoots1": true,
+          "allSettledQueuedEvents0": true,
+          "rootsAfterReset": 0,
+          "vmBytesAfterShutdown": 0
+        },
+        {
+          "phase": "full_gc_each_cycle",
+          "cycles": 120,
+          "passed": true,
+          "wallSeconds": 49.062587071,
+          "baselineVmBytes": 3476060,
+          "endBeforeFullGcVmBytes": 3739396,
+          "endAfterFullGcVmBytes": 3739396,
+          "fullGcDeltaFromBaselineBytes": 263336,
+          "settledVmByteRange": [
+            3657604,
+            3772756
+          ],
+          "allSettledAliveEntities16": true,
+          "allSettledRoots1": true,
+          "allSettledQueuedEvents0": true,
+          "rootsAfterReset": 0,
+          "vmBytesAfterShutdown": 0
+        }
+      ],
+      "sourceHashesReference": "post-fix/summary.json",
+      "instrumentationReference": "post-fix/instrumentation.json",
+      "capturedRunnerReference": "post-fix/runner-used.py.txt",
+      "limits": [
+        "LinuxCPU Lua/React paths, notnativeWindowsD3D12/GPU orCLionProfiler.",
+        "React driver copy uses1000ms general batch budget; explicit5ms callback timeout test preserved.",
+        "Two earlier watchdog-limited failed attempts remain in parent/local-assets directories.",
+        "Expected script errors deliberately exercised by existing tests are not sanitizer diagnostics."
+      ]
+    }
+  },
+  "engineMemoryContracts": [
+    {
+      "path": "engine/scripting/ScriptingSystem.cpp",
+      "line": 224,
+      "observation": "Impl::allocate uses malloc/realloc/free accounting; memoryUsed returns allocated bytes atline1095. Counter excludes native ECS, STL, compiler scratch, renderer, OS and GPU heaps."
+    },
+    {
+      "path": "engine/scripting/ScriptingSystem.cpp",
+      "line": 752,
+      "observation": "shutdown waits reload jobs, clears owner containers and lua_close releases the VM; it does not forcibly zero the allocation counter."
+    },
+    {
+      "path": "engine/scripting/ScriptingSystem.cpp",
+      "line": 792,
+      "observation": "stop unreferences behavior instances and clears pending events; VM/module cache remains alive. Stop must not be expected to return memoryUsed tozero."
+    },
+    {
+      "path": "engine/scripting/ScriptingSystem.h",
+      "line": 38,
+      "observation": "DefaultVM64MiB, source2MiB, callback100msDebug/25msRelease."
+    },
+    {
+      "path": "engine/editor/ScriptWorkspace.cpp",
+      "line": 622,
+      "observation": "Existing Script Tools UI displays VM memory in MiB."
+    },
+    {
+      "path": "engine/core/Profiling.h",
+      "line": 1,
+      "observation": "Existing Tracy macros cover zones/frames/plots. Search found no TracyAlloc/TracyFree engine hooks; current Tracy build is not an allocation leak map."
+    }
+  ],
+  "relevantTests": [
+    {
+      "target": "engine_scripting_tests",
+      "sources": [
+        {
+          "path": "tests/ScriptingSystemTests.cpp",
+          "line": 85,
+          "checks": "12 reloads; VM requested bytes growth less than2MiB."
+        },
+        {
+          "path": "tests/ScriptingSystemTests.cpp",
+          "line": 90,
+          "checks": "Infinite loop abort plus recovery;100000000-byte string request rejected; VM counter below cap; recovery after memory error."
+        },
+        {
+          "path": "tests/ScriptingSystemTests.cpp",
+          "line": 177,
+          "checks": "shutdown leaves state=null and memoryUsed()==0; cleanup callbacks exactly once."
+        },
+        {
+          "path": "tests/ScriptingSystemTests.cpp",
+          "line": 219,
+          "checks": "New meaningful regression: earliestDriver.Update destroys later scripted actualController/HUD;12cycles bounded entity/root counts and shutdownVM0. Added by production owner after Windows soak failure."
+        }
+      ],
+      "limit": "Requested allocation accounting and bounded exercised scenarios; no process-wide native heap/GPU leak proof."
+    },
+    {
+      "target": "engine_react_runtime_tests",
+      "sources": [
+        {
+          "path": "tests/ReactRuntimeTests.cpp",
+          "line": 38,
+          "checks": "Real upstream React/Tween/Canvasfixtures; Lua stack unchanged across execution, errors and reset."
+        },
+        {
+          "path": "tests/ReactRuntimeTests.luau",
+          "line": 358,
+          "checks": "Roots zero, cleanup once, stale callbacks suppressed; reset also cleans after a failing Destroy callback."
+        },
+        {
+          "path": "tests/TweenServiceTests.luau",
+          "line": 468,
+          "checks": "Reset releases active tweens, pending completions/listeners; capacity usable again."
+        }
+      ],
+      "limit": "Logical root/event/listener cleanup does not establish every native allocation was freed."
+    },
+    {
+      "target": "engine_gameplay_state_tests",
+      "sources": [
+        {
+          "path": "tests/GameplayStateTests.cpp",
+          "line": 1058,
+          "checks": "Bounded gradient/text stress and16-bit drawlist vertex limits; cleanup/reset."
+        },
+        {
+          "path": "tests/GameplayStateTests.cpp",
+          "line": 1617,
+          "checks": "ImGui window/table/font/style/ID scope restoration."
+        }
+      ],
+      "limit": "Headless nativeUI state checks; Linux memory harness excludes this GPU/editor target."
+    }
+  ],
+  "recommendedProofPlan": [
+    {
+      "step": 1,
+      "scope": "WindowsCLion functional/stability evidence",
+      "action": "Use existing CLionCMake and rebuild relevant Debug targets before CTest. Capture terminal output, executable timestamps and test count. Serialize configure/build within the same tree.",
+      "commands": [
+        "& \"C:/Users/rocco/AppData/Local/Programs/CLion/bin/cmake/win/x64/bin/cmake.exe\" --build C:/tge/clion-vs2022b-rel --config Debug --target engine_scripting_tests engine_react_runtime_tests engine_gameplay_state_tests --parallel 2",
+        "& \"C:/Users/rocco/AppData/Local/Programs/CLion/bin/cmake/win/x64/bin/ctest.exe\" --test-dir C:/tge/clion-vs2022b-rel -C Debug -R \"^engine_(scripting|react_runtime|gameplay_state)_tests$\" --repeat until-fail:5 --output-on-failure --output-log docs/lab2/defense/ctest-memory-repeat.log"
+      ],
+      "evidenceClaim": "Only the checked contracts/scenarios completed without detected failures. Repetition of processes does not itself reveal in-process cumulative leaks."
+    },
+    {
+      "step": 2,
+      "scope": "NativeWindows process/VM trend",
+      "action": "Run the same Releaseapp/scene and fixed viewport. Warmup5 Play/Stop cycles, then20 identical cycles; record VM memory in Script Tools at the same point per cycle and process PrivateBytes/WorkingSet/handles. Select the exact appPID, excludeCLion.exe/Codex subprocesses. Preserve raw samples and any outlier.",
+      "readOnlySampleCommandTemplate": "$defenseProcess = Get-Process -Id <verified-app-PID>\n$defenseProcess.Refresh()\n$defenseProcess | Select-Object Id,PrivateMemorySize64,WorkingSet64,HandleCount,StartTime",
+      "evidenceClaim": "Describe measured trend, peak and cleanup behavior. Warm caches, GC, allocator retention and resident-page changes can cause bounded growth; stable counters alone do not prove leak absence.",
+      "executedByThisInvestigation": false
+    },
+    {
+      "step": 3,
+      "scope": "LinuxWSL genuine sanitizer test",
+      "action": "Completed isolatedGCC13ASan/LSan/UBSan check; reproduction must use a NEW empty output directory to preserve original evidence.",
+      "command": "wsl.exe --distribution Ubuntu-24.04 --exec python3 /mnt/c/Users/rocco/CLionProjects/TurboGameEngine/tools/verify_lab2_memory/run.py --deps /mnt/c/tge/profile/_deps --build /tmp/tge-lab2-memory-20261016 --output /mnt/c/Users/rocco/CLionProjects/TurboGameEngine/docs/lab2/defense/memory-linux/next-run --repeat 5 --jobs 2",
+      "resultReference": "memory-linux/post-fix/summary.json",
+      "evidenceClaim": "A successful result means no ASan/LSan/UBSan diagnostics in the tested LinuxCPU paths, under the recorded options."
+    },
+    {
+      "step": 4,
+      "scope": "Optional nativeWindows deeper heap diagnosis",
+      "action": "Only if actual native process growth needs attribution: use a separate Debug diagnostic scope with CRT checkpoints after warmup and after all owned objects/jobs are destroyed, or a separately instrumented MSVCASan build for invalid accesses. Existing Debug flags /RTC1 and /INCREMENTAL conflict with ASan and require an isolated configuration. No such changes were made here.",
+      "evidenceClaim": "CRT scope results depend on the allocation paths and teardown boundary. ASan is not a Windows leak detector."
+    }
+  ],
+  "officialSources": [
+    {
+      "id": "clionProfiler2026_1",
+      "url": "https://www.jetbrains.com/help/clion/2026.1/cpu-profiler.html",
+      "retrievedDate": "2026-10-16",
+      "facts": [
+        "Built-in CPU capture uses perf on Linux and DTrace on macOS. Remote capture host is Linux; WSL requires WSL2/perf.",
+        "Import/export on other platforms is not native Windows collection. CPU stacks/time are not heap leak attribution."
+      ]
+    },
+    {
+      "id": "clionValgrind2026_1",
+      "url": "https://www.jetbrains.com/help/clion/2026.1/memory-profiling-with-valgrind.html",
+      "retrievedDate": "2026-10-16",
+      "facts": [
+        "Valgrind integration supports Linux/macOS and Windows using WSL. A WSL toolchain/profile builds a Linux target. Native Windows PE executables are not covered by that statement."
+      ]
+    },
+    {
+      "id": "clionSanitizers2026_1",
+      "url": "https://www.jetbrains.com/help/clion/2026.1/google-sanitizers.html",
+      "retrievedDate": "2026-10-16",
+      "facts": [
+        "CLion integrates sanitizer output, but compiler/platform support determines availability. Windows recipe documents clang-cl under MSVC; instrumentation requires a rebuild.",
+        "The generic detect_leaks option must not be interpreted as Windows LSan support."
+      ]
+    },
+    {
+      "id": "msvcAsan",
+      "url": "https://learn.microsoft.com/en-us/cpp/sanitizers/asan?view=msvc-170",
+      "retrievedDate": "2026-10-16",
+      "facts": [
+        "MSVC supports /fsanitize=address on Windowsx86/x64. It diagnoses classes of invalid accesses, mismatched frees, overflows and use-after-free.",
+        "MSVC documentation lists leak/thread/memory sanitizers as unsupported future directions; clean ASan output is not a leak-free certificate."
+      ]
+    },
+    {
+      "id": "msvcAsanLimits",
+      "url": "https://learn.microsoft.com/en-us/cpp/sanitizers/asan-known-issues?view=msvc-170",
+      "retrievedDate": "2026-10-16",
+      "facts": [
+        "Disable /RTC, incremental linking and Edit-and-Continue for ASan. Partially instrumented modules reduce coverage.",
+        "ASan retains memory during execution and reserves shadow address space, so OS process growth during ASan runs is not directly comparable to a normal build."
+      ]
+    },
+    {
+      "id": "crtDebugHeap",
+      "url": "https://learn.microsoft.com/en-us/cpp/c-runtime-library/find-memory-leaks-using-the-crt-library?view=msvc-170",
+      "retrievedDate": "2026-10-16",
+      "facts": [
+        "Debug CRT offers _CrtDumpMemoryLeaks and scoped _CrtMemCheckpoint/_CrtMemDifference. Debug heap records standard CRT allocation paths; Release uses ordinary malloc/free.",
+        "Reports can include library allocations whose destructors have not yet run. Scope and teardown timing matter; GPU allocations and arbitrary custom heaps are not universally covered."
+      ]
+    },
+    {
+      "id": "clangLsan",
+      "url": "https://clang.llvm.org/docs/LeakSanitizer.html",
+      "retrievedDate": "2026-10-16",
+      "facts": [
+        "Supported platforms include Linux; Windows is absent. LSan checks for unreachable leaks near process exit, standalone or with ASan."
+      ]
+    },
+    {
+      "id": "gcc13Sanitizers",
+      "url": "https://gcc.gnu.org/onlinedocs/gcc-13.3.0/gcc/Instrumentation-Options.html",
+      "retrievedDate": "2026-10-16",
+      "facts": [
+        "-fsanitize=address instruments invalid accesses; -fsanitize=leak links allocation interception; -fsanitize=undefined checks selected undefined behavior. Runtime options control diagnostics."
+      ]
+    },
+    {
+      "id": "processPrivateBytes",
+      "url": "https://learn.microsoft.com/en-us/dotnet/api/system.diagnostics.process.privatememorysize64?view=net-9.0",
+      "retrievedDate": "2026-10-16",
+      "facts": [
+        "PrivateMemorySize64 reports process memory not shareable with other processes and corresponds to Private Bytes. Refresh the Process object before sampling."
+      ]
+    },
+    {
+      "id": "processWorkingSet",
+      "url": "https://learn.microsoft.com/en-us/dotnet/api/system.diagnostics.process.workingset64?view=net-9.0",
+      "retrievedDate": "2026-10-16",
+      "facts": [
+        "WorkingSet64 is resident physical memory, including shared and private pages. It is not the amount of live heap allocations."
+      ]
+    },
+    {
+      "id": "clionMemoryIndicator",
+      "url": "https://www.jetbrains.com/help/clion/increasing-memory-heap.html",
+      "retrievedDate": "2026-10-16",
+      "facts": [
+        "CLion status-bar memory indicator and -Xmx concern the IDE JVM heap, not the engine process."
+      ]
+    },
+    {
+      "id": "clionMemoryView",
+      "url": "https://www.jetbrains.com/help/clion/memory-view.html",
+      "retrievedDate": "2026-10-16",
+      "facts": [
+        "Debugger Memory View displays bytes at selected addresses and highlights changes. It does not enumerate ownership leaks."
+      ]
+    }
+  ],
+  "verificationStatus": {
+    "readOnlyResearch": "complete",
+    "windowsNativeHeapLeakRun": "notperformed",
+    "linuxSanitizerRun": "passed_exercised_paths:11successfulprocessruns, including2x120sameVMcycles; see memory-linux/post-fix/results-brief.json",
+    "runnerEvidenceProtection": "Validated: attempting to reuse post-fix output was rejected before any build/run. Existing evidence preserved."
+  },
+  "conclusionPolicy": "Report exact tested platform/configuration, scenario count, metrics and diagnostics. Never replace no findings in these scenarios with engine-wide no leaks."
+}

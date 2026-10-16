@@ -1,0 +1,175 @@
+{
+  "schemaVersion": 1,
+  "generatedUtc": "2026-10-16T12:45:12.289377+00:00",
+  "status": "passed_exercised_paths_with_clion_toolchain_limit",
+  "windowsTests": {
+    "passed": true,
+    "count": 19,
+    "seconds": 35.12,
+    "log": "ctest-final.log",
+    "sha256": "258405629dcf5f3f864e6c88554a33737eab8417a686ebec4875b2863d1884f1"
+  },
+  "releaseBuild": {
+    "passed": true,
+    "log": "release-build.log",
+    "app": "C:\\tge\\profile\\Release\\app.exe",
+    "appSha256": "3aa5e325e85fff0ff5dc16e074dd4adc69065dc136efd47758bb05e3f0d36cba"
+  },
+  "nativePresentation": {
+    "passed": true,
+    "checks": [
+      "quiz 3/3",
+      "3 real ECS prefabs",
+      "Transform write/read",
+      "3D scene",
+      "disk reload A to B",
+      "counter=1, Init=1, OnReload=1",
+      "three keys",
+      "clean shutdown"
+    ],
+    "log": "native-game-corrected.log",
+    "initialBinarySha256": "23dd0699fbaa8d370b2fa54a57774c106e146c084f81de32c2f60ecacee765b5",
+    "note": "Full three-key UI pass preceded the isolated ECS fix; post-fix binary is exercised by native soak and final project smoke."
+  },
+  "clion": {
+    "version": "2026.1",
+    "attempted": true,
+    "captureSucceeded": false,
+    "error": "Perf profiler is not available for selected toolchain",
+    "evidence": "evidence/clion-profiler-unavailable.jpg",
+    "globalToolchainChanges": false
+  },
+  "nativeCollectathon": {
+    "passed": true,
+    "log": "collectathon-native.log",
+    "evidence": "evidence/collectathon-native.jpg",
+    "scope": "Post-fix Release scene/HUD render and timed clean shutdown. Native movement/pickup not replayed in this GUI smoke."
+  },
+  "originalWindowsFailure": {
+    "startedUtc": "2026-10-16T12:21:15.227142+00:00",
+    "app": "C:\\tge\\profile\\Release\\app.exe",
+    "appSha256": "23dd0699fbaa8d370b2fa54a57774c106e146c084f81de32c2f60ecacee765b5",
+    "configuration": "Release / D3D12 / 1280x720 / vsync",
+    "requestedSeconds": 300,
+    "elapsedSeconds": 304.156,
+    "exitCode": 0,
+    "samples": 304,
+    "spawnResetCycles": 0,
+    "reloadRequests": 29,
+    "appliedReloadCallbacks": 0,
+    "postWarmupPrivateMiBPerMinute": 12.679397401231224,
+    "postWarmupPrivateMiBRange": [
+      571.96875,
+      695.234375
+    ],
+    "handleRange": [
+      410,
+      766
+    ],
+    "complete": true,
+    "limits": "Windows process counters do not identify native/GPU leaks. A bounded run cannot prove that all engine paths are leak-free.",
+    "actualScriptErrors": 9371,
+    "actualOomErrors": 9340,
+    "actualReloadBatches": 15,
+    "scriptPrintCountersReliable": false,
+    "passedExercisedScenario": false
+  },
+  "postFixWindows": {
+    "startedUtc": "2026-10-16T12:37:22.346961+00:00",
+    "app": "C:\\tge\\profile\\Release\\app.exe",
+    "appSha256": "3aa5e325e85fff0ff5dc16e074dd4adc69065dc136efd47758bb05e3f0d36cba",
+    "configuration": "Release / D3D12 / 1280x720 / vsync",
+    "requestedSeconds": 300,
+    "elapsedSeconds": 303.141,
+    "exitCode": 0,
+    "samples": 303,
+    "spawnResetIntervalSeconds": 3,
+    "reloadRequests": 29,
+    "appliedReloadBatches": 30,
+    "scriptErrorLines": 0,
+    "outOfMemoryErrors": 0,
+    "scriptPrintCounters": "Print is retained in the editor Output, not stdout; no cycle/callback counts are inferred from it.",
+    "postWarmupPrivateMiBPerMinute": 0.21857797156584666,
+    "postWarmupPrivateMiBRange": [
+      628.54296875,
+      630.03125
+    ],
+    "handleRange": [
+      734,
+      751
+    ],
+    "complete": true,
+    "limits": "Windows process counters do not identify native/GPU leaks. A bounded run cannot prove that all engine paths are leak-free.",
+    "actualScriptErrors": 0,
+    "actualOomErrors": 0,
+    "actualReloadBatches": 30,
+    "scriptPrintCountersReliable": false,
+    "sampledEntityRange": [
+      5,
+      18
+    ],
+    "sampledLuauMiBRange": [
+      3.14,
+      7.65
+    ],
+    "passedExercisedScenario": true
+  },
+  "linuxSanitizers": {
+    "passed": true,
+    "runs": 11,
+    "sanitizers": [
+      "address",
+      "leak",
+      "undefined"
+    ],
+    "summary": "memory-linux/post-fix/summary.json",
+    "instrumentation": "memory-linux/post-fix/instrumentation.json",
+    "suppressions": [],
+    "testAdaptations": [
+      "React test driver copy sets general batch callback budget1000ms for sanitizer overhead; explicit hostile-callback5ms check is unchanged. Original engine/tests are not edited.",
+      "Byte-identical scripts/prefabs copied to Linux-local storage to avoid WSL NTFS latency."
+    ],
+    "phases": [
+      {
+        "phase": "normal_gc_pacing",
+        "cycles": 120,
+        "passed": true,
+        "forcedGcDuringCycles": false,
+        "baselineVmBytes": 3476060,
+        "endBeforeGcVmBytes": 6814692,
+        "endAfterGcVmBytes": 3527060,
+        "stopRoots": 0,
+        "stopEvents": 0,
+        "shutdownVmBytes": 0
+      },
+      {
+        "phase": "full_gc_each_cycle",
+        "cycles": 120,
+        "passed": true,
+        "forcedGcDuringCycles": true,
+        "baselineVmBytes": 3476060,
+        "endBeforeGcVmBytes": 3739396,
+        "endAfterGcVmBytes": 3739396,
+        "stopRoots": 0,
+        "stopEvents": 0,
+        "shutdownVmBytes": 0
+      }
+    ]
+  },
+  "limits": [
+    "CPU headless Linux sanitizers do not instrument the Windows D3D12 binary or GPU/driver.",
+    "Finite exercised scenarios do not prove all engine paths free of leaks or races.",
+    "Reachable retention during a session is checked separately from LSan exit-time leaks.",
+    "Windows counters are process observations, not heap allocation stacks.",
+    "No CLion CPU/Valgrind capture was produced; the installed Windows toolchain is unsupported."
+  ],
+  "memoryShort": "19/19 тестов\n240 lifecycle-циклов\n300 с native soak\nбез ошибок в проверенных путях",
+  "reportParagraphs": [
+    "Повторный Windows CTest после исправления: 19/19 PASS за 35.12 с. Новый regression использует настоящие prefab и React HUD, проверяет число сущностей/UI roots и невалидность старого handle. Оптимизированный app пересобран; SHA-256 указан в verification.json.",
+    "Windows после fix: 303.1 с, exit=0; ошибок Luau 0, применённых reload batches 30. Диапазон Luau по секундным samples [3.14, 7.65] MiB; диапазон сущностей [5, 18]. После прогрева Private Bytes: 628.54-630.03 MiB; линейный тренд 0.219 MiB/min. Это наблюдения сценария, не универсальный тест отсутствия утечек.",
+    "Linux ASan/LSan/UBSan: 11/11 успешных процессов: scripting 5 раз, React 5 раз и same-VM lifecycle с двумя фазами по 120 циклов. Диагностик sanitizer нет, suppressions нет. В normal-GC фазе live world/root counts ограничены; перед принудительным GC 6,814,692 bytes, после 3,527,060 bytes при baseline 3,476,060 bytes. После Stop/reset roots=0, events=0; после shutdown VM=0 в обеих фазах.",
+    "Для инструментированной React test-copy общий batch watchdog увеличен до 1000 ms из-за sanitizer overhead; оригинальный production guard не менялся, отдельный тест 5 ms сохранён. Byte-identical assets скопированы на Linux FS, чтобы WSL NTFS I/O не расходовало watchdog. Исходные неуспешные попытки с неизменённым timing сохранены в memory-linux/ и local-assets/.",
+    "Native-презентация прошла квиз, реальный prefab/Transform и disk reload с counter=1, Init=1, OnReload=1; скриншоты в evidence/. Первоначальная ошибка require без .luau исправлена, headless loader теперь проверяет точные имена. Файлы правил возвращены к A после проверки.",
+    "CLion Profile app был действительно запущен, но capture недоступен для текущего Windows/MSVC toolchain. Это точный блокер запрошенного CLion-профиля; альтернативные прогоны не называются результатом CLion. Настройки IDE и системные пакеты не менялись."
+  ]
+}

@@ -8,10 +8,21 @@
 #include "engine/core/JobSystem.h"
 #include "engine/ecs/components.h"
 #include "engine/ecs/transform_batch.h"
+#include "engine/ecs/frustum.h"
+#include <glm/ext/matrix_clip_space.hpp>
+#include <glm/ext/matrix_transform.hpp>
 #include "engine/ecs/transform_utils.h"
 #include "engine/ecs/world.h"
 
 int main() {
+    const auto projection = glm::perspectiveRH_ZO(glm::radians(60.0F), 16.0F/9.0F, 0.1F, 100.0F);
+    const auto boxVisible = [&](const glm::vec3& center, const glm::vec3& halfExtent = glm::vec3(0.5F)) {
+        return engine::ecs::intersectsFrustum(projection, center-halfExtent, center+halfExtent);
+    };
+    if (!boxVisible({0,0,-3}) || boxVisible({0,0,3}) || boxVisible({100,0,-3}) || boxVisible({0,0,-200}) ||
+        !boxVisible({0,0,0}, {2,2,2}) || !boxVisible({0,0,-110}, {30,30,30})) {
+        std::cerr << "Conservative frustum culling failed\n"; return EXIT_FAILURE;
+    }
     engine::ecs::World world;
     engine::core::JobSystem jobs(true, 3U);
     const auto root = world.createEntity();

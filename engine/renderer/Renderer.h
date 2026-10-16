@@ -5,6 +5,7 @@
 #include <functional>
 #include <memory>
 #include <string>
+#include <string_view>
 #include <chrono>
 #include <unordered_map>
 #include <vector>
@@ -39,7 +40,11 @@ namespace Diligent {
 class ImGuiImplDiligent;
 } // namespace Diligent
 
+struct ImDrawList;
+
 namespace engine::renderer {
+
+class UiCanvasCompositor;
 
 using AssetLoadingStats = resources::AssetLoadingStats;
 
@@ -49,7 +54,11 @@ struct ImGuiImplDiligentDeleter final {
 
 class Renderer final {
 public:
-    Renderer() = default;
+    struct UiImage final {
+        void* textureId{nullptr};
+        float width{0}, height{0};
+    };
+    Renderer();
     ~Renderer();
 
     bool init(
@@ -96,7 +105,18 @@ public:
         const std::string& fragmentPath);
     std::shared_ptr<resources::Mesh> loadMesh(const std::string& path);
     std::shared_ptr<resources::Texture> loadTexture(const std::string& path);
+    // Project-local asynchronous UI images. Keeps borrowed views alive through
+    // submission, deduplicates aliases, and bounds requests/cache growth.
+    UiImage resolveUiImage(std::string_view image);
+    // Host-only built-in editor assets, independent of the open project's root.
+    UiImage resolveEditorIcon(std::string_view image);
+    UiImage resolveUiCanvas(const void* key, const ImDrawList& list,
+                           float x, float y, float width, float height);
     std::shared_ptr<resources::ShaderProgram> loadShaderProgram(const std::string& path);
+    // Empty selects the engine's legacy assets. Project paths are resolved before
+    // cache lookup and worker dispatch; only known built-in assets may fall back.
+    void setProjectAssetRoot(std::filesystem::path assetsRoot);
+    [[nodiscard]] std::string resolveResourcePath(const std::string& id) const;
     // The shared scheduler must outlive the renderer. Configure before init().
     void setJobSystem(core::JobSystem* jobs);
     void setAsyncLoadingEnabled(bool enabled);
@@ -114,6 +134,7 @@ public:
 
 private:
     struct FrameContext final {
+        std::vector<std::shared_ptr<resources::Texture>> uiImages;
         std::unique_ptr<rhi::ICommandBuffer> commandBuffer;
         std::unique_ptr<rhi::IFence> inFlight;
         std::unique_ptr<rhi::ISemaphore> imageAvailable;
@@ -131,6 +152,26 @@ private:
     std::unique_ptr<rhi::IGraphicsPipeline> m_primitivePipeline;
     std::unique_ptr<rhi::IBuffer> m_primitiveVertexBuffer;
     resources::ResourceManager m_resourceManager;
+    std::filesystem::path m_engineAssetRoot;
+    std::filesystem::path m_projectAssetRoot;
+    struct UiImageEntry final {
+        std::shared_ptr<resources::Texture> texture;
+        std::shared_ptr<resources::Texture> pending;
+        std::uint64_t lastUsedFrame{0};
+        std::uint64_t reservedBytes{0};
+        std::uint64_t pendingBytes{0};
+        std::filesystem::file_time_type fileStamp{};
+        std::chrono::steady_clock::time_point nextPoll{};
+    };
+    std::unordered_map<std::string, UiImageEntry> m_uiImages;
+    std::unordered_map<std::string, std::string> m_uiImageAliases;
+    std::unordered_map<std::string, std::string> m_uiImagePaths;
+    std::unordered_map<std::string, std::string> m_editorIconPaths;
+    std::chrono::steady_clock::time_point m_uiAliasNextPoll{};
+    std::filesystem::file_time_type m_uiAliasWriteTime{};
+    std::uint64_t m_uiImageFrame{0};
+    unsigned m_uiImageRequests{0};
+    bool m_uiImageAliasesLoaded{false};
     std::shared_ptr<resources::Mesh> m_placeholderMesh;
     std::shared_ptr<resources::Mesh> m_unitCubeMesh;
     std::shared_ptr<resources::Mesh> m_unitPyramidMesh;
@@ -141,6 +182,7 @@ private:
     std::size_t m_currentFrameIndex{0};
     rhi::ICommandBuffer* m_activeCommandBuffer{nullptr};
     std::unique_ptr<Diligent::ImGuiImplDiligent, ImGuiImplDiligentDeleter> m_imgui;
+    std::unique_ptr<UiCanvasCompositor> m_uiCanvases;
     bool m_imguiFrameOpen{false};
     struct ShaderHotReloadEntry final {
         std::weak_ptr<resources::ShaderProgram> program;
@@ -170,6 +212,9 @@ private:
     bool initializePrimitivePipeline();
     bool initializeResourceSubsystem();
     bool initializeImGui();
+    void loadUiImageAliases();
+    UiImage resolveUiImagePath(const std::string& path);
+    bool reserveUiImageBytes(std::uint64_t bytes, const std::string& protectedKey, bool newEntry);
     std::shared_ptr<resources::Mesh> requestMeshLoadFromDisk(const std::string& path);
     std::shared_ptr<resources::Texture> requestTextureLoadFromDisk(const std::string& path);
     std::shared_ptr<resources::ShaderProgram> requestShaderProgramLoadFromManifest(const std::string& path);
@@ -189,6 +234,8 @@ private:
         const std::shared_ptr<resources::ShaderProgram>& program,
         const resources::ShaderProgramSource& source);
     bool reloadShaderInPlace(resources::ShaderProgram& program, const resources::ShaderProgramSource& source);
+    std::filesystem::path shaderAssetRoot(const std::string& descriptor) const;
+    bool resolveShaderSources(resources::ShaderProgramSource& source, std::string* error) const;
 };
 
 } // namespace engine::renderer

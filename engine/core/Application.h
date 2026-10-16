@@ -3,12 +3,15 @@
 #include <cstdint>
 #include <filesystem>
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 
 #include "engine/core/Config.h"
 #include "engine/core/JobSystem.h"
 #include "engine/core/LabOptions.h"
+#include "engine/core/ProjectManager.h"
+#include "engine/core/PlaySession.h"
 #include "engine/game/StateStack.h"
 #include "engine/renderer/Renderer.h"
 #include "engine/rhi/Types.h"
@@ -23,12 +26,13 @@ class Mesh;
 class ShaderProgram;
 class Texture;
 } // namespace engine::resources
+namespace engine::editor { class ProjectLauncher; }
 
 namespace engine::core {
 
 class Application final {
 public:
-    explicit Application(rhi::BackendType backend);
+    explicit Application(rhi::BackendType backend, std::optional<PlayLaunch> standalone = {});
     ~Application();
 
     bool init();
@@ -52,6 +56,7 @@ private:
     };
 
     void onEvent(const platform::Event& event);
+    void applyProjectSelection();
     void renderWorkspace(double frameDtSeconds);
     void renderWorkspaceUi(double frameDtSeconds);
     void renderTutorial01HelloTriangle();
@@ -66,11 +71,20 @@ private:
     rhi::BackendType m_backend;
     EngineConfig m_config{};
     LabOptions m_labOptions{};
+    std::optional<PlayLaunch> m_standalone;
+    PlaySession m_playSession;
     // Services outlive renderer/state consumers. There is one scheduler for engine CPU jobs.
     JobSystem m_jobs{};
+    ProjectManager m_projects;
+    std::optional<Project> m_activeProject;
+    std::optional<Project> m_pendingProject;
+    bool m_projectSelectorVisible{true};
+    bool m_projectLaunchRequested{false};
+    bool m_projectSelectorRequested{false};
     std::unique_ptr<platform::Window> m_window;
     renderer::Renderer m_renderer;
     game::StateStack m_stateStack;
+    std::unique_ptr<editor::ProjectLauncher> m_projectLauncher;
     WorkspaceMode m_workspaceMode{WorkspaceMode::EngineStates};
     bool m_showImGuiDemoWindow{true};
     double m_workspaceSampleTime{0.0};

@@ -1,0 +1,6 @@
+ЛР2: Лаборатория скриптов. Откройте Viewport; Left/Right переключают темы.
+ЛР2 OnReload: version=B, counter=2, Init=1
+ЛР2 OnReload: version=A, counter=3, Init=1
+ЛР2 OnReload: version=B, counter=3, Init=1
+Lab2 Defense: real upstream React mount/events/hooks, navigation, quiz and callback logic passed. Native Engine API was a test double.
+Project manifest, unique scene IDs, prefab and project-local paths passed.

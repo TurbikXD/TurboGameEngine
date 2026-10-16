@@ -1,0 +1,158 @@
+"""Build and repeat the unchanged engine Luau/React tests under Linux sanitizers.
+
+No downloads, installs, suppressions, IDE changes or production source edits.
+"""
+from __future__ import annotations
+
+import argparse
+import datetime as dt
+import hashlib
+import json
+import os
+from pathlib import Path
+import platform
+import shutil
+import subprocess
+import time
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--deps", type=Path, required=True)
+    parser.add_argument("--build", type=Path, required=True)
+    parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--repeat", type=int, default=5)
+    parser.add_argument("--jobs", type=int, default=2)
+    args = parser.parse_args()
+    if platform.system() != "Linux":
+        parser.error("Run inside Linux/WSL, not against the Windows executables")
+    if not 1 <= args.repeat <= 10 or not 1 <= args.jobs <= 8:
+        parser.error("repeat must be1..10 and jobs1..8")
+    root = Path(__file__).resolve().parents[2]
+    build = args.build.resolve()
+    output = args.output.resolve()
+    if build == root or root in build.parents:
+        parser.error("Use an isolated build outside the production checkout")
+    if output.exists() and any(output.iterdir()):
+        parser.error("Output must be new or empty; existing diagnostic evidence is never overwritten")
+    build.mkdir(parents=True, exist_ok=True)
+    output.mkdir(parents=True, exist_ok=True)
+    # WSL's /mnt/c file latency can consume the production 100ms callback guard
+    # while a behavior reads twelve prefabs. Use byte-identical Linux-local
+    # scripting assets without weakening or changing the tested guard.
+    asset_root = build / ("test-assets-" + output.name)
+    workdir = build / ("runtime-" + output.name)
+    for directory in ["scripts", "prefabs"]:
+        shutil.copytree(root / "assets" / directory, asset_root / directory,
+                        dirs_exist_ok=True)
+    # Explicitly replace inherited sanitizer options. In particular, no inherited
+    # suppression file or disabled leak checks may weaken this run.
+    sanitizer_options = {
+        "ASAN_OPTIONS": "detect_leaks=1:halt_on_error=1:symbolize=1",
+        "LSAN_OPTIONS": "exitcode=23:report_objects=1",
+        "UBSAN_OPTIONS": "halt_on_error=1:print_stacktrace=1",
+    }
+    environment = dict(os.environ, **sanitizer_options)
+    sources = ["tests/ScriptingSystemTests.cpp", "tests/ReactRuntimeTests.cpp",
+               "tests/ReactRuntimeTests.luau", "tests/TweenServiceTests.luau",
+               "tests/CanvasGroupTests.luau", "engine/core/JobSystem.cpp",
+               "engine/core/LiveFileWatcher.cpp", "engine/core/Log.cpp",
+               "engine/ecs/world.cpp", "engine/platform/Input.cpp",
+               "engine/scripting/ScriptingSystem.cpp", "engine/scripting/react/ReactRuntime.cpp",
+               "third_party/react-luau/manifest.tsv",
+               "tools/verify_lab2_memory/CMakeLists.txt", "tools/verify_lab2_memory/run.py",
+               "tools/verify_lab2_memory/MemoryLifecycle.cpp"]
+    summary = {
+        "schemaVersion": 1, "startedUtc": dt.datetime.now(dt.timezone.utc).isoformat(),
+        "platform": platform.platform(), "scope": "Linux CPU headless Luau/React engine tests",
+        "sourceRoot": str(root), "dependencyRoot": str(args.deps.resolve()),
+        "buildDirectory": str(build), "sanitizerOptions": sanitizer_options,
+        "testAssetRoot": str(asset_root), "runtimeDirectory": str(workdir),
+        "assetSnapshotSha256": {str(path.relative_to(asset_root)):
+            hashlib.sha256(path.read_bytes()).hexdigest()
+            for path in sorted(asset_root.rglob("*")) if path.is_file()},
+        "suppressionFiles": [], "repeatRequestedPerTest": args.repeat,
+        "testAdaptations": ["React test driver copy sets general batch callback budget1000ms for sanitizer overhead; explicit hostile-callback5ms check is unchanged. Original engine/tests are not edited.",
+                            "Byte-identical scripts/prefabs copied to Linux-local storage to avoid WSL NTFS latency."],
+        "sourceSha256": {name: hashlib.sha256((root / name).read_bytes()).hexdigest() for name in sources},
+        "commands": [], "runs": [], "status": "in_progress",
+        "limits": ["Not Windows D3D12/editor/GPU coverage or CLion Profiler output.",
+                   "A clean run only describes exercised paths and sanitizer detection limits."]}
+
+    def save() -> None:
+        (output / "summary.json").write_text(json.dumps(summary, indent=2) + "\n")
+
+    def command(argv: list[str], log: str, cwd: Path, timeout: int) -> dict:
+        record = {"argv": argv, "cwd": str(cwd), "log": log}
+        summary["commands"].append(record)
+        save()
+        print("Running " + log, flush=True)
+        started = time.monotonic()
+        with (output / log).open("w", encoding="utf-8") as stream:
+            try:
+                process = subprocess.run(argv, cwd=cwd, env=environment, stdout=stream,
+                                         stderr=subprocess.STDOUT, timeout=timeout, check=False)
+                record["exitCode"] = process.returncode
+            except subprocess.TimeoutExpired:
+                record["exitCode"] = None
+                record["timeoutSeconds"] = timeout
+        record["elapsedSeconds"] = round(time.monotonic() - started, 3)
+        save()
+        return record
+
+    save()
+    for argv, log in [(["cmake", "-S", str(root / "tools/verify_lab2_memory"), "-B", str(build),
+                       "-DCMAKE_BUILD_TYPE=Debug", "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON",
+                       "-DTGE_TEST_ASSET_ROOT=" + str(asset_root),
+                       "-DTGE_MEMORY_WORKDIR=" + str(workdir),
+                       "-DTGE_DEPENDENCY_ROOT=" + str(args.deps.resolve())], "configure.log"),
+                      (["cmake", "--build", str(build), "--target", "lab2_scripting_memory",
+                        "lab2_react_memory", "lab2_lifecycle_memory", "--parallel", str(args.jobs)], "build.log")]:
+        record = command(argv, log, root, 1200)
+        if record.get("exitCode") != 0:
+            summary["status"] = "configure_or_build_failed"
+            save()
+            return 1
+    # First run each real harness; repeat only after both initial runs pass.
+    for iteration in range(1, args.repeat + 1):
+        failed = False
+        for target in ["lab2_scripting_memory", "lab2_react_memory"]:
+            log = f"{target}-{iteration:02d}.log"
+            record = command([str(build / target)], log, workdir, 120)
+            result = {"test": target, "iteration": iteration, **record}
+            text = (output / log).read_text(errors="replace")
+            result["sanitizerDiagnosticFound"] = any(marker in text for marker in
+                ["ERROR: AddressSanitizer", "ERROR: LeakSanitizer", "runtime error:", "AddressSanitizer:DEADLYSIGNAL"])
+            summary["runs"].append(result)
+            if record.get("exitCode") != 0 or result["sanitizerDiagnosticFound"]:
+                summary["status"] = "test_or_sanitizer_failed"
+                save()
+                print(f"Failed: {log}; see {output / 'summary.json'}", flush=True)
+                failed = True
+        if failed:
+            return 1
+    log = "lab2_lifecycle_memory.log"
+    record = command([str(build / "lab2_lifecycle_memory")], log, workdir, 300)
+    text = (output / log).read_text(errors="replace")
+    diagnostic = any(marker in text for marker in ["ERROR: AddressSanitizer", "ERROR: LeakSanitizer",
+                                                 "runtime error:", "AddressSanitizer:DEADLYSIGNAL"])
+    summary["runs"].append({"test": "lab2_lifecycle_memory", **record,
+                            "sanitizerDiagnosticFound": diagnostic})
+    for line in text.splitlines():
+        if line.startswith("MEMORY_SUMMARY "):
+            lifecycle = json.loads(line.removeprefix("MEMORY_SUMMARY "))
+            (output / "lifecycle.json").write_text(json.dumps(lifecycle, indent=2) + "\n")
+            summary["lifecycleResult"] = "lifecycle.json"
+    if record.get("exitCode") != 0 or diagnostic:
+        summary["status"] = "lifecycle_or_sanitizer_failed"
+        save()
+        return 1
+    summary["status"] = "passed_exercised_paths"
+    summary["completedUtc"] = dt.datetime.now(dt.timezone.utc).isoformat()
+    save()
+    print(f"Passed {len(summary['runs'])} runs; evidence: {output / 'summary.json'}", flush=True)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

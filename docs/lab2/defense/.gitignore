@@ -1,0 +1,11 @@
+.build/
+.chart-data-*/
+memory-windows-*/fixture/
+
+# Publish the raw logs referenced by verification.json and memory-report.md.
+!/*.log
+!/memory-linux/*.log
+!/memory-linux/local-assets/*.log
+!/memory-linux/post-fix/*.log
+!/memory-windows-run1/runtime.log
+!/memory-windows-run2/runtime.log

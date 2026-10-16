@@ -65,6 +65,14 @@ __pycache__/
 .cache/
 reports/
 
+# Project-local reverse engineering tools and evidence
+tools/rea/node_modules/
+tools/rea/local/
+.codex/config.toml
+
 # OS files
 Thumbs.db
 .DS_Store
+
+# Local reference fonts are not distributable engine assets.
+/.local/editor-fonts/

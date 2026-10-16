@@ -35,6 +35,12 @@ KeyCode mapKey(int glfwKey) {
             return KeyCode::W;
         case GLFW_KEY_A:
             return KeyCode::A;
+        case GLFW_KEY_C:
+            return KeyCode::C;
+        case GLFW_KEY_V:
+            return KeyCode::V;
+        case GLFW_KEY_X:
+            return KeyCode::X;
         case GLFW_KEY_S:
             return KeyCode::S;
         case GLFW_KEY_D:

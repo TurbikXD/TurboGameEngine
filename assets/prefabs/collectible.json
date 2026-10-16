@@ -1,0 +1,17 @@
+{
+    "name": "ScriptToken",
+    "components": {
+        "tag": "ScriptToken",
+        "transform": { "position": [0, -1.2, 8], "scale": [0.55, 0.55, 0.55] },
+        "meshRenderer": {
+            "meshId": "__diligent_cube__",
+            "textureId": "assets/textures/arena_wall.ppm",
+            "shaderId": "assets/shaders_hlsl/textured.shader.json",
+            "tint": [1, 0.78, 0.05, 1]
+        },
+        "script": {
+            "path": "scripts/Collectible.luau",
+            "fields": { "bobSpeed": 2.5, "bobHeight": 0.12 }
+        }
+    }
+}

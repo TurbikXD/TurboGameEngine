@@ -1,4 +1,6 @@
 #include "engine/renderer/Renderer.h"
+#include "engine/renderer/UiCanvasCompositor.h"
+#include "engine/editor/EditorTheme.h"
 
 #include <algorithm>
 #include <array>
@@ -7,15 +9,27 @@
 #include <cstring>
 #include <exception>
 #include <filesystem>
+#include <fstream>
 #include <optional>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <system_error>
 #include <utility>
+
+#if defined(_WIN32)
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#elif defined(__APPLE__)
+#include <mach-o/dyld.h>
+#endif
 
 #include <glm/glm.hpp>
 #include <glm/ext/matrix_transform.hpp>
 #include <glm/gtc/constants.hpp>
+#include <nlohmann/json.hpp>
 
 #include "engine/core/Log.h"
 #include "engine/core/Profiling.h"
@@ -27,16 +41,67 @@
 #include "third_party/DiligentEngine/DiligentCore/Common/interface/GeometryPrimitives.h"
 #include "third_party/DiligentEngine/DiligentCore/Common/interface/RefCntAutoPtr.hpp"
 #include "third_party/DiligentEngine/DiligentCore/Graphics/GraphicsEngine/interface/SwapChain.h"
+#include "third_party/DiligentEngine/DiligentCore/Graphics/GraphicsEngine/interface/DeviceContext.h"
 #include "third_party/DiligentEngine/DiligentTools/Imgui/interface/ImGuiImplDiligent.hpp"
 #include "third_party/DiligentEngine/DiligentTools/ThirdParty/imgui/imgui.h"
 
 #ifndef ENGINE_SOURCE_ROOT
-#    define ENGINE_SOURCE_ROOT "."
+#    define ENGINE_SOURCE_ROOT ""
 #endif
 
 namespace engine::renderer {
 
 namespace {
+
+std::string utf8Path(const std::filesystem::path& path) {
+    const auto utf8 = path.generic_u8string();
+    return {utf8.begin(), utf8.end()};
+}
+
+bool containsPath(const std::filesystem::path& root, const std::filesystem::path& path) {
+    const auto relative = path.lexically_relative(root);
+    return !relative.empty() && !relative.is_absolute() && *relative.begin() != "..";
+}
+
+std::filesystem::path engineAssetsDirectory() {
+    const auto source = std::filesystem::u8path(ENGINE_SOURCE_ROOT);
+    std::error_code error;
+    if (!source.empty() && source.is_absolute() && std::filesystem::is_directory(source / "assets", error)) {
+        return std::filesystem::weakly_canonical(source / "assets");
+    }
+    std::filesystem::path executable;
+#if defined(_WIN32)
+    std::wstring buffer(32768, L'\0');
+    const DWORD length = GetModuleFileNameW(nullptr, buffer.data(), static_cast<DWORD>(buffer.size()));
+    if (length > 0 && length < buffer.size()) {
+        buffer.resize(length);
+        executable = std::filesystem::path(buffer);
+    }
+#elif defined(__linux__)
+    executable = std::filesystem::read_symlink("/proc/self/exe", error);
+#elif defined(__APPLE__)
+    std::uint32_t length = 0;
+    _NSGetExecutablePath(nullptr, &length);
+    std::string buffer(length, '\0');
+    if (_NSGetExecutablePath(buffer.data(), &length) == 0) { executable = buffer.c_str(); }
+#endif
+    if (executable.empty()) { throw std::runtime_error("Cannot locate engine assets beside the executable"); }
+    return std::filesystem::weakly_canonical(executable.parent_path() / "assets");
+}
+
+bool isBuiltinAsset(const std::filesystem::path& relative) {
+    constexpr std::array<std::string_view, 10> names{
+        "shaders_hlsl/basic.vert.hlsl", "shaders_hlsl/basic.frag.hlsl", "shaders_hlsl/basic.hlsl",
+        "shaders_hlsl/textured.vert.hlsl", "shaders_hlsl/textured.frag.hlsl", "shaders_hlsl/textured.shader.json",
+        "textures/arena_floor.ppm", "textures/arena_wall.ppm", "textures/DGLogo.png", "textures/checker.png"};
+    const auto name = utf8Path(relative);
+    return std::find(names.begin(), names.end(), name) != names.end();
+}
+
+bool isProceduralResource(const std::string& id) {
+    return id.starts_with("builtin:") || id == "__diligent_cube__" || id == "__procedural_pyramid__" ||
+        id == "__diligent_sphere__";
+}
 
 struct PrimitiveVertex final {
     glm::vec2 position;
@@ -64,11 +129,12 @@ std::filesystem::file_time_type getFileWriteTimeOrMin(const std::string& path) {
     }
 
     std::error_code ec;
-    if (!std::filesystem::exists(path, ec) || ec) {
+    const auto nativePath = std::filesystem::u8path(path);
+    if (!std::filesystem::exists(nativePath, ec) || ec) {
         return std::filesystem::file_time_type::min();
     }
 
-    const auto writeTime = std::filesystem::last_write_time(path, ec);
+    const auto writeTime = std::filesystem::last_write_time(nativePath, ec);
     if (ec) {
         return std::filesystem::file_time_type::min();
     }
@@ -105,6 +171,12 @@ std::optional<ImGuiKey> toImGuiKey(const platform::KeyCode key) {
             return ImGuiKey_W;
         case platform::KeyCode::A:
             return ImGuiKey_A;
+        case platform::KeyCode::C:
+            return ImGuiKey_C;
+        case platform::KeyCode::V:
+            return ImGuiKey_V;
+        case platform::KeyCode::X:
+            return ImGuiKey_X;
         case platform::KeyCode::S:
             return ImGuiKey_S;
         case platform::KeyCode::D:
@@ -183,101 +255,6 @@ int toImGuiMouseButton(const platform::MouseButton button) {
     }
 }
 
-void configureImGuiStyle() {
-    ImGuiStyle& style = ImGui::GetStyle();
-    style.WindowPadding = ImVec2(12.0F, 10.0F);
-    style.FramePadding = ImVec2(10.0F, 6.0F);
-    style.CellPadding = ImVec2(8.0F, 6.0F);
-    style.ItemSpacing = ImVec2(10.0F, 8.0F);
-    style.ItemInnerSpacing = ImVec2(8.0F, 6.0F);
-    style.IndentSpacing = 18.0F;
-    style.ScrollbarSize = 12.0F;
-    style.GrabMinSize = 10.0F;
-    style.WindowRounding = 8.0F;
-    style.ChildRounding = 8.0F;
-    style.FrameRounding = 6.0F;
-    style.PopupRounding = 6.0F;
-    style.ScrollbarRounding = 12.0F;
-    style.GrabRounding = 6.0F;
-    style.TabRounding = 6.0F;
-    style.WindowBorderSize = 1.0F;
-    style.ChildBorderSize = 1.0F;
-    style.FrameBorderSize = 1.0F;
-    style.PopupBorderSize = 1.0F;
-    style.WindowMenuButtonPosition = ImGuiDir_None;
-
-    ImVec4* colors = style.Colors;
-    colors[ImGuiCol_Text] = ImVec4(0.92F, 0.94F, 0.97F, 1.0F);
-    colors[ImGuiCol_TextDisabled] = ImVec4(0.52F, 0.57F, 0.64F, 1.0F);
-    colors[ImGuiCol_WindowBg] = ImVec4(0.09F, 0.11F, 0.14F, 0.98F);
-    colors[ImGuiCol_ChildBg] = ImVec4(0.11F, 0.13F, 0.17F, 0.94F);
-    colors[ImGuiCol_PopupBg] = ImVec4(0.11F, 0.13F, 0.17F, 0.98F);
-    colors[ImGuiCol_Border] = ImVec4(0.20F, 0.24F, 0.30F, 0.95F);
-    colors[ImGuiCol_BorderShadow] = ImVec4(0.0F, 0.0F, 0.0F, 0.0F);
-    colors[ImGuiCol_FrameBg] = ImVec4(0.13F, 0.16F, 0.20F, 1.0F);
-    colors[ImGuiCol_FrameBgHovered] = ImVec4(0.18F, 0.22F, 0.28F, 1.0F);
-    colors[ImGuiCol_FrameBgActive] = ImVec4(0.22F, 0.28F, 0.36F, 1.0F);
-    colors[ImGuiCol_TitleBg] = ImVec4(0.08F, 0.10F, 0.13F, 1.0F);
-    colors[ImGuiCol_TitleBgActive] = ImVec4(0.09F, 0.11F, 0.15F, 1.0F);
-    colors[ImGuiCol_MenuBarBg] = ImVec4(0.08F, 0.09F, 0.12F, 1.0F);
-    colors[ImGuiCol_ScrollbarBg] = ImVec4(0.08F, 0.09F, 0.11F, 1.0F);
-    colors[ImGuiCol_ScrollbarGrab] = ImVec4(0.24F, 0.29F, 0.37F, 1.0F);
-    colors[ImGuiCol_ScrollbarGrabHovered] = ImVec4(0.31F, 0.38F, 0.48F, 1.0F);
-    colors[ImGuiCol_ScrollbarGrabActive] = ImVec4(0.38F, 0.47F, 0.58F, 1.0F);
-    colors[ImGuiCol_CheckMark] = ImVec4(0.33F, 0.63F, 0.99F, 1.0F);
-    colors[ImGuiCol_SliderGrab] = ImVec4(0.27F, 0.56F, 0.94F, 1.0F);
-    colors[ImGuiCol_SliderGrabActive] = ImVec4(0.33F, 0.63F, 0.99F, 1.0F);
-    colors[ImGuiCol_Button] = ImVec4(0.15F, 0.19F, 0.24F, 1.0F);
-    colors[ImGuiCol_ButtonHovered] = ImVec4(0.20F, 0.28F, 0.40F, 1.0F);
-    colors[ImGuiCol_ButtonActive] = ImVec4(0.24F, 0.35F, 0.51F, 1.0F);
-    colors[ImGuiCol_Header] = ImVec4(0.16F, 0.22F, 0.31F, 1.0F);
-    colors[ImGuiCol_HeaderHovered] = ImVec4(0.22F, 0.31F, 0.44F, 1.0F);
-    colors[ImGuiCol_HeaderActive] = ImVec4(0.25F, 0.36F, 0.51F, 1.0F);
-    colors[ImGuiCol_Separator] = ImVec4(0.20F, 0.24F, 0.30F, 1.0F);
-    colors[ImGuiCol_SeparatorHovered] = ImVec4(0.28F, 0.39F, 0.56F, 1.0F);
-    colors[ImGuiCol_SeparatorActive] = ImVec4(0.33F, 0.48F, 0.69F, 1.0F);
-    colors[ImGuiCol_ResizeGrip] = ImVec4(0.27F, 0.56F, 0.94F, 0.20F);
-    colors[ImGuiCol_ResizeGripHovered] = ImVec4(0.33F, 0.63F, 0.99F, 0.67F);
-    colors[ImGuiCol_ResizeGripActive] = ImVec4(0.33F, 0.63F, 0.99F, 0.95F);
-    colors[ImGuiCol_Tab] = ImVec4(0.12F, 0.16F, 0.21F, 1.0F);
-    colors[ImGuiCol_TabHovered] = ImVec4(0.20F, 0.28F, 0.40F, 1.0F);
-    colors[ImGuiCol_TabActive] = ImVec4(0.16F, 0.24F, 0.34F, 1.0F);
-    colors[ImGuiCol_TabUnfocused] = ImVec4(0.10F, 0.13F, 0.17F, 1.0F);
-    colors[ImGuiCol_TabUnfocusedActive] = ImVec4(0.13F, 0.18F, 0.25F, 1.0F);
-    colors[ImGuiCol_PlotLines] = ImVec4(0.68F, 0.72F, 0.80F, 1.0F);
-    colors[ImGuiCol_PlotLinesHovered] = ImVec4(0.33F, 0.63F, 0.99F, 1.0F);
-    colors[ImGuiCol_PlotHistogram] = ImVec4(0.26F, 0.72F, 0.56F, 1.0F);
-    colors[ImGuiCol_PlotHistogramHovered] = ImVec4(0.37F, 0.84F, 0.66F, 1.0F);
-    colors[ImGuiCol_TableHeaderBg] = ImVec4(0.11F, 0.13F, 0.17F, 1.0F);
-    colors[ImGuiCol_TableBorderStrong] = ImVec4(0.22F, 0.27F, 0.34F, 1.0F);
-    colors[ImGuiCol_TableBorderLight] = ImVec4(0.16F, 0.19F, 0.24F, 1.0F);
-    colors[ImGuiCol_TableRowBg] = ImVec4(0.0F, 0.0F, 0.0F, 0.0F);
-    colors[ImGuiCol_TableRowBgAlt] = ImVec4(1.0F, 1.0F, 1.0F, 0.03F);
-    colors[ImGuiCol_TextSelectedBg] = ImVec4(0.25F, 0.41F, 0.64F, 0.45F);
-    colors[ImGuiCol_DragDropTarget] = ImVec4(0.33F, 0.63F, 0.99F, 0.90F);
-    colors[ImGuiCol_NavCursor] = ImVec4(0.33F, 0.63F, 0.99F, 1.0F);
-}
-
-void loadImGuiFonts(ImGuiIO& io) {
-    const std::filesystem::path fontPath =
-        std::filesystem::path(ENGINE_SOURCE_ROOT) / "third_party" / "DiligentEngine" / "DiligentTools" / "ThirdParty" /
-        "imgui" / "misc" / "fonts" / "Roboto-Medium.ttf";
-
-    std::error_code ec;
-    if (!std::filesystem::exists(fontPath, ec) || ec) {
-        return;
-    }
-
-    io.Fonts->Clear();
-    ImFontConfig config{};
-    config.OversampleH = 3;
-    config.OversampleV = 2;
-    config.PixelSnapH = false;
-
-    io.FontDefault = io.Fonts->AddFontFromFileTTF(fontPath.string().c_str(), 16.0F, &config);
-    io.Fonts->AddFontFromFileTTF(fontPath.string().c_str(), 20.0F, &config);
-}
-
 constexpr const char* kProceduralCubeMeshId = "__diligent_cube__";
 constexpr const char* kProceduralPyramidMeshId = "__procedural_pyramid__";
 constexpr const char* kProceduralSphereMeshId = "__diligent_sphere__";
@@ -323,6 +300,8 @@ bool populateMeshDataFromGeometryPrimitive(
 void ImGuiImplDiligentDeleter::operator()(Diligent::ImGuiImplDiligent* ptr) const {
     delete ptr;
 }
+
+Renderer::Renderer() : m_engineAssetRoot(engineAssetsDirectory()) {}
 
 Renderer::~Renderer() {
     shutdown();
@@ -440,8 +419,8 @@ bool Renderer::initializePrimitivePipeline() {
         return false;
     }
 
-    const std::string vertexPath = "assets/shaders_hlsl/basic.vert.hlsl";
-    const std::string fragmentPath = "assets/shaders_hlsl/basic.frag.hlsl";
+    const std::string vertexPath = utf8Path(m_engineAssetRoot / "shaders_hlsl/basic.vert.hlsl");
+    const std::string fragmentPath = utf8Path(m_engineAssetRoot / "shaders_hlsl/basic.frag.hlsl");
 
     rhi::ShaderModuleDesc vertexShaderDesc{};
     vertexShaderDesc.stage = rhi::ShaderStage::Vertex;
@@ -524,10 +503,17 @@ bool Renderer::initializeImGui() {
         ImGuiIO& io = ImGui::GetIO();
         io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
         io.ConfigWindowsMoveFromTitleBarOnly = true;
-        configureImGuiStyle();
-        loadImGuiFonts(io);
+        editor::applyEditorTheme();
+        const auto sourceRoot = std::filesystem::path(ENGINE_SOURCE_ROOT);
+        const auto localFonts = sourceRoot.empty() ? std::filesystem::path{} : sourceRoot / ".local" / "editor-fonts";
+        if (!editor::configureEditorFonts(io, m_engineAssetRoot, localFonts)) ENGINE_LOG_WARN("Editor font unavailable; using ImGui fallback");
         m_imgui->InvalidateDeviceObjects();
         m_imgui->CreateDeviceObjects();
+        try {
+            m_uiCanvases = std::make_unique<UiCanvasCompositor>(nativeDevice, m_frames.size());
+        } catch (const std::exception& error) {
+            ENGINE_LOG_WARN("CanvasGroup GPU composition unavailable: {}", error.what());
+        }
         ENGINE_LOG_INFO("ImGui layer initialized");
         return true;
     } catch (const std::exception& ex) {
@@ -682,8 +668,8 @@ std::shared_ptr<resources::Texture> Renderer::createWhiteTexture() {
 std::shared_ptr<resources::ShaderProgram> Renderer::createFallbackShader() {
     auto shader = createShaderProgram(
         "__fallback_shader__",
-        "assets/shaders_hlsl/textured.vert.hlsl",
-        "assets/shaders_hlsl/textured.frag.hlsl");
+        utf8Path(m_engineAssetRoot / "shaders_hlsl/textured.vert.hlsl"),
+        utf8Path(m_engineAssetRoot / "shaders_hlsl/textured.frag.hlsl"));
     if (!shader) {
         ENGINE_LOG_ERROR("Failed to create fallback shader program");
         return nullptr;
@@ -692,15 +678,16 @@ std::shared_ptr<resources::ShaderProgram> Renderer::createFallbackShader() {
 }
 
 std::shared_ptr<resources::Mesh> Renderer::requestMeshLoadFromDisk(const std::string& path) {
-    if (path == kProceduralCubeMeshId) {
+    if (path == kProceduralCubeMeshId || path == "builtin:cube") {
         return m_unitCubeMesh;
     }
-    if (path == kProceduralPyramidMeshId) {
+    if (path == kProceduralPyramidMeshId || path == "builtin:pyramid") {
         return m_unitPyramidMesh;
     }
-    if (path == kProceduralSphereMeshId) {
+    if (path == kProceduralSphereMeshId || path == "builtin:sphere") {
         return m_unitSphereMesh;
     }
+    if (path.starts_with("builtin:")) { return m_placeholderMesh; }
 
     auto mesh = std::make_shared<resources::Mesh>();
     mesh->path = path;
@@ -979,15 +966,16 @@ std::shared_ptr<resources::ShaderProgram> Renderer::requestShaderProgramLoadFrom
     program->descriptorPath = path;
     program->setLoadState(resources::ResourceLoadState::Loading);
 
-    m_assetLoads.submit([this, program, path]() -> resources::AsyncLoadQueue::Finalize {
+    const auto assetRoot = shaderAssetRoot(path);
+    m_assetLoads.submit([this, program, path, assetRoot]() -> resources::AsyncLoadQueue::Finalize {
         ENGINE_PROFILE_ZONE("Load Shader Manifest CPU");
         resources::ShaderProgramSource source{};
         std::string errorMessage;
-        const bool loaded = resources::loadShaderProgramSource(path, source, &errorMessage);
+        const bool loaded = resources::loadShaderProgramSource(path, source, &errorMessage, assetRoot);
 
         return [this, program, path, source = std::move(source), errorMessage = std::move(errorMessage), loaded]() mutable {
             ENGINE_PROFILE_ZONE("Upload Shader GPU");
-            if (!loaded) {
+            if (!loaded || !resolveShaderSources(source, &errorMessage)) {
                 program->lastError = errorMessage;
                 program->setLoadState(resources::ResourceLoadState::Failed);
                 ENGINE_LOG_ERROR("Shader source load failed '{}': {}", path, program->lastError);
@@ -1104,6 +1092,17 @@ void Renderer::renderImGui() {
     auto* diligentDevice = dynamic_cast<rhi::diligent::DiligentDevice*>(m_device.get());
     if (diligentDevice != nullptr) {
         if (auto* nativeContext = diligentDevice->nativeImmediateContext()) {
+            if (m_uiCanvases && m_uiCanvases->pending()) {
+                // Finalize dynamic font textures before rendering captured
+                // layers. ImGui::Render is idempotent within the same frame.
+                ImGui::Render();
+                m_uiCanvases->render(nativeContext);
+                if (auto* swapchain = diligentDevice->nativeSwapChain()) {
+                    auto* target = swapchain->GetCurrentBackBufferRTV();
+                    nativeContext->SetRenderTargets(1, &target, swapchain->GetDepthBufferDSV(),
+                        Diligent::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
+                }
+            }
             m_imgui->Render(nativeContext);
         } else {
             m_imgui->EndFrame();
@@ -1117,6 +1116,13 @@ void Renderer::renderImGui() {
 
 bool Renderer::isImGuiEnabled() const {
     return m_imgui != nullptr && ImGui::GetCurrentContext() != nullptr;
+}
+
+Renderer::UiImage Renderer::resolveUiCanvas(const void* key, const ImDrawList& list,
+                                          float x, float y, float width, float height) {
+    if (!m_uiCanvases || !m_imguiFrameOpen || !m_activeCommandBuffer) return {};
+    const auto image = m_uiCanvases->enqueue(key, list, x, y, width, height);
+    return {image.textureId, image.width, image.height};
 }
 
 bool Renderer::wantsKeyboardCapture() const {
@@ -1147,6 +1153,10 @@ void Renderer::beginFrame(const glm::vec4& clearColor) {
         frame.inFlight->wait();
         frame.inFlight->reset();
     }
+    frame.uiImages.clear();
+    if (m_uiCanvases) m_uiCanvases->beginFrame(m_currentFrameIndex);
+    ++m_uiImageFrame;
+    m_uiImageRequests = 0;
 
     {
         ENGINE_PROFILE_ZONE("Acquire Swapchain Image");
@@ -1330,33 +1340,304 @@ std::shared_ptr<resources::ShaderProgram> Renderer::createShaderProgramFromFiles
     const std::string& key,
     const std::string& vertexPath,
     const std::string& fragmentPath) {
-    auto program = createShaderProgram(key, vertexPath, fragmentPath);
+    resources::ShaderProgramSource source{};
+    try {
+        source.descriptorPath = resolveResourcePath(key);
+        source.vertexPath = resolveResourcePath(vertexPath);
+        source.fragmentPath = resolveResourcePath(fragmentPath);
+    } catch (const std::exception& error) {
+        ENGINE_LOG_ERROR("Shader path resolution failed '{}': {}", key, error.what());
+        return nullptr;
+    }
+    auto program = createShaderProgram(source.descriptorPath, source.vertexPath, source.fragmentPath);
     if (!program) {
         return nullptr;
     }
 
-    resources::ShaderProgramSource source{};
-    source.descriptorPath = key;
     {
         std::error_code ec;
-        source.descriptorIsFile = std::filesystem::exists(key, ec) && !ec;
+        source.descriptorIsFile = std::filesystem::exists(std::filesystem::u8path(source.descriptorPath), ec) && !ec;
     }
-    source.vertexPath = vertexPath;
-    source.fragmentPath = fragmentPath;
-    registerShaderForHotReload(key, program, source);
+    registerShaderForHotReload(source.descriptorPath, program, source);
     return program;
 }
 
 std::shared_ptr<resources::Mesh> Renderer::loadMesh(const std::string& path) {
-    return m_resourceManager.load<resources::Mesh>(path);
+    try { return m_resourceManager.load<resources::Mesh>(resolveResourcePath(path)); }
+    catch (const std::exception& error) {
+        ENGINE_LOG_ERROR("Mesh path resolution failed '{}': {}", path, error.what());
+        return m_placeholderMesh;
+    }
 }
 
 std::shared_ptr<resources::Texture> Renderer::loadTexture(const std::string& path) {
-    return m_resourceManager.load<resources::Texture>(path);
+    try { return m_resourceManager.load<resources::Texture>(resolveResourcePath(path)); }
+    catch (const std::exception& error) {
+        ENGINE_LOG_ERROR("Texture path resolution failed '{}': {}", path, error.what());
+        return m_whiteTexture;
+    }
+}
+
+void Renderer::loadUiImageAliases() {
+    const auto now = std::chrono::steady_clock::now();
+    if (m_uiImageAliasesLoaded && now < m_uiAliasNextPoll) return;
+    m_uiImageAliasesLoaded = true;
+    m_uiAliasNextPoll = now + std::chrono::seconds(1);
+    const auto& root = m_projectAssetRoot.empty() ? m_engineAssetRoot : m_projectAssetRoot;
+    const auto file = root / "ui_images.json";
+    std::error_code error;
+    const auto stamp = std::filesystem::last_write_time(file, error);
+    if (error) {
+        if (!m_uiImageAliases.empty()) { m_uiImageAliases.clear(); m_uiImagePaths.clear(); }
+        m_uiAliasWriteTime = {};
+        return;
+    }
+    if (stamp == m_uiAliasWriteTime) return;
+    m_uiAliasWriteTime = stamp; // Report a bad revision once, retaining the last good map.
+    try {
+        if (std::filesystem::file_size(file) > 65536) throw std::runtime_error("UI image aliases exceed 64 KiB");
+        std::ifstream stream(file, std::ios::binary);
+        std::string source(65537, '\0');
+        stream.read(source.data(), static_cast<std::streamsize>(source.size()));
+        const auto length = static_cast<std::size_t>(stream.gcount());
+        if (length > 65536) throw std::runtime_error("UI image aliases exceed 64 KiB");
+        source.resize(length);
+        const auto json = nlohmann::json::parse(source);
+        if (!json.is_object() || json.size() > 256) throw std::runtime_error("UI image aliases must be an object with at most 256 entries");
+        std::unordered_map<std::string, std::string> aliases;
+        for (const auto& [key, value] : json.items()) {
+            if (!key.starts_with("rbxassetid://") || key.size() > 128 || !value.is_string())
+                throw std::runtime_error("UI image aliases map rbxassetid:// ids to local asset paths");
+            auto path = value.get<std::string>();
+            if (path.empty() || path.size() > 4096 || path.find('\0') != std::string::npos || path.find("://") != std::string::npos)
+                throw std::runtime_error("Invalid local UI image alias path");
+            aliases.emplace(key, std::move(path));
+        }
+        m_uiImageAliases = std::move(aliases);
+        m_uiImagePaths.clear();
+    } catch (const std::exception& exception) { ENGINE_LOG_WARN("UI image aliases: {}", exception.what()); }
+}
+
+bool Renderer::reserveUiImageBytes(const std::uint64_t bytes, const std::string& protectedKey, const bool newEntry) {
+    constexpr std::uint64_t budget = 64 * 1024 * 1024;
+    if (bytes > budget) return false;
+    std::uint64_t reserved = 0;
+    for (auto& [key, entry] : m_uiImages) {
+        if (entry.texture && entry.texture->loadState() == resources::ResourceLoadState::Failed && !entry.pending) entry.reservedBytes = 0;
+        reserved += entry.reservedBytes;
+    }
+    while ((newEntry && m_uiImages.size() >= 128) || reserved + bytes > budget) {
+        auto victim = m_uiImages.end();
+        for (auto candidate = m_uiImages.begin(); candidate != m_uiImages.end(); ++candidate) {
+            const auto& entry = candidate->second;
+            if (candidate->first == protectedKey || entry.lastUsedFrame == m_uiImageFrame) continue;
+            // Pending jobs retain their targets, so they cannot be evicted to
+            // make room for an unbounded backlog of orphan decodes.
+            if ((entry.pending && entry.pending->loadState() == resources::ResourceLoadState::Loading) ||
+                (entry.texture && entry.texture->loadState() == resources::ResourceLoadState::Loading)) continue;
+            if (victim == m_uiImages.end() || entry.lastUsedFrame < victim->second.lastUsedFrame) victim = candidate;
+        }
+        if (victim == m_uiImages.end()) return false;
+        reserved -= victim->second.reservedBytes;
+        m_uiImages.erase(victim);
+    }
+    return true;
+}
+
+Renderer::UiImage Renderer::resolveUiImage(const std::string_view image) {
+    if (image.empty() || image.size() > 4096 || image.find('\0') != std::string_view::npos) return {};
+    loadUiImageAliases();
+    const std::string id(image);
+    auto pathIt = m_uiImagePaths.find(id);
+    std::string path;
+    if (pathIt != m_uiImagePaths.end()) path = pathIt->second;
+    else {
+        try {
+            std::string local = id;
+            if (id.starts_with("rbxassetid://")) {
+                const auto alias = m_uiImageAliases.find(id);
+                if (alias == m_uiImageAliases.end()) throw std::invalid_argument("Roblox image id needs an assets/ui_images.json alias");
+                local = alias->second;
+            }
+            if (local.find("://") != std::string::npos || local.find('|') != std::string::npos)
+                throw std::invalid_argument("UI images use local files beneath assets; network URLs are not image assets");
+            path = resolveResourcePath(local);
+            if (m_projectAssetRoot.empty() && !containsPath(m_engineAssetRoot, std::filesystem::u8path(path)))
+                throw std::invalid_argument("UI image path is outside engine assets");
+        } catch (const std::exception& exception) {
+            // Negative entries are bounded and avoid per-frame IO/log spam. An
+            // added alias resolves to a new canonical key on the next map poll.
+            path = "!" + id;
+            if (!m_uiImages.contains(path) && m_uiImages.size() < 128) {
+                ENGINE_LOG_WARN("UI image unavailable: {}", exception.what());
+                m_uiImages.emplace(path, UiImageEntry{});
+            }
+        }
+        if (m_uiImagePaths.size() >= 512) m_uiImagePaths.clear();
+        m_uiImagePaths.emplace(id, path);
+    }
+    return resolveUiImagePath(path);
+}
+
+Renderer::UiImage Renderer::resolveEditorIcon(const std::string_view image) {
+    if (!image.starts_with("editor/icons/") || image.size() > 160 || image.find('\0') != std::string_view::npos) return {};
+    const std::string id(image);
+    if (const auto cached = m_editorIconPaths.find(id); cached != m_editorIconPaths.end()) return resolveUiImagePath(cached->second);
+    const auto relative = std::filesystem::u8path(image).lexically_normal();
+    if (relative.is_absolute() || relative.extension() != ".png") return {};
+    std::error_code error;
+    const auto path = std::filesystem::weakly_canonical(m_engineAssetRoot / relative, error);
+    if (error) return {};
+    if (!containsPath(m_engineAssetRoot / "editor" / "icons", path)) return {};
+    if (m_editorIconPaths.size() >= 128) m_editorIconPaths.clear();
+    const auto resolved = utf8Path(path);
+    m_editorIconPaths.emplace(id, resolved);
+    return resolveUiImagePath(resolved);
+}
+
+Renderer::UiImage Renderer::resolveUiImagePath(const std::string& path) {
+    if (path.empty()) return {};
+    auto found = m_uiImages.find(path);
+    if (found == m_uiImages.end()) {
+        if (m_uiImageRequests >= 4) return {};
+        ++m_uiImageRequests;
+        std::int32_t width = 0, height = 0;
+        std::string error;
+        const bool valid = path.front() != '!' && resources::inspectTextureRgba8(path, width, height, &error);
+        const auto bytes = valid ? std::uint64_t(width) * height * 4 : 0;
+        if (!reserveUiImageBytes(bytes, path, true)) return {};
+        UiImageEntry entry;
+        entry.lastUsedFrame = m_uiImageFrame;
+        entry.reservedBytes = bytes;
+        std::error_code stampError;
+        entry.fileStamp = std::filesystem::last_write_time(std::filesystem::u8path(path), stampError);
+        if (stampError) entry.fileStamp = {};
+        entry.nextPoll = std::chrono::steady_clock::now() + std::chrono::milliseconds(500);
+        if (valid) entry.texture = m_resourceManager.load<resources::Texture>(path);
+        else if (!error.empty()) ENGINE_LOG_WARN("UI image cannot load '{}': {}", path, error);
+        if (!entry.texture || entry.texture->path != path || entry.texture->loadState() == resources::ResourceLoadState::Failed)
+            entry.reservedBytes = 0;
+        found = m_uiImages.emplace(path, std::move(entry)).first;
+    }
+    auto& entry = found->second;
+    if (entry.pending && entry.pending->loadState() != resources::ResourceLoadState::Loading) {
+        if (entry.pending->isReady() && entry.pending->path == path) {
+            entry.texture = std::move(entry.pending);
+            entry.reservedBytes = entry.pendingBytes;
+        } else {
+            entry.reservedBytes -= entry.pendingBytes;
+            entry.pending.reset(); // Retain the old good image on failed edits.
+        }
+        entry.pendingBytes = 0;
+    }
+    const auto now = std::chrono::steady_clock::now();
+    if (path.front() != '!' && !entry.pending && now >= entry.nextPoll && m_uiImageRequests < 4 &&
+        (!entry.texture || entry.texture->loadState() != resources::ResourceLoadState::Loading)) {
+        entry.nextPoll = now + std::chrono::milliseconds(500);
+        std::error_code stampError;
+        auto stamp = std::filesystem::last_write_time(std::filesystem::u8path(path), stampError);
+        if (stampError) stamp = {};
+        if (stamp != entry.fileStamp) {
+            std::int32_t width = 0, height = 0;
+            std::string error;
+            if (resources::inspectTextureRgba8(path, width, height, &error)) {
+                const auto bytes = std::uint64_t(width) * height * 4;
+                if (reserveUiImageBytes(bytes, path, false)) {
+                    ++m_uiImageRequests;
+                    entry.pending = m_resourceManager.reload<resources::Texture>(path);
+                    if (entry.pending && entry.pending->path != path) entry.pending.reset();
+                    if (entry.pending) { entry.pendingBytes = bytes; entry.reservedBytes += bytes; }
+                    entry.fileStamp = stamp;
+                }
+            } else {
+                entry.fileStamp = stamp;
+                ENGINE_LOG_WARN("UI image edit rejected '{}': {}", path, error);
+            }
+        }
+    }
+    const auto& texture = entry.texture;
+    const bool firstUse = entry.lastUsedFrame != m_uiImageFrame;
+    entry.lastUsedFrame = m_uiImageFrame;
+    if (!texture || !texture->isReady() || texture->path != path) return {};
+    if (!m_frames.empty()) {
+        auto& pins = m_frames[m_currentFrameIndex].uiImages;
+        if (firstUse || std::find(pins.begin(), pins.end(), texture) == pins.end()) pins.push_back(texture);
+    }
+    return { texture->image->uiShaderResourceView(), static_cast<float>(texture->image->width()), static_cast<float>(texture->image->height()) };
 }
 
 std::shared_ptr<resources::ShaderProgram> Renderer::loadShaderProgram(const std::string& path) {
-    return m_resourceManager.load<resources::ShaderProgram>(path);
+    try { return m_resourceManager.load<resources::ShaderProgram>(resolveResourcePath(path)); }
+    catch (const std::exception& error) {
+        ENGINE_LOG_ERROR("Shader path resolution failed '{}': {}", path, error.what());
+        return m_fallbackShader;
+    }
+}
+
+void Renderer::setProjectAssetRoot(std::filesystem::path assetsRoot) {
+    if (!assetsRoot.empty()) { assetsRoot = std::filesystem::weakly_canonical(std::filesystem::absolute(assetsRoot)); }
+    if (assetsRoot == m_projectAssetRoot) { return; }
+    // stop() joins both CPU work and transfer fences before cancelling owner
+    // finalizers, so an old project cannot publish work into the new context.
+    m_assetLoads.stop();
+    m_shaderHotReloadEntries.clear();
+    m_uiImages.clear();
+    m_uiImageAliases.clear();
+    m_uiImagePaths.clear();
+    m_uiImageAliasesLoaded = false;
+    m_uiAliasWriteTime = {};
+    m_uiImageRequests = 0;
+    m_resourceManager.clearCache();
+    m_projectAssetRoot = std::move(assetsRoot);
+    if (m_initialized) { m_assetLoads.start(m_jobSystem); }
+}
+
+std::string Renderer::resolveResourcePath(const std::string& id) const {
+    if (id.empty()) { throw std::invalid_argument("Asset id is empty"); }
+    if (isProceduralResource(id)) { return id; }
+    if (const auto separator = id.find('|'); separator != std::string::npos) {
+        return resolveResourcePath(id.substr(0, separator)) + '|' + resolveResourcePath(id.substr(separator + 1));
+    }
+    const auto& root = m_projectAssetRoot.empty() ? m_engineAssetRoot : m_projectAssetRoot;
+    auto relative = std::filesystem::u8path(id);
+    std::filesystem::path target;
+    if (relative.is_absolute()) {
+        target = std::filesystem::weakly_canonical(relative);
+        if (m_projectAssetRoot.empty()) { return utf8Path(target); }
+        if (containsPath(root, target)) { relative = target.lexically_relative(root); }
+        else if (containsPath(m_engineAssetRoot, target) && isBuiltinAsset(target.lexically_relative(m_engineAssetRoot))) {
+            return utf8Path(target);
+        } else { throw std::invalid_argument("Resource path is outside the active project assets"); }
+    } else {
+        if (relative.has_root_name() || relative.has_root_directory()) { throw std::invalid_argument("Asset id has an invalid root"); }
+        if (*relative.begin() == "assets") { relative = relative.lexically_relative("assets"); }
+        target = std::filesystem::weakly_canonical(root / relative);
+        if (!containsPath(root, target)) { throw std::invalid_argument("Resource path escapes assets"); }
+        relative = target.lexically_relative(root);
+    }
+    std::error_code error;
+    const bool exists = std::filesystem::exists(target, error);
+    if (!m_projectAssetRoot.empty() && isBuiltinAsset(relative) && !exists && !error) {
+        return utf8Path(std::filesystem::weakly_canonical(m_engineAssetRoot / relative));
+    }
+    return utf8Path(target);
+}
+
+std::filesystem::path Renderer::shaderAssetRoot(const std::string& descriptor) const {
+    const auto path = std::filesystem::u8path(descriptor);
+    if (path.is_absolute() && containsPath(m_engineAssetRoot, path)) { return m_engineAssetRoot; }
+    return m_projectAssetRoot.empty() ? m_engineAssetRoot : m_projectAssetRoot;
+}
+
+bool Renderer::resolveShaderSources(resources::ShaderProgramSource& source, std::string* error) const {
+    try {
+        source.vertexPath = resolveResourcePath(source.vertexPath);
+        source.fragmentPath = resolveResourcePath(source.fragmentPath);
+        return true;
+    } catch (const std::exception& exception) {
+        if (error != nullptr) { *error = exception.what(); }
+        return false;
+    }
 }
 
 resources::ResourceManager& Renderer::resourceManager() {
@@ -1504,7 +1785,8 @@ void Renderer::pollHotReload() {
         resources::ShaderProgramSource latestSource{};
         if (entry.descriptorIsFile) {
             std::string sourceError;
-            if (!resources::loadShaderProgramSource(entry.descriptorPath, latestSource, &sourceError)) {
+            if (!resources::loadShaderProgramSource(entry.descriptorPath, latestSource, &sourceError,
+                    shaderAssetRoot(entry.descriptorPath)) || !resolveShaderSources(latestSource, &sourceError)) {
                 program->lastError = sourceError;
                 entry.failedDescriptorWriteTime = entry.pendingDescriptorWriteTime;
                 entry.failedVertexWriteTime = entry.pendingVertexWriteTime;
@@ -1600,12 +1882,19 @@ void Renderer::shutdown() {
 
     m_assetLoads.stop();
     if (m_device && m_device->uploadQueue()) { m_device->uploadQueue()->waitIdle(); }
+    if (auto* diligent = dynamic_cast<rhi::diligent::DiligentDevice*>(m_device.get())) {
+        if (auto* context = diligent->nativeImmediateContext()) context->WaitForIdle();
+    }
     m_activeCommandBuffer = nullptr;
     m_frames.clear();
     m_imguiFrameOpen = false;
+    m_uiCanvases.reset();
     m_imgui.reset();
 
     m_resourceManager.clear();
+    m_uiImages.clear();
+    m_uiImageAliases.clear();
+    m_uiImagePaths.clear();
     m_shaderHotReloadEntries.clear();
     m_placeholderMesh.reset();
     m_unitCubeMesh.reset();

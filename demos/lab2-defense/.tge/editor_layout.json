@@ -1,0 +1,41 @@
+{
+  "dockSlots": {
+    "hierarchy": "right_top",
+    "inspector": "right_bottom",
+    "project": "left_bottom",
+    "stats": "left_top",
+    "status": "bottom",
+    "toolbar": "top",
+    "viewport": "center"
+  },
+  "locked": false,
+  "ribbon": {
+    "compact": false,
+    "createCommand": 7,
+    "localSpace": true,
+    "moveSnap": 0.5,
+    "playCommand": 30,
+    "rotateSnap": 15.0,
+    "scaleSnap": 0.10000000149011612,
+    "showLabels": true,
+    "snap": false,
+    "tab": 3
+  },
+  "sizing": {
+    "leftSplit": 0.7200000286102295,
+    "leftWidth": 0.0,
+    "rightSplit": 0.7599999904632568,
+    "rightWidth": 0.0
+  },
+  "version": 1,
+  "visibility": {
+    "assistant": false,
+    "hierarchy": false,
+    "inspector": false,
+    "project": false,
+    "stats": false,
+    "status": true,
+    "toolbar": true,
+    "viewport": true
+  }
+}

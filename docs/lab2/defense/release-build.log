@@ -1,0 +1,93 @@
+Версия MSBuild 17.14.23+b0019275e для .NET Framework
+
+  1>Checking Build System
+  Building Custom Rule C:/Users/rocco/CLionProjects/TurboGameEngine/third_party/DiligentEngine/DiligentCore/ThirdParty/SPIRV-Cross/CMakeLists.txt
+  spirv-cross-core.vcxproj -> C:\tge\profile\third_party\DiligentEngine\DiligentCore\ThirdParty\SPIRV-Cross\Release\spirv-cross-core.lib
+  glew-static.vcxproj -> C:\tge\profile\third_party\DiligentEngine\DiligentCore\ThirdParty\glew\Release\glew-static.lib
+  Diligent-Primitives.vcxproj -> C:\tge\profile\third_party\DiligentEngine\DiligentCore\Primitives\Release\Diligent-Primitives.lib
+  volk.vcxproj -> C:\tge\profile\third_party\DiligentEngine\DiligentCore\ThirdParty\volk\Release\volk.lib
+  Building Custom Rule C:/Users/rocco/CLionProjects/TurboGameEngine/third_party/DiligentEngine/DiligentCore/ThirdParty/SPIRV-Cross/CMakeLists.txt
+  Luau.Common.vcxproj -> C:\tge\profile\_deps\luau-build\Release\Luau.Common.lib
+  Building Custom Rule C:/Users/rocco/CLionProjects/TurboGameEngine/third_party/DiligentEngine/DiligentCore/ThirdParty/xxHash/build/cmake/CMakeLists.txt
+  Luau.Ast.vcxproj -> C:\tge\profile\_deps\luau-build\Release\Luau.Ast.lib
+  Luau.Bytecode.vcxproj -> C:\tge\profile\_deps\luau-build\Release\Luau.Bytecode.lib
+  Diligent-BasicPlatform.vcxproj -> C:\tge\profile\third_party\DiligentEngine\DiligentCore\Platforms\Basic\Release\Diligent-BasicPlatform.lib
+  xxhash.vcxproj -> C:\tge\profile\third_party\DiligentEngine\DiligentCore\ThirdParty\xxHash\build\cmake\Release\xxhash.lib
+  Luau.VM.vcxproj -> C:\tge\profile\_deps\luau-build\Release\Luau.VM.lib
+  Building Custom Rule C:/tge/profile/_deps/tracy-src/CMakeLists.txt
+  spirv-cross-glsl.vcxproj -> C:\tge\profile\third_party\DiligentEngine\DiligentCore\ThirdParty\SPIRV-Cross\Release\spirv-cross-glsl.lib
+  Building Custom Rule C:/tge/profile/_deps/enkits-src/CMakeLists.txt
+  TracyClient.vcxproj -> C:\tge\profile\_deps\tracy-build\Release\TracyClient.lib
+  Building Custom Rule C:/tge/profile/_deps/spdlog-src/CMakeLists.txt
+  Building Custom Rule C:/tge/profile/_deps/assimp-src/contrib/zlib/CMakeLists.txt
+  enkiTS.vcxproj -> C:\tge\profile\_deps\enkits-build\Release\enkiTS.lib
+  spdlog.vcxproj -> C:\tge\profile\_deps\spdlog-build\Release\spdlog.lib
+  glm.vcxproj -> C:\tge\profile\_deps\glm-build\glm\Release\glm.lib
+  zlibstatic.vcxproj -> C:\tge\profile\_deps\assimp-build\contrib\zlib\Release\zlibstatic.lib
+  glfw.vcxproj -> C:\tge\profile\_deps\glfw-build\src\Release\glfw3.lib
+  Building Custom Rule C:/Users/rocco/CLionProjects/TurboGameEngine/CMakeLists.txt
+  assimp.vcxproj -> C:\tge\profile\_deps\assimp-build\lib\Release\assimp-vc143-mt.lib
+  engine_core.vcxproj -> C:\tge\profile\Release\engine_core.lib
+  Diligent-Win32Platform.vcxproj -> C:\tge\profile\third_party\DiligentEngine\DiligentCore\Platforms\Win32\Release\Diligent-Win32Platform.lib
+  Building Custom Rule C:/Users/rocco/CLionProjects/TurboGameEngine/CMakeLists.txt
+  SPIRV-Tools-static.vcxproj -> C:\tge\profile\third_party\DiligentEngine\DiligentCore\ThirdParty\SPIRV-Tools\source\Release\SPIRV-Tools.lib
+  Diligent-Common.vcxproj -> C:\tge\profile\third_party\DiligentEngine\DiligentCore\Common\Release\Diligent-Common.lib
+  engine_ecs.vcxproj -> C:\tge\profile\Release\engine_ecs.lib
+  Luau.Compiler.vcxproj -> C:\tge\profile\_deps\luau-build\Release\Luau.Compiler.lib
+  Building Custom Rule C:/Users/rocco/CLionProjects/TurboGameEngine/CMakeLists.txt
+  Diligent-GraphicsAccessories.vcxproj -> C:\tge\profile\third_party\DiligentEngine\DiligentCore\Graphics\GraphicsAccessories\Release\Diligent-GraphicsAccessories.lib
+  engine_platform.vcxproj -> C:\tge\profile\Release\engine_platform.lib
+  SPIRV-Tools-opt.vcxproj -> C:\tge\profile\third_party\DiligentEngine\DiligentCore\ThirdParty\SPIRV-Tools\source\opt\Release\SPIRV-Tools-opt.lib
+  Building Custom Rule C:/Users/rocco/CLionProjects/TurboGameEngine/CMakeLists.txt
+  Building Custom Rule C:/Users/rocco/CLionProjects/TurboGameEngine/third_party/DiligentEngine/DiligentCore/Graphics/GraphicsEngine/CMakeLists.txt
+  Diligent-GraphicsEngine.vcxproj -> C:\tge\profile\third_party\DiligentEngine\DiligentCore\Graphics\GraphicsEngine\Release\Diligent-GraphicsEngine.lib
+  glslang.vcxproj -> C:\tge\profile\third_party\DiligentEngine\DiligentCore\ThirdParty\glslang\glslang\Release\glslang.lib
+  SPIRV.vcxproj -> C:\tge\profile\third_party\DiligentEngine\DiligentCore\ThirdParty\glslang\SPIRV\Release\SPIRV.lib
+  Diligent-GraphicsEngineNextGenBase.vcxproj -> C:\tge\profile\third_party\DiligentEngine\DiligentCore\Graphics\GraphicsEngineNextGenBase\Release\Diligent-GraphicsEngineNextGenBase.lib
+  Building Custom Rule C:/Users/rocco/CLionProjects/TurboGameEngine/third_party/DiligentEngine/DiligentCore/Graphics/ShaderTools/CMakeLists.txt
+  ScriptingSystem.cpp
+  Diligent-ShaderTools.vcxproj -> C:\tge\profile\third_party\DiligentEngine\DiligentCore\Graphics\ShaderTools\Release\Diligent-ShaderTools.lib
+  Building Custom Rule C:/Users/rocco/CLionProjects/TurboGameEngine/third_party/DiligentEngine/DiligentCore/Graphics/HLSL2GLSLConverterLib/CMakeLists.txt
+  Diligent-HLSL2GLSLConverterLib.vcxproj -> C:\tge\profile\third_party\DiligentEngine\DiligentCore\Graphics\HLSL2GLSLConverterLib\Release\Diligent-HLSL2GLSLConverterLib.lib
+  Building Custom Rule C:/Users/rocco/CLionProjects/TurboGameEngine/third_party/DiligentEngine/DiligentCore/Graphics/GraphicsEngineVulkan/CMakeLists.txt
+  Diligent-GraphicsEngineOpenGL-static.vcxproj -> C:\tge\profile\third_party\DiligentEngine\DiligentCore\Graphics\GraphicsEngineOpenGL\Release\Diligent-GraphicsEngineOpenGL-static.lib
+  Diligent-GraphicsEngineD3DBase.vcxproj -> C:\tge\profile\third_party\DiligentEngine\DiligentCore\Graphics\GraphicsEngineD3DBase\Release\Diligent-GraphicsEngineD3DBase.lib
+  Diligent-GraphicsEngineOpenGL-shared.vcxproj -> C:\tge\profile\third_party\DiligentEngine\DiligentCore\Graphics\GraphicsEngineOpenGL\Release\GraphicsEngineOpenGL_64r.dll
+  Diligent-GraphicsEngineVk-static.vcxproj -> C:\tge\profile\third_party\DiligentEngine\DiligentCore\Graphics\GraphicsEngineVulkan\Release\Diligent-GraphicsEngineVk-static.lib
+  Building Custom Rule C:/Users/rocco/CLionProjects/TurboGameEngine/third_party/DiligentEngine/DiligentCore/Graphics/GraphicsEngineD3D12/CMakeLists.txt
+  Diligent-GraphicsEngineD3D11-static.vcxproj -> C:\tge\profile\third_party\DiligentEngine\DiligentCore\Graphics\GraphicsEngineD3D11\Release\Diligent-GraphicsEngineD3D11-static.lib
+  Diligent-GraphicsEngineD3D11-shared.vcxproj -> C:\tge\profile\third_party\DiligentEngine\DiligentCore\Graphics\GraphicsEngineD3D11\Release\GraphicsEngineD3D11_64r.dll
+  Diligent-GraphicsEngineD3D12-static.vcxproj -> C:\tge\profile\third_party\DiligentEngine\DiligentCore\Graphics\GraphicsEngineD3D12\Release\Diligent-GraphicsEngineD3D12-static.lib
+  Building Custom Rule C:/Users/rocco/CLionProjects/TurboGameEngine/third_party/DiligentEngine/DiligentCore/Graphics/GraphicsEngineVulkan/CMakeLists.txt
+  Diligent-GraphicsEngineVk-shared.vcxproj -> C:\tge\profile\third_party\DiligentEngine\DiligentCore\Graphics\GraphicsEngineVulkan\Release\GraphicsEngineVk_64r.dll
+  Building Custom Rule C:/Users/rocco/CLionProjects/TurboGameEngine/third_party/DiligentEngine/DiligentCore/Graphics/GraphicsEngineD3D12/CMakeLists.txt
+  Building Custom Rule C:/Users/rocco/CLionProjects/TurboGameEngine/CMakeLists.txt
+C:\tge\profile\_deps\luau-src\Ast\include\Luau\Ast.h(1691,39): warning C4100: "node": неиспользованный параметр [C:\tge\profile\engine_scripting.vcxproj]
+  (компиляция исходного файла "../../../../../../../Users/rocco/CLionProjects/TurboGameEngine/engine/scripting/ScriptingSystem.cpp")
+  
+C:\tge\profile\_deps\luau-src\Ast\include\Luau\Ast.h(1741,43): warning C4100: "node": неиспользованный параметр [C:\tge\profile\engine_scripting.vcxproj]
+  (компиляция исходного файла "../../../../../../../Users/rocco/CLionProjects/TurboGameEngine/engine/scripting/ScriptingSystem.cpp")
+  
+  engine_rhi_diligent.vcxproj -> C:\tge\profile\Release\engine_rhi_diligent.lib
+  Diligent-Archiver-static.vcxproj -> C:\tge\profile\third_party\DiligentEngine\DiligentCore\Graphics\Archiver\Release\Diligent-Archiver-static.lib
+  Building Custom Rule C:/Users/rocco/CLionProjects/TurboGameEngine/CMakeLists.txt
+  Diligent-GraphicsEngineD3D12-shared.vcxproj -> C:\tge\profile\third_party\DiligentEngine\DiligentCore\Graphics\GraphicsEngineD3D12\Release\GraphicsEngineD3D12_64r.dll
+  engine_rhi.vcxproj -> C:\tge\profile\Release\engine_rhi.lib
+  Diligent-Archiver-shared.vcxproj -> C:\tge\profile\third_party\DiligentEngine\DiligentCore\Graphics\Archiver\Release\Archiver_64r.dll
+  Diligent-GraphicsTools.vcxproj -> C:\tge\profile\third_party\DiligentEngine\DiligentCore\Graphics\GraphicsTools\Release\Diligent-GraphicsTools.lib
+  Diligent-Imgui.vcxproj -> C:\tge\profile\third_party\DiligentEngine\DiligentTools\Imgui\Release\Diligent-Imgui.lib
+  Building Custom Rule C:/Users/rocco/CLionProjects/TurboGameEngine/CMakeLists.txt
+  Building Custom Rule C:/Users/rocco/CLionProjects/TurboGameEngine/CMakeLists.txt
+  engine_text_editor.vcxproj -> C:\tge\profile\Release\engine_text_editor.lib
+  imguizmo.vcxproj -> C:\tge\profile\Release\imguizmo.lib
+  Building Custom Rule C:/Users/rocco/CLionProjects/TurboGameEngine/CMakeLists.txt
+  engine_renderer.vcxproj -> C:\tge\profile\Release\engine_renderer.lib
+  engine_scripting.vcxproj -> C:\tge\profile\Release\engine_scripting.lib
+  Building Custom Rule C:/Users/rocco/CLionProjects/TurboGameEngine/CMakeLists.txt
+  engine_game.vcxproj -> C:\tge\profile\Release\engine_game.lib
+  Building Custom Rule C:/Users/rocco/CLionProjects/TurboGameEngine/CMakeLists.txt
+  engine_renderer.lib(Renderer.obj) : найден .netmodule MSIL или модуль, откомпилированный с параметром /GL; перезапускается компоновка с параметром /LTCG; добавьте /LTCG в командную строку компоновки для повышения производительности компоновщика
+  Создание кода
+  Создание кода завершено
+  app.vcxproj -> C:\tge\profile\Release\app.exe
+  Copying WinPixEventRuntime.dll for app							Copying assets to runtime output directory	

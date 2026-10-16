@@ -1,0 +1,141 @@
+{
+  "schemaVersion": 1,
+  "startedUtc": "2026-10-16T12:26:18.822932+00:00",
+  "platform": "Linux-6.6.87.2-microsoft-standard-WSL2-x86_64-with-glibc2.39",
+  "scope": "Linux CPU headless Luau/React engine tests",
+  "sourceRoot": "/mnt/c/Users/rocco/CLionProjects/TurboGameEngine",
+  "dependencyRoot": "/mnt/c/tge/profile/_deps",
+  "buildDirectory": "/tmp/tge-lab2-memory-20261016",
+  "sanitizerOptions": {
+    "ASAN_OPTIONS": "detect_leaks=1:halt_on_error=1:symbolize=1",
+    "LSAN_OPTIONS": "exitcode=23:report_objects=1",
+    "UBSAN_OPTIONS": "halt_on_error=1:print_stacktrace=1"
+  },
+  "testAssetRoot": "/tmp/tge-lab2-memory-20261016/test-assets-local-assets",
+  "runtimeDirectory": "/tmp/tge-lab2-memory-20261016/runtime-local-assets",
+  "assetSnapshotSha256": {
+    "prefabs/collectathon_controller.json": "44c6787436ca4a73a5a6e49d2dc57eaab937293e426a17caf69412f787305d8b",
+    "prefabs/collectathon_player.json": "eb45dac00e8f704eb53b6cfc4774dccb8a36a953298a5404ab2fc0d6faf25d07",
+    "prefabs/collectible.json": "6f97420c1e7a32d661f1a6a42cb3e7c7165245a616a97b099156221cf169a9f3",
+    "prefabs/react_ui.json": "a04043b4a6b7d12b7bc14c4d153b5b11a8e3c097d19aeefc0ba63e19b62de893",
+    "scripts/Collectathon.luau": "5123958ca135afc18ea978444fa189627f956b4288be1da8193f751d89d6b2ed",
+    "scripts/Collectible.luau": "151b98e3ae7d8f1a6b8b7a38568f3808481e9f21c5e1bea47648adf3b63966e7",
+    "scripts/ui/counter.luau": "acc5b6f803c08d7d15871c5753ed0b30280a79bd699a6bc2515ffcf283a86281",
+    "scripts/ui/demo_ui.luau": "7fefa71fb3e8ee3ebe27d17e6dd911a614bddf9dcc8cebf8e15b23f515a3ce8e",
+    "scripts/ui/roblox_tutorial/Components.luau": "c41e47da048055cd72b4dc325490ac5d129cff8b6b19fdd7988d3d65c8c9d1c1",
+    "scripts/ui/roblox_tutorial/LICENSE": "1ca481fadf8b6027384a04292ec1b560a4170ac432dbf4c72b715320f6006735",
+    "scripts/ui/roblox_tutorial/README.md": "1dea1f5c395a9339a8ff42d5894563f360cb5a9c08b2a5302fa4f90f9d54e9ca",
+    "scripts/ui/roblox_tutorial/Tutorial.original.lua": "836a6fca01e12df696ab97fe3c1e192b9eaeac54085277f942f335f8e7167648",
+    "scripts/ui/studio_components/LICENSE": "c1b36925c2b147a422c0e55fc4c8d7a69a3610b34cfe76c64041627f3fceef69",
+    "scripts/ui/studio_components/LoadingDots.luau": "03ee3e06347821548977efe349eee8650f0c164f05dff48ad91ef43615f86025",
+    "scripts/ui/studio_components/LoadingDots.original.luau": "cd8e0ed1087127d857032cf74fc387435d75c6596cf32daf12e92397c7ef54d0",
+    "scripts/ui/studio_components/ProgressBar.luau": "7d32ed682d9fd78134a2e513e15c8835860a2b3ff2933bcafd2bc1030636f44c",
+    "scripts/ui/studio_components/ProgressBar.original.luau": "a7e71dcb7357e45c7e6c3c975bab13485863e4c17624327b7f2c7835e372afe5",
+    "scripts/ui/studio_components/README.md": "e4cd519ec9725de0f6303c58283770d6780b0960d66356d9f3d1d71d1c96a474",
+    "scripts/ui/studio_components/Theme.luau": "92438716766e0cf0daa232ff94dd8ecbc026868e61a7840284bdb9794785b6c5"
+  },
+  "suppressionFiles": [],
+  "repeatRequestedPerTest": 5,
+  "sourceSha256": {
+    "tests/ScriptingSystemTests.cpp": "c4224bf2a15d505df2b46acfc9c9524e950c5a98a3836d680e263916d48b13bb",
+    "tests/ReactRuntimeTests.cpp": "b810b4d66daea1d6c0acdb17eddb46dfd19b552c70ad103d2454b2257d81f9b4",
+    "tests/ReactRuntimeTests.luau": "2cb104c4612330db204f7b572a4978318ebc6ee5b999e2e4c00afcdb203b9533",
+    "tests/TweenServiceTests.luau": "223169ef1d34a0ee547aedee2a4b88f28ea266679ef07298f8cbe597e02d29e2",
+    "tests/CanvasGroupTests.luau": "d21b3c63c3e0faf8b332a876e0622a56193f2efc6d04f9b5716045b2bc759289",
+    "engine/core/JobSystem.cpp": "18909729d669ef83f43db2d65f01fe0797d727a49ec86a3e9ca5c888515c4f8e",
+    "engine/core/LiveFileWatcher.cpp": "aacd06e22d8c4c70af1a5345989ff29969af3f360b45afe2b9bae41bb08ac518",
+    "engine/core/Log.cpp": "00bbaffa764db7667be8b6e10c05faed3b0d34f1e6a62d2187e189d402d3ec24",
+    "engine/ecs/world.cpp": "f74827ef14f781280785e9c74036a526fdae3bbd2d303c6528a278507291e682",
+    "engine/platform/Input.cpp": "8c6b87409cadb6b1b6763938a9872d53e22b32b55cc9667cc56e438645fd9602",
+    "engine/scripting/ScriptingSystem.cpp": "6cbbddf317a0be6b95afc81660cb848c56f14e96a446cc705cfe8c783ff79c06",
+    "engine/scripting/react/ReactRuntime.cpp": "98a0985d45ce39a798121a0f8ed35fadf007d3499aeb062f6829febf969d2aae",
+    "third_party/react-luau/manifest.tsv": "d3e85857a22e54f16f00ac485e2426557e6e881f29f67946005a9f6ff296864a",
+    "tools/verify_lab2_memory/CMakeLists.txt": "f53b4334cce60d6c8be2594c5b3b7fd520395d3279d31d75f22583c58d344344",
+    "tools/verify_lab2_memory/run.py": "938992be665ce85ae6fc23d5d320ce110ed2b3aba93218a6d40429fd0fed60b2"
+  },
+  "commands": [
+    {
+      "argv": [
+        "cmake",
+        "-S",
+        "/mnt/c/Users/rocco/CLionProjects/TurboGameEngine/tools/verify_lab2_memory",
+        "-B",
+        "/tmp/tge-lab2-memory-20261016",
+        "-DCMAKE_BUILD_TYPE=Debug",
+        "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON",
+        "-DTGE_TEST_ASSET_ROOT=/tmp/tge-lab2-memory-20261016/test-assets-local-assets",
+        "-DTGE_MEMORY_WORKDIR=/tmp/tge-lab2-memory-20261016/runtime-local-assets",
+        "-DTGE_DEPENDENCY_ROOT=/mnt/c/tge/profile/_deps"
+      ],
+      "cwd": "/mnt/c/Users/rocco/CLionProjects/TurboGameEngine",
+      "log": "configure.log",
+      "exitCode": 0,
+      "elapsedSeconds": 14.339
+    },
+    {
+      "argv": [
+        "cmake",
+        "--build",
+        "/tmp/tge-lab2-memory-20261016",
+        "--target",
+        "lab2_scripting_memory",
+        "lab2_react_memory",
+        "--parallel",
+        "2"
+      ],
+      "cwd": "/mnt/c/Users/rocco/CLionProjects/TurboGameEngine",
+      "log": "build.log",
+      "exitCode": 0,
+      "elapsedSeconds": 260.126
+    },
+    {
+      "argv": [
+        "/tmp/tge-lab2-memory-20261016/lab2_scripting_memory"
+      ],
+      "cwd": "/tmp/tge-lab2-memory-20261016/runtime-local-assets",
+      "log": "lab2_scripting_memory-01.log",
+      "exitCode": 0,
+      "elapsedSeconds": 4.942
+    },
+    {
+      "argv": [
+        "/tmp/tge-lab2-memory-20261016/lab2_react_memory"
+      ],
+      "cwd": "/tmp/tge-lab2-memory-20261016/runtime-local-assets",
+      "log": "lab2_react_memory-01.log",
+      "exitCode": 1,
+      "elapsedSeconds": 1.725
+    }
+  ],
+  "runs": [
+    {
+      "test": "lab2_scripting_memory",
+      "iteration": 1,
+      "argv": [
+        "/tmp/tge-lab2-memory-20261016/lab2_scripting_memory"
+      ],
+      "cwd": "/tmp/tge-lab2-memory-20261016/runtime-local-assets",
+      "log": "lab2_scripting_memory-01.log",
+      "exitCode": 0,
+      "elapsedSeconds": 4.942,
+      "sanitizerDiagnosticFound": false
+    },
+    {
+      "test": "lab2_react_memory",
+      "iteration": 1,
+      "argv": [
+        "/tmp/tge-lab2-memory-20261016/lab2_react_memory"
+      ],
+      "cwd": "/tmp/tge-lab2-memory-20261016/runtime-local-assets",
+      "log": "lab2_react_memory-01.log",
+      "exitCode": 1,
+      "elapsedSeconds": 1.725,
+      "sanitizerDiagnosticFound": false
+    }
+  ],
+  "status": "test_or_sanitizer_failed",
+  "limits": [
+    "Not Windows D3D12/editor/GPU coverage or CLion Profiler output.",
+    "A clean run only describes exercised paths and sanitizer detection limits."
+  ]
+}

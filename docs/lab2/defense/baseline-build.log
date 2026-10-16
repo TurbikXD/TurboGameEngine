@@ -1,0 +1,383 @@
+Версия MSBuild 17.14.23+b0019275e для .NET Framework
+
+  1>Checking Build System
+  Building Custom Rule C:/tge/clion-vs2022b-rel/_deps/tracy-src/CMakeLists.txt
+  TracyClient.vcxproj -> C:\tge\clion-vs2022b-rel\_deps\tracy-build\Debug\TracyClient.lib
+  Luau.Common.vcxproj -> C:\tge\clion-vs2022b-rel\_deps\luau-build\Debug\Luau.Common.lib
+  Building Custom Rule C:/tge/clion-vs2022b-rel/_deps/spdlog-src/CMakeLists.txt
+  glm.vcxproj -> C:\tge\clion-vs2022b-rel\_deps\glm-build\glm\Debug\glm.lib
+  Building Custom Rule C:/tge/clion-vs2022b-rel/_deps/enkits-src/CMakeLists.txt
+  spdlog.vcxproj -> C:\tge\clion-vs2022b-rel\_deps\spdlog-build\Debug\spdlogd.lib
+  glfw.vcxproj -> C:\tge\clion-vs2022b-rel\_deps\glfw-build\src\Debug\glfw3.lib
+  enkiTS.vcxproj -> C:\tge\clion-vs2022b-rel\_deps\enkits-build\Debug\enkiTS.lib
+  Luau.VM.vcxproj -> C:\tge\clion-vs2022b-rel\_deps\luau-build\Debug\Luau.VM.lib
+  Luau.Ast.vcxproj -> C:\tge\clion-vs2022b-rel\_deps\luau-build\Debug\Luau.Ast.lib
+  Luau.Bytecode.vcxproj -> C:\tge\clion-vs2022b-rel\_deps\luau-build\Debug\Luau.Bytecode.lib
+  Building Custom Rule C:/Users/rocco/CLionProjects/TurboGameEngine/CMakeLists.txt
+  Luau.Compiler.vcxproj -> C:\tge\clion-vs2022b-rel\_deps\luau-build\Debug\Luau.Compiler.lib
+  engine_core.vcxproj -> C:\tge\clion-vs2022b-rel\Debug\engine_core.lib
+  Building Custom Rule C:/Users/rocco/CLionProjects/TurboGameEngine/CMakeLists.txt
+  Building Custom Rule C:/Users/rocco/CLionProjects/TurboGameEngine/CMakeLists.txt
+  engine_ecs.vcxproj -> C:\tge\clion-vs2022b-rel\Debug\engine_ecs.lib
+  engine_platform.vcxproj -> C:\tge\clion-vs2022b-rel\Debug\engine_platform.lib
+  Building Custom Rule C:/Users/rocco/CLionProjects/TurboGameEngine/CMakeLists.txt
+  engine_scripting.vcxproj -> C:\tge\clion-vs2022b-rel\Debug\engine_scripting.lib
+  Building Custom Rule C:/Users/rocco/CLionProjects/TurboGameEngine/CMakeLists.txt
+  engine_scripting_tests.vcxproj -> C:\tge\clion-vs2022b-rel\Debug\engine_scripting_tests.exe
+Версия MSBuild 17.14.23+b0019275e для .NET Framework
+
+  1>Checking Build System
+  Building Custom Rule C:/tge/clion-vs2022b-rel/_deps/tracy-src/CMakeLists.txt
+  Building Custom Rule C:/tge/clion-vs2022b-rel/_deps/enkits-src/CMakeLists.txt
+  Building Custom Rule C:/tge/clion-vs2022b-rel/_deps/spdlog-src/CMakeLists.txt
+  glm.vcxproj -> C:\tge\clion-vs2022b-rel\_deps\glm-build\glm\Debug\glm.lib
+  TracyClient.vcxproj -> C:\tge\clion-vs2022b-rel\_deps\tracy-build\Debug\TracyClient.lib
+  enkiTS.vcxproj -> C:\tge\clion-vs2022b-rel\_deps\enkits-build\Debug\enkiTS.lib
+  glfw.vcxproj -> C:\tge\clion-vs2022b-rel\_deps\glfw-build\src\Debug\glfw3.lib
+  spdlog.vcxproj -> C:\tge\clion-vs2022b-rel\_deps\spdlog-build\Debug\spdlogd.lib
+  Luau.Common.vcxproj -> C:\tge\clion-vs2022b-rel\_deps\luau-build\Debug\Luau.Common.lib
+  Luau.Ast.vcxproj -> C:\tge\clion-vs2022b-rel\_deps\luau-build\Debug\Luau.Ast.lib
+  Building Custom Rule C:/Users/rocco/CLionProjects/TurboGameEngine/CMakeLists.txt
+  Luau.VM.vcxproj -> C:\tge\clion-vs2022b-rel\_deps\luau-build\Debug\Luau.VM.lib
+  Luau.Bytecode.vcxproj -> C:\tge\clion-vs2022b-rel\_deps\luau-build\Debug\Luau.Bytecode.lib
+  engine_core.vcxproj -> C:\tge\clion-vs2022b-rel\Debug\engine_core.lib
+  Luau.Compiler.vcxproj -> C:\tge\clion-vs2022b-rel\_deps\luau-build\Debug\Luau.Compiler.lib
+  Building Custom Rule C:/Users/rocco/CLionProjects/TurboGameEngine/CMakeLists.txt
+  engine_platform.vcxproj -> C:\tge\clion-vs2022b-rel\Debug\engine_platform.lib
+  Building Custom Rule C:/Users/rocco/CLionProjects/TurboGameEngine/CMakeLists.txt
+  engine_ecs.vcxproj -> C:\tge\clion-vs2022b-rel\Debug\engine_ecs.lib
+  Building Custom Rule C:/Users/rocco/CLionProjects/TurboGameEngine/CMakeLists.txt
+  engine_scripting.vcxproj -> C:\tge\clion-vs2022b-rel\Debug\engine_scripting.lib
+  Building Custom Rule C:/Users/rocco/CLionProjects/TurboGameEngine/CMakeLists.txt
+  engine_react_runtime_tests.vcxproj -> C:\tge\clion-vs2022b-rel\Debug\engine_react_runtime_tests.exe
+Версия MSBuild 17.14.23+b0019275e для .NET Framework
+
+  1>Checking Build System
+  Building Custom Rule C:/tge/clion-vs2022b-rel/_deps/tracy-src/CMakeLists.txt
+  Building Custom Rule C:/tge/clion-vs2022b-rel/_deps/enkits-src/CMakeLists.txt
+  Building Custom Rule C:/tge/clion-vs2022b-rel/_deps/spdlog-src/CMakeLists.txt
+  glm.vcxproj -> C:\tge\clion-vs2022b-rel\_deps\glm-build\glm\Debug\glm.lib
+  enkiTS.vcxproj -> C:\tge\clion-vs2022b-rel\_deps\enkits-build\Debug\enkiTS.lib
+  TracyClient.vcxproj -> C:\tge\clion-vs2022b-rel\_deps\tracy-build\Debug\TracyClient.lib
+  spdlog.vcxproj -> C:\tge\clion-vs2022b-rel\_deps\spdlog-build\Debug\spdlogd.lib
+  Building Custom Rule C:/Users/rocco/CLionProjects/TurboGameEngine/CMakeLists.txt
+  engine_core.vcxproj -> C:\tge\clion-vs2022b-rel\Debug\engine_core.lib
+  Building Custom Rule C:/Users/rocco/CLionProjects/TurboGameEngine/CMakeLists.txt
+  engine_ecs.vcxproj -> C:\tge\clion-vs2022b-rel\Debug\engine_ecs.lib
+  Building Custom Rule C:/Users/rocco/CLionProjects/TurboGameEngine/CMakeLists.txt
+  engine_world_tests.vcxproj -> C:\tge\clion-vs2022b-rel\Debug\engine_world_tests.exe
+Версия MSBuild 17.14.23+b0019275e для .NET Framework
+
+  1>Checking Build System
+  Diligent-Primitives.vcxproj -> C:\tge\clion-vs2022b-rel\third_party\DiligentEngine\DiligentCore\Primitives\Debug\Diligent-Primitives.lib
+  Diligent-BasicPlatform.vcxproj -> C:\tge\clion-vs2022b-rel\third_party\DiligentEngine\DiligentCore\Platforms\Basic\Debug\Diligent-BasicPlatform.lib
+  Building Custom Rule C:/Users/rocco/CLionProjects/TurboGameEngine/third_party/DiligentEngine/DiligentCore/ThirdParty/SPIRV-Cross/CMakeLists.txt
+  glew-static.vcxproj -> C:\tge\clion-vs2022b-rel\third_party\DiligentEngine\DiligentCore\ThirdParty\glew\Debug\glew-staticd.lib
+  spirv-cross-core.vcxproj -> C:\tge\clion-vs2022b-rel\third_party\DiligentEngine\DiligentCore\ThirdParty\SPIRV-Cross\Debug\spirv-cross-cored.lib
+  volk.vcxproj -> C:\tge\clion-vs2022b-rel\third_party\DiligentEngine\DiligentCore\ThirdParty\volk\Debug\volk.lib
+  Diligent-Win32Platform.vcxproj -> C:\tge\clion-vs2022b-rel\third_party\DiligentEngine\DiligentCore\Platforms\Win32\Debug\Diligent-Win32Platform.lib
+  Luau.Common.vcxproj -> C:\tge\clion-vs2022b-rel\_deps\luau-build\Debug\Luau.Common.lib
+  Building Custom Rule C:/Users/rocco/CLionProjects/TurboGameEngine/third_party/DiligentEngine/DiligentCore/ThirdParty/xxHash/build/cmake/CMakeLists.txt
+  Luau.Ast.vcxproj -> C:\tge\clion-vs2022b-rel\_deps\luau-build\Debug\Luau.Ast.lib
+  Luau.Bytecode.vcxproj -> C:\tge\clion-vs2022b-rel\_deps\luau-build\Debug\Luau.Bytecode.lib
+  xxhash.vcxproj -> C:\tge\clion-vs2022b-rel\third_party\DiligentEngine\DiligentCore\ThirdParty\xxHash\build\cmake\Debug\xxhash.lib
+  Building Custom Rule C:/tge/clion-vs2022b-rel/_deps/tracy-src/CMakeLists.txt
+  Diligent-Common.vcxproj -> C:\tge\clion-vs2022b-rel\third_party\DiligentEngine\DiligentCore\Common\Debug\Diligent-Common.lib
+  TracyClient.vcxproj -> C:\tge\clion-vs2022b-rel\_deps\tracy-build\Debug\TracyClient.lib
+  Building Custom Rule C:/tge/clion-vs2022b-rel/_deps/enkits-src/CMakeLists.txt
+  Luau.VM.vcxproj -> C:\tge\clion-vs2022b-rel\_deps\luau-build\Debug\Luau.VM.lib
+  Building Custom Rule C:/tge/clion-vs2022b-rel/_deps/assimp-src/contrib/zlib/CMakeLists.txt
+  Building Custom Rule C:/tge/clion-vs2022b-rel/_deps/spdlog-src/CMakeLists.txt
+  enkiTS.vcxproj -> C:\tge\clion-vs2022b-rel\_deps\enkits-build\Debug\enkiTS.lib
+  glm.vcxproj -> C:\tge\clion-vs2022b-rel\_deps\glm-build\glm\Debug\glm.lib
+  zlibstatic.vcxproj -> C:\tge\clion-vs2022b-rel\_deps\assimp-build\contrib\zlib\Debug\zlibstaticd.lib
+  spdlog.vcxproj -> C:\tge\clion-vs2022b-rel\_deps\spdlog-build\Debug\spdlogd.lib
+  glfw.vcxproj -> C:\tge\clion-vs2022b-rel\_deps\glfw-build\src\Debug\glfw3.lib
+  Building Custom Rule C:/Users/rocco/CLionProjects/TurboGameEngine/CMakeLists.txt
+  SPIRV-Tools-static.vcxproj -> C:\tge\clion-vs2022b-rel\third_party\DiligentEngine\DiligentCore\ThirdParty\SPIRV-Tools\source\Debug\SPIRV-Toolsd.lib
+  Diligent-GraphicsAccessories.vcxproj -> C:\tge\clion-vs2022b-rel\third_party\DiligentEngine\DiligentCore\Graphics\GraphicsAccessories\Debug\Diligent-GraphicsAccessories.lib
+  assimp.vcxproj -> C:\tge\clion-vs2022b-rel\_deps\assimp-build\lib\Debug\assimp-vc143-mtd.lib
+  Building Custom Rule C:/Users/rocco/CLionProjects/TurboGameEngine/third_party/DiligentEngine/DiligentCore/Graphics/GraphicsEngine/CMakeLists.txt
+  Diligent-GraphicsEngine.vcxproj -> C:\tge\clion-vs2022b-rel\third_party\DiligentEngine\DiligentCore\Graphics\GraphicsEngine\Debug\Diligent-GraphicsEngine.lib
+  Diligent-GraphicsEngineNextGenBase.vcxproj -> C:\tge\clion-vs2022b-rel\third_party\DiligentEngine\DiligentCore\Graphics\GraphicsEngineNextGenBase\Debug\Diligent-GraphicsEngineNextGenBase.lib
+  engine_core.vcxproj -> C:\tge\clion-vs2022b-rel\Debug\engine_core.lib
+  SPIRV-Tools-opt.vcxproj -> C:\tge\clion-vs2022b-rel\third_party\DiligentEngine\DiligentCore\ThirdParty\SPIRV-Tools\source\opt\Debug\SPIRV-Tools-optd.lib
+  Luau.Compiler.vcxproj -> C:\tge\clion-vs2022b-rel\_deps\luau-build\Debug\Luau.Compiler.lib
+  SPIRV.vcxproj -> C:\tge\clion-vs2022b-rel\third_party\DiligentEngine\DiligentCore\ThirdParty\glslang\SPIRV\Debug\SPIRVd.lib
+  glslang.vcxproj -> C:\tge\clion-vs2022b-rel\third_party\DiligentEngine\DiligentCore\ThirdParty\glslang\glslang\Debug\glslangd.lib
+  Building Custom Rule C:/Users/rocco/CLionProjects/TurboGameEngine/CMakeLists.txt
+  Building Custom Rule C:/Users/rocco/CLionProjects/TurboGameEngine/third_party/DiligentEngine/DiligentCore/Graphics/ShaderTools/CMakeLists.txt
+  Building Custom Rule C:/Users/rocco/CLionProjects/TurboGameEngine/CMakeLists.txt
+  engine_platform.vcxproj -> C:\tge\clion-vs2022b-rel\Debug\engine_platform.lib
+  engine_ecs.vcxproj -> C:\tge\clion-vs2022b-rel\Debug\engine_ecs.lib
+  Diligent-ShaderTools.vcxproj -> C:\tge\clion-vs2022b-rel\third_party\DiligentEngine\DiligentCore\Graphics\ShaderTools\Debug\Diligent-ShaderTools.lib
+  Building Custom Rule C:/Users/rocco/CLionProjects/TurboGameEngine/CMakeLists.txt
+  Building Custom Rule C:/Users/rocco/CLionProjects/TurboGameEngine/third_party/DiligentEngine/DiligentCore/Graphics/HLSL2GLSLConverterLib/CMakeLists.txt
+  Diligent-HLSL2GLSLConverterLib.vcxproj -> C:\tge\clion-vs2022b-rel\third_party\DiligentEngine\DiligentCore\Graphics\HLSL2GLSLConverterLib\Debug\Diligent-HLSL2GLSLConverterLib.lib
+  engine_scripting.vcxproj -> C:\tge\clion-vs2022b-rel\Debug\engine_scripting.lib
+  Building Custom Rule C:/Users/rocco/CLionProjects/TurboGameEngine/third_party/DiligentEngine/DiligentCore/Graphics/GraphicsEngineVulkan/CMakeLists.txt
+  Diligent-GraphicsEngineD3DBase.vcxproj -> C:\tge\clion-vs2022b-rel\third_party\DiligentEngine\DiligentCore\Graphics\GraphicsEngineD3DBase\Debug\Diligent-GraphicsEngineD3DBase.lib
+  Diligent-GraphicsEngineVk-static.vcxproj -> C:\tge\clion-vs2022b-rel\third_party\DiligentEngine\DiligentCore\Graphics\GraphicsEngineVulkan\Debug\Diligent-GraphicsEngineVk-static.lib
+  Building Custom Rule C:/Users/rocco/CLionProjects/TurboGameEngine/third_party/DiligentEngine/DiligentCore/Graphics/GraphicsEngineD3D12/CMakeLists.txt
+  Diligent-GraphicsEngineOpenGL-static.vcxproj -> C:\tge\clion-vs2022b-rel\third_party\DiligentEngine\DiligentCore\Graphics\GraphicsEngineOpenGL\Debug\Diligent-GraphicsEngineOpenGL-static.lib
+  Diligent-GraphicsEngineD3D11-static.vcxproj -> C:\tge\clion-vs2022b-rel\third_party\DiligentEngine\DiligentCore\Graphics\GraphicsEngineD3D11\Debug\Diligent-GraphicsEngineD3D11-static.lib
+  Diligent-GraphicsEngineD3D12-static.vcxproj -> C:\tge\clion-vs2022b-rel\third_party\DiligentEngine\DiligentCore\Graphics\GraphicsEngineD3D12\Debug\Diligent-GraphicsEngineD3D12-static.lib
+  Diligent-GraphicsTools.vcxproj -> C:\tge\clion-vs2022b-rel\third_party\DiligentEngine\DiligentCore\Graphics\GraphicsTools\Debug\Diligent-GraphicsTools.lib
+  Building Custom Rule C:/Users/rocco/CLionProjects/TurboGameEngine/CMakeLists.txt
+  engine_rhi_diligent.vcxproj -> C:\tge\clion-vs2022b-rel\Debug\engine_rhi_diligent.lib
+  Diligent-Imgui.vcxproj -> C:\tge\clion-vs2022b-rel\third_party\DiligentEngine\DiligentTools\Imgui\Debug\Diligent-Imgui.lib
+  Building Custom Rule C:/Users/rocco/CLionProjects/TurboGameEngine/CMakeLists.txt
+  Building Custom Rule C:/Users/rocco/CLionProjects/TurboGameEngine/CMakeLists.txt
+  Building Custom Rule C:/Users/rocco/CLionProjects/TurboGameEngine/CMakeLists.txt
+  engine_text_editor.vcxproj -> C:\tge\clion-vs2022b-rel\Debug\engine_text_editor.lib
+  engine_rhi.vcxproj -> C:\tge\clion-vs2022b-rel\Debug\engine_rhi.lib
+  imguizmo.vcxproj -> C:\tge\clion-vs2022b-rel\Debug\imguizmo.lib
+  Building Custom Rule C:/Users/rocco/CLionProjects/TurboGameEngine/CMakeLists.txt
+  engine_renderer.vcxproj -> C:\tge\clion-vs2022b-rel\Debug\engine_renderer.lib
+  Building Custom Rule C:/Users/rocco/CLionProjects/TurboGameEngine/CMakeLists.txt
+  engine_game.vcxproj -> C:\tge\clion-vs2022b-rel\Debug\engine_game.lib
+  Building Custom Rule C:/Users/rocco/CLionProjects/TurboGameEngine/CMakeLists.txt
+  engine_physics_tests.vcxproj -> C:\tge\clion-vs2022b-rel\Debug\engine_physics_tests.exe
+Версия MSBuild 17.14.23+b0019275e для .NET Framework
+
+  1>Checking Build System
+  Building Custom Rule C:/tge/clion-vs2022b-rel/_deps/tracy-src/CMakeLists.txt
+  Building Custom Rule C:/tge/clion-vs2022b-rel/_deps/spdlog-src/CMakeLists.txt
+  Building Custom Rule C:/tge/clion-vs2022b-rel/_deps/enkits-src/CMakeLists.txt
+  TracyClient.vcxproj -> C:\tge\clion-vs2022b-rel\_deps\tracy-build\Debug\TracyClient.lib
+  enkiTS.vcxproj -> C:\tge\clion-vs2022b-rel\_deps\enkits-build\Debug\enkiTS.lib
+  spdlog.vcxproj -> C:\tge\clion-vs2022b-rel\_deps\spdlog-build\Debug\spdlogd.lib
+  Building Custom Rule C:/Users/rocco/CLionProjects/TurboGameEngine/CMakeLists.txt
+  engine_core.vcxproj -> C:\tge\clion-vs2022b-rel\Debug\engine_core.lib
+  Building Custom Rule C:/Users/rocco/CLionProjects/TurboGameEngine/CMakeLists.txt
+  engine_job_system_tests.vcxproj -> C:\tge\clion-vs2022b-rel\Debug\engine_job_system_tests.exe
+Версия MSBuild 17.14.23+b0019275e для .NET Framework
+
+  1>Checking Build System
+  Building Custom Rule C:/tge/clion-vs2022b-rel/_deps/tracy-src/CMakeLists.txt
+  Building Custom Rule C:/tge/clion-vs2022b-rel/_deps/enkits-src/CMakeLists.txt
+  Building Custom Rule C:/tge/clion-vs2022b-rel/_deps/spdlog-src/CMakeLists.txt
+  enkiTS.vcxproj -> C:\tge\clion-vs2022b-rel\_deps\enkits-build\Debug\enkiTS.lib
+  TracyClient.vcxproj -> C:\tge\clion-vs2022b-rel\_deps\tracy-build\Debug\TracyClient.lib
+  spdlog.vcxproj -> C:\tge\clion-vs2022b-rel\_deps\spdlog-build\Debug\spdlogd.lib
+  Building Custom Rule C:/Users/rocco/CLionProjects/TurboGameEngine/CMakeLists.txt
+  engine_core.vcxproj -> C:\tge\clion-vs2022b-rel\Debug\engine_core.lib
+  Building Custom Rule C:/Users/rocco/CLionProjects/TurboGameEngine/CMakeLists.txt
+  engine_project_manager_tests.vcxproj -> C:\tge\clion-vs2022b-rel\Debug\engine_project_manager_tests.exe
+Версия MSBuild 17.14.23+b0019275e для .NET Framework
+
+  1>Checking Build System
+  Diligent-Primitives.vcxproj -> C:\tge\clion-vs2022b-rel\third_party\DiligentEngine\DiligentCore\Primitives\Debug\Diligent-Primitives.lib
+  Diligent-BasicPlatform.vcxproj -> C:\tge\clion-vs2022b-rel\third_party\DiligentEngine\DiligentCore\Platforms\Basic\Debug\Diligent-BasicPlatform.lib
+  glew-static.vcxproj -> C:\tge\clion-vs2022b-rel\third_party\DiligentEngine\DiligentCore\ThirdParty\glew\Debug\glew-staticd.lib
+  Building Custom Rule C:/Users/rocco/CLionProjects/TurboGameEngine/third_party/DiligentEngine/DiligentCore/ThirdParty/SPIRV-Cross/CMakeLists.txt
+  spirv-cross-core.vcxproj -> C:\tge\clion-vs2022b-rel\third_party\DiligentEngine\DiligentCore\ThirdParty\SPIRV-Cross\Debug\spirv-cross-cored.lib
+  volk.vcxproj -> C:\tge\clion-vs2022b-rel\third_party\DiligentEngine\DiligentCore\ThirdParty\volk\Debug\volk.lib
+  Diligent-Win32Platform.vcxproj -> C:\tge\clion-vs2022b-rel\third_party\DiligentEngine\DiligentCore\Platforms\Win32\Debug\Diligent-Win32Platform.lib
+  Diligent-Common.vcxproj -> C:\tge\clion-vs2022b-rel\third_party\DiligentEngine\DiligentCore\Common\Debug\Diligent-Common.lib
+  Building Custom Rule C:/Users/rocco/CLionProjects/TurboGameEngine/third_party/DiligentEngine/DiligentCore/ThirdParty/xxHash/build/cmake/CMakeLists.txt
+  Building Custom Rule C:/tge/clion-vs2022b-rel/_deps/tracy-src/CMakeLists.txt
+  xxhash.vcxproj -> C:\tge\clion-vs2022b-rel\third_party\DiligentEngine\DiligentCore\ThirdParty\xxHash\build\cmake\Debug\xxhash.lib
+  Building Custom Rule C:/tge/clion-vs2022b-rel/_deps/assimp-src/contrib/zlib/CMakeLists.txt
+  TracyClient.vcxproj -> C:\tge\clion-vs2022b-rel\_deps\tracy-build\Debug\TracyClient.lib
+  Building Custom Rule C:/tge/clion-vs2022b-rel/_deps/enkits-src/CMakeLists.txt
+  Building Custom Rule C:/tge/clion-vs2022b-rel/_deps/spdlog-src/CMakeLists.txt
+  zlibstatic.vcxproj -> C:\tge\clion-vs2022b-rel\_deps\assimp-build\contrib\zlib\Debug\zlibstaticd.lib
+  enkiTS.vcxproj -> C:\tge\clion-vs2022b-rel\_deps\enkits-build\Debug\enkiTS.lib
+  glm.vcxproj -> C:\tge\clion-vs2022b-rel\_deps\glm-build\glm\Debug\glm.lib
+  spdlog.vcxproj -> C:\tge\clion-vs2022b-rel\_deps\spdlog-build\Debug\spdlogd.lib
+  glfw.vcxproj -> C:\tge\clion-vs2022b-rel\_deps\glfw-build\src\Debug\glfw3.lib
+  assimp.vcxproj -> C:\tge\clion-vs2022b-rel\_deps\assimp-build\lib\Debug\assimp-vc143-mtd.lib
+  Building Custom Rule C:/Users/rocco/CLionProjects/TurboGameEngine/CMakeLists.txt
+  engine_core.vcxproj -> C:\tge\clion-vs2022b-rel\Debug\engine_core.lib
+  SPIRV-Tools-static.vcxproj -> C:\tge\clion-vs2022b-rel\third_party\DiligentEngine\DiligentCore\ThirdParty\SPIRV-Tools\source\Debug\SPIRV-Toolsd.lib
+  Building Custom Rule C:/Users/rocco/CLionProjects/TurboGameEngine/CMakeLists.txt
+  SPIRV-Tools-opt.vcxproj -> C:\tge\clion-vs2022b-rel\third_party\DiligentEngine\DiligentCore\ThirdParty\SPIRV-Tools\source\opt\Debug\SPIRV-Tools-optd.lib
+  Diligent-GraphicsAccessories.vcxproj -> C:\tge\clion-vs2022b-rel\third_party\DiligentEngine\DiligentCore\Graphics\GraphicsAccessories\Debug\Diligent-GraphicsAccessories.lib
+  engine_ecs.vcxproj -> C:\tge\clion-vs2022b-rel\Debug\engine_ecs.lib
+  SPIRV.vcxproj -> C:\tge\clion-vs2022b-rel\third_party\DiligentEngine\DiligentCore\ThirdParty\glslang\SPIRV\Debug\SPIRVd.lib
+  glslang.vcxproj -> C:\tge\clion-vs2022b-rel\third_party\DiligentEngine\DiligentCore\ThirdParty\glslang\glslang\Debug\glslangd.lib
+  Building Custom Rule C:/Users/rocco/CLionProjects/TurboGameEngine/third_party/DiligentEngine/DiligentCore/Graphics/GraphicsEngine/CMakeLists.txt
+  Diligent-GraphicsEngine.vcxproj -> C:\tge\clion-vs2022b-rel\third_party\DiligentEngine\DiligentCore\Graphics\GraphicsEngine\Debug\Diligent-GraphicsEngine.lib
+  Diligent-GraphicsEngineNextGenBase.vcxproj -> C:\tge\clion-vs2022b-rel\third_party\DiligentEngine\DiligentCore\Graphics\GraphicsEngineNextGenBase\Debug\Diligent-GraphicsEngineNextGenBase.lib
+  Building Custom Rule C:/Users/rocco/CLionProjects/TurboGameEngine/third_party/DiligentEngine/DiligentCore/Graphics/ShaderTools/CMakeLists.txt
+  Diligent-ShaderTools.vcxproj -> C:\tge\clion-vs2022b-rel\third_party\DiligentEngine\DiligentCore\Graphics\ShaderTools\Debug\Diligent-ShaderTools.lib
+  Building Custom Rule C:/Users/rocco/CLionProjects/TurboGameEngine/third_party/DiligentEngine/DiligentCore/Graphics/HLSL2GLSLConverterLib/CMakeLists.txt
+  Diligent-HLSL2GLSLConverterLib.vcxproj -> C:\tge\clion-vs2022b-rel\third_party\DiligentEngine\DiligentCore\Graphics\HLSL2GLSLConverterLib\Debug\Diligent-HLSL2GLSLConverterLib.lib
+  Diligent-GraphicsEngineD3DBase.vcxproj -> C:\tge\clion-vs2022b-rel\third_party\DiligentEngine\DiligentCore\Graphics\GraphicsEngineD3DBase\Debug\Diligent-GraphicsEngineD3DBase.lib
+  Diligent-GraphicsEngineOpenGL-static.vcxproj -> C:\tge\clion-vs2022b-rel\third_party\DiligentEngine\DiligentCore\Graphics\GraphicsEngineOpenGL\Debug\Diligent-GraphicsEngineOpenGL-static.lib
+  Building Custom Rule C:/Users/rocco/CLionProjects/TurboGameEngine/third_party/DiligentEngine/DiligentCore/Graphics/GraphicsEngineD3D12/CMakeLists.txt
+  Diligent-GraphicsEngineD3D11-static.vcxproj -> C:\tge\clion-vs2022b-rel\third_party\DiligentEngine\DiligentCore\Graphics\GraphicsEngineD3D11\Debug\Diligent-GraphicsEngineD3D11-static.lib
+  Building Custom Rule C:/Users/rocco/CLionProjects/TurboGameEngine/third_party/DiligentEngine/DiligentCore/Graphics/GraphicsEngineVulkan/CMakeLists.txt
+  Diligent-GraphicsEngineD3D12-static.vcxproj -> C:\tge\clion-vs2022b-rel\third_party\DiligentEngine\DiligentCore\Graphics\GraphicsEngineD3D12\Debug\Diligent-GraphicsEngineD3D12-static.lib
+  Diligent-GraphicsEngineVk-static.vcxproj -> C:\tge\clion-vs2022b-rel\third_party\DiligentEngine\DiligentCore\Graphics\GraphicsEngineVulkan\Debug\Diligent-GraphicsEngineVk-static.lib
+  Diligent-GraphicsTools.vcxproj -> C:\tge\clion-vs2022b-rel\third_party\DiligentEngine\DiligentCore\Graphics\GraphicsTools\Debug\Diligent-GraphicsTools.lib
+  Building Custom Rule C:/Users/rocco/CLionProjects/TurboGameEngine/CMakeLists.txt
+  engine_rhi_diligent.vcxproj -> C:\tge\clion-vs2022b-rel\Debug\engine_rhi_diligent.lib
+  Diligent-Imgui.vcxproj -> C:\tge\clion-vs2022b-rel\third_party\DiligentEngine\DiligentTools\Imgui\Debug\Diligent-Imgui.lib
+  Building Custom Rule C:/Users/rocco/CLionProjects/TurboGameEngine/CMakeLists.txt
+  engine_rhi.vcxproj -> C:\tge\clion-vs2022b-rel\Debug\engine_rhi.lib
+  Building Custom Rule C:/Users/rocco/CLionProjects/TurboGameEngine/CMakeLists.txt
+  engine_renderer.vcxproj -> C:\tge\clion-vs2022b-rel\Debug\engine_renderer.lib
+  Building Custom Rule C:/Users/rocco/CLionProjects/TurboGameEngine/CMakeLists.txt
+  ProjectAssetTests.cpp
+C:\Users\rocco\CLionProjects\TurboGameEngine\tests\ProjectAssetTests.cpp(73,82): warning C4996: 'std::filesystem::u8path': warning STL4021: The std::filesystem::u8path() overloads are deprecated in C++20. The constructors of std::filesystem::path provide equivalent functionality via construction from u8string, u8string_view, or iterators with value_type char8_t. You can define _SILENCE_CXX20_U8PATH_DEPRECATION_WARNING or _SILENCE_ALL_CXX20_DEPRECATION_WARNINGS to suppress this warning. [C:\tge\clion-vs2022b-rel\engine_project_asset_tests.vcxproj]
+C:\Users\rocco\CLionProjects\TurboGameEngine\tests\ProjectAssetTests.cpp(74,38): warning C4996: 'std::filesystem::u8path': warning STL4021: The std::filesystem::u8path() overloads are deprecated in C++20. The constructors of std::filesystem::path provide equivalent functionality via construction from u8string, u8string_view, or iterators with value_type char8_t. You can define _SILENCE_CXX20_U8PATH_DEPRECATION_WARNING or _SILENCE_ALL_CXX20_DEPRECATION_WARNINGS to suppress this warning. [C:\tge\clion-vs2022b-rel\engine_project_asset_tests.vcxproj]
+C:\Users\rocco\CLionProjects\TurboGameEngine\tests\ProjectAssetTests.cpp(75,55): warning C4996: 'std::filesystem::u8path': warning STL4021: The std::filesystem::u8path() overloads are deprecated in C++20. The constructors of std::filesystem::path provide equivalent functionality via construction from u8string, u8string_view, or iterators with value_type char8_t. You can define _SILENCE_CXX20_U8PATH_DEPRECATION_WARNING or _SILENCE_ALL_CXX20_DEPRECATION_WARNINGS to suppress this warning. [C:\tge\clion-vs2022b-rel\engine_project_asset_tests.vcxproj]
+C:\Users\rocco\CLionProjects\TurboGameEngine\tests\ProjectAssetTests.cpp(199,49): warning C4996: 'std::filesystem::u8path': warning STL4021: The std::filesystem::u8path() overloads are deprecated in C++20. The constructors of std::filesystem::path provide equivalent functionality via construction from u8string, u8string_view, or iterators with value_type char8_t. You can define _SILENCE_CXX20_U8PATH_DEPRECATION_WARNING or _SILENCE_ALL_CXX20_DEPRECATION_WARNINGS to suppress this warning. [C:\tge\clion-vs2022b-rel\engine_project_asset_tests.vcxproj]
+  engine_project_asset_tests.vcxproj -> C:\tge\clion-vs2022b-rel\Debug\engine_project_asset_tests.exe
+Версия MSBuild 17.14.23+b0019275e для .NET Framework
+
+  1>Checking Build System
+  Diligent-Primitives.vcxproj -> C:\tge\clion-vs2022b-rel\third_party\DiligentEngine\DiligentCore\Primitives\Debug\Diligent-Primitives.lib
+  Diligent-BasicPlatform.vcxproj -> C:\tge\clion-vs2022b-rel\third_party\DiligentEngine\DiligentCore\Platforms\Basic\Debug\Diligent-BasicPlatform.lib
+  Building Custom Rule C:/Users/rocco/CLionProjects/TurboGameEngine/third_party/DiligentEngine/DiligentCore/ThirdParty/SPIRV-Cross/CMakeLists.txt
+  glew-static.vcxproj -> C:\tge\clion-vs2022b-rel\third_party\DiligentEngine\DiligentCore\ThirdParty\glew\Debug\glew-staticd.lib
+  volk.vcxproj -> C:\tge\clion-vs2022b-rel\third_party\DiligentEngine\DiligentCore\ThirdParty\volk\Debug\volk.lib
+  spirv-cross-core.vcxproj -> C:\tge\clion-vs2022b-rel\third_party\DiligentEngine\DiligentCore\ThirdParty\SPIRV-Cross\Debug\spirv-cross-cored.lib
+  Luau.Common.vcxproj -> C:\tge\clion-vs2022b-rel\_deps\luau-build\Debug\Luau.Common.lib
+  Building Custom Rule C:/Users/rocco/CLionProjects/TurboGameEngine/third_party/DiligentEngine/DiligentCore/ThirdParty/xxHash/build/cmake/CMakeLists.txt
+  Luau.Ast.vcxproj -> C:\tge\clion-vs2022b-rel\_deps\luau-build\Debug\Luau.Ast.lib
+  Luau.VM.vcxproj -> C:\tge\clion-vs2022b-rel\_deps\luau-build\Debug\Luau.VM.lib
+  Building Custom Rule C:/tge/clion-vs2022b-rel/_deps/tracy-src/CMakeLists.txt
+  xxhash.vcxproj -> C:\tge\clion-vs2022b-rel\third_party\DiligentEngine\DiligentCore\ThirdParty\xxHash\build\cmake\Debug\xxhash.lib
+  Luau.Bytecode.vcxproj -> C:\tge\clion-vs2022b-rel\_deps\luau-build\Debug\Luau.Bytecode.lib
+  TracyClient.vcxproj -> C:\tge\clion-vs2022b-rel\_deps\tracy-build\Debug\TracyClient.lib
+  glm.vcxproj -> C:\tge\clion-vs2022b-rel\_deps\glm-build\glm\Debug\glm.lib
+  Building Custom Rule C:/tge/clion-vs2022b-rel/_deps/assimp-src/contrib/zlib/CMakeLists.txt
+  Building Custom Rule C:/tge/clion-vs2022b-rel/_deps/enkits-src/CMakeLists.txt
+  Building Custom Rule C:/tge/clion-vs2022b-rel/_deps/spdlog-src/CMakeLists.txt
+  zlibstatic.vcxproj -> C:\tge\clion-vs2022b-rel\_deps\assimp-build\contrib\zlib\Debug\zlibstaticd.lib
+  enkiTS.vcxproj -> C:\tge\clion-vs2022b-rel\_deps\enkits-build\Debug\enkiTS.lib
+  spdlog.vcxproj -> C:\tge\clion-vs2022b-rel\_deps\spdlog-build\Debug\spdlogd.lib
+  glfw.vcxproj -> C:\tge\clion-vs2022b-rel\_deps\glfw-build\src\Debug\glfw3.lib
+  assimp.vcxproj -> C:\tge\clion-vs2022b-rel\_deps\assimp-build\lib\Debug\assimp-vc143-mtd.lib
+  Diligent-Win32Platform.vcxproj -> C:\tge\clion-vs2022b-rel\third_party\DiligentEngine\DiligentCore\Platforms\Win32\Debug\Diligent-Win32Platform.lib
+  Building Custom Rule C:/Users/rocco/CLionProjects/TurboGameEngine/CMakeLists.txt
+  Diligent-Common.vcxproj -> C:\tge\clion-vs2022b-rel\third_party\DiligentEngine\DiligentCore\Common\Debug\Diligent-Common.lib
+  Luau.Compiler.vcxproj -> C:\tge\clion-vs2022b-rel\_deps\luau-build\Debug\Luau.Compiler.lib
+  engine_core.vcxproj -> C:\tge\clion-vs2022b-rel\Debug\engine_core.lib
+  Diligent-GraphicsAccessories.vcxproj -> C:\tge\clion-vs2022b-rel\third_party\DiligentEngine\DiligentCore\Graphics\GraphicsAccessories\Debug\Diligent-GraphicsAccessories.lib
+  Building Custom Rule C:/Users/rocco/CLionProjects/TurboGameEngine/CMakeLists.txt
+  Building Custom Rule C:/Users/rocco/CLionProjects/TurboGameEngine/CMakeLists.txt
+  Building Custom Rule C:/Users/rocco/CLionProjects/TurboGameEngine/third_party/DiligentEngine/DiligentCore/Graphics/GraphicsEngine/CMakeLists.txt
+  Diligent-GraphicsEngine.vcxproj -> C:\tge\clion-vs2022b-rel\third_party\DiligentEngine\DiligentCore\Graphics\GraphicsEngine\Debug\Diligent-GraphicsEngine.lib
+  engine_platform.vcxproj -> C:\tge\clion-vs2022b-rel\Debug\engine_platform.lib
+  Diligent-GraphicsEngineNextGenBase.vcxproj -> C:\tge\clion-vs2022b-rel\third_party\DiligentEngine\DiligentCore\Graphics\GraphicsEngineNextGenBase\Debug\Diligent-GraphicsEngineNextGenBase.lib
+  engine_ecs.vcxproj -> C:\tge\clion-vs2022b-rel\Debug\engine_ecs.lib
+  Building Custom Rule C:/Users/rocco/CLionProjects/TurboGameEngine/CMakeLists.txt
+  engine_scripting.vcxproj -> C:\tge\clion-vs2022b-rel\Debug\engine_scripting.lib
+  SPIRV-Tools-static.vcxproj -> C:\tge\clion-vs2022b-rel\third_party\DiligentEngine\DiligentCore\ThirdParty\SPIRV-Tools\source\Debug\SPIRV-Toolsd.lib
+  SPIRV-Tools-opt.vcxproj -> C:\tge\clion-vs2022b-rel\third_party\DiligentEngine\DiligentCore\ThirdParty\SPIRV-Tools\source\opt\Debug\SPIRV-Tools-optd.lib
+  SPIRV.vcxproj -> C:\tge\clion-vs2022b-rel\third_party\DiligentEngine\DiligentCore\ThirdParty\glslang\SPIRV\Debug\SPIRVd.lib
+  glslang.vcxproj -> C:\tge\clion-vs2022b-rel\third_party\DiligentEngine\DiligentCore\ThirdParty\glslang\glslang\Debug\glslangd.lib
+  Building Custom Rule C:/Users/rocco/CLionProjects/TurboGameEngine/third_party/DiligentEngine/DiligentCore/Graphics/ShaderTools/CMakeLists.txt
+  Diligent-ShaderTools.vcxproj -> C:\tge\clion-vs2022b-rel\third_party\DiligentEngine\DiligentCore\Graphics\ShaderTools\Debug\Diligent-ShaderTools.lib
+  Building Custom Rule C:/Users/rocco/CLionProjects/TurboGameEngine/third_party/DiligentEngine/DiligentCore/Graphics/HLSL2GLSLConverterLib/CMakeLists.txt
+  Diligent-HLSL2GLSLConverterLib.vcxproj -> C:\tge\clion-vs2022b-rel\third_party\DiligentEngine\DiligentCore\Graphics\HLSL2GLSLConverterLib\Debug\Diligent-HLSL2GLSLConverterLib.lib
+  Diligent-GraphicsEngineD3DBase.vcxproj -> C:\tge\clion-vs2022b-rel\third_party\DiligentEngine\DiligentCore\Graphics\GraphicsEngineD3DBase\Debug\Diligent-GraphicsEngineD3DBase.lib
+  Diligent-GraphicsEngineOpenGL-static.vcxproj -> C:\tge\clion-vs2022b-rel\third_party\DiligentEngine\DiligentCore\Graphics\GraphicsEngineOpenGL\Debug\Diligent-GraphicsEngineOpenGL-static.lib
+  Diligent-GraphicsEngineD3D11-static.vcxproj -> C:\tge\clion-vs2022b-rel\third_party\DiligentEngine\DiligentCore\Graphics\GraphicsEngineD3D11\Debug\Diligent-GraphicsEngineD3D11-static.lib
+  Building Custom Rule C:/Users/rocco/CLionProjects/TurboGameEngine/third_party/DiligentEngine/DiligentCore/Graphics/GraphicsEngineD3D12/CMakeLists.txt
+  Building Custom Rule C:/Users/rocco/CLionProjects/TurboGameEngine/third_party/DiligentEngine/DiligentCore/Graphics/GraphicsEngineVulkan/CMakeLists.txt
+  Diligent-GraphicsEngineD3D12-static.vcxproj -> C:\tge\clion-vs2022b-rel\third_party\DiligentEngine\DiligentCore\Graphics\GraphicsEngineD3D12\Debug\Diligent-GraphicsEngineD3D12-static.lib
+  Diligent-GraphicsEngineVk-static.vcxproj -> C:\tge\clion-vs2022b-rel\third_party\DiligentEngine\DiligentCore\Graphics\GraphicsEngineVulkan\Debug\Diligent-GraphicsEngineVk-static.lib
+  Diligent-GraphicsTools.vcxproj -> C:\tge\clion-vs2022b-rel\third_party\DiligentEngine\DiligentCore\Graphics\GraphicsTools\Debug\Diligent-GraphicsTools.lib
+  Diligent-Imgui.vcxproj -> C:\tge\clion-vs2022b-rel\third_party\DiligentEngine\DiligentTools\Imgui\Debug\Diligent-Imgui.lib
+  Building Custom Rule C:/Users/rocco/CLionProjects/TurboGameEngine/CMakeLists.txt
+  Building Custom Rule C:/Users/rocco/CLionProjects/TurboGameEngine/CMakeLists.txt
+  Building Custom Rule C:/Users/rocco/CLionProjects/TurboGameEngine/CMakeLists.txt
+  imguizmo.vcxproj -> C:\tge\clion-vs2022b-rel\Debug\imguizmo.lib
+  engine_text_editor.vcxproj -> C:\tge\clion-vs2022b-rel\Debug\engine_text_editor.lib
+  engine_rhi_diligent.vcxproj -> C:\tge\clion-vs2022b-rel\Debug\engine_rhi_diligent.lib
+  Building Custom Rule C:/Users/rocco/CLionProjects/TurboGameEngine/CMakeLists.txt
+  engine_rhi.vcxproj -> C:\tge\clion-vs2022b-rel\Debug\engine_rhi.lib
+  Building Custom Rule C:/Users/rocco/CLionProjects/TurboGameEngine/CMakeLists.txt
+  engine_renderer.vcxproj -> C:\tge\clion-vs2022b-rel\Debug\engine_renderer.lib
+  Building Custom Rule C:/Users/rocco/CLionProjects/TurboGameEngine/CMakeLists.txt
+  engine_game.vcxproj -> C:\tge\clion-vs2022b-rel\Debug\engine_game.lib
+  Building Custom Rule C:/Users/rocco/CLionProjects/TurboGameEngine/CMakeLists.txt
+  engine_project_launcher_tests.vcxproj -> C:\tge\clion-vs2022b-rel\Debug\engine_project_launcher_tests.exe
+Версия MSBuild 17.14.23+b0019275e для .NET Framework
+
+  1>Checking Build System
+  Building Custom Rule C:/tge/clion-vs2022b-rel/_deps/tracy-src/CMakeLists.txt
+  Building Custom Rule C:/tge/clion-vs2022b-rel/_deps/enkits-src/CMakeLists.txt
+  Building Custom Rule C:/tge/clion-vs2022b-rel/_deps/spdlog-src/CMakeLists.txt
+  enkiTS.vcxproj -> C:\tge\clion-vs2022b-rel\_deps\enkits-build\Debug\enkiTS.lib
+  spdlog.vcxproj -> C:\tge\clion-vs2022b-rel\_deps\spdlog-build\Debug\spdlogd.lib
+  TracyClient.vcxproj -> C:\tge\clion-vs2022b-rel\_deps\tracy-build\Debug\TracyClient.lib
+  Building Custom Rule C:/Users/rocco/CLionProjects/TurboGameEngine/CMakeLists.txt
+  engine_core.vcxproj -> C:\tge\clion-vs2022b-rel\Debug\engine_core.lib
+  Building Custom Rule C:/Users/rocco/CLionProjects/TurboGameEngine/CMakeLists.txt
+  engine_atomic_file_tests.vcxproj -> C:\tge\clion-vs2022b-rel\Debug\engine_atomic_file_tests.exe
+Версия MSBuild 17.14.23+b0019275e для .NET Framework
+
+  1>Checking Build System
+  Building Custom Rule C:/tge/clion-vs2022b-rel/_deps/tracy-src/CMakeLists.txt
+  Building Custom Rule C:/tge/clion-vs2022b-rel/_deps/enkits-src/CMakeLists.txt
+  Building Custom Rule C:/tge/clion-vs2022b-rel/_deps/spdlog-src/CMakeLists.txt
+  TracyClient.vcxproj -> C:\tge\clion-vs2022b-rel\_deps\tracy-build\Debug\TracyClient.lib
+  enkiTS.vcxproj -> C:\tge\clion-vs2022b-rel\_deps\enkits-build\Debug\enkiTS.lib
+  spdlog.vcxproj -> C:\tge\clion-vs2022b-rel\_deps\spdlog-build\Debug\spdlogd.lib
+  Building Custom Rule C:/Users/rocco/CLionProjects/TurboGameEngine/CMakeLists.txt
+  engine_core.vcxproj -> C:\tge\clion-vs2022b-rel\Debug\engine_core.lib
+  Building Custom Rule C:/Users/rocco/CLionProjects/TurboGameEngine/CMakeLists.txt
+  engine_live_file_watcher_tests.vcxproj -> C:\tge\clion-vs2022b-rel\Debug\engine_live_file_watcher_tests.exe
+Версия MSBuild 17.14.23+b0019275e для .NET Framework
+
+  1>Checking Build System
+  Diligent-Primitives.vcxproj -> C:\tge\clion-vs2022b-rel\third_party\DiligentEngine\DiligentCore\Primitives\Debug\Diligent-Primitives.lib
+  Diligent-BasicPlatform.vcxproj -> C:\tge\clion-vs2022b-rel\third_party\DiligentEngine\DiligentCore\Platforms\Basic\Debug\Diligent-BasicPlatform.lib
+  glew-static.vcxproj -> C:\tge\clion-vs2022b-rel\third_party\DiligentEngine\DiligentCore\ThirdParty\glew\Debug\glew-staticd.lib
+  Building Custom Rule C:/Users/rocco/CLionProjects/TurboGameEngine/third_party/DiligentEngine/DiligentCore/ThirdParty/SPIRV-Cross/CMakeLists.txt
+  spirv-cross-core.vcxproj -> C:\tge\clion-vs2022b-rel\third_party\DiligentEngine\DiligentCore\ThirdParty\SPIRV-Cross\Debug\spirv-cross-cored.lib
+  volk.vcxproj -> C:\tge\clion-vs2022b-rel\third_party\DiligentEngine\DiligentCore\ThirdParty\volk\Debug\volk.lib
+  Building Custom Rule C:/Users/rocco/CLionProjects/TurboGameEngine/third_party/DiligentEngine/DiligentCore/ThirdParty/xxHash/build/cmake/CMakeLists.txt
+  Building Custom Rule C:/tge/clion-vs2022b-rel/_deps/tracy-src/CMakeLists.txt
+  Building Custom Rule C:/tge/clion-vs2022b-rel/_deps/enkits-src/CMakeLists.txt
+  xxhash.vcxproj -> C:\tge\clion-vs2022b-rel\third_party\DiligentEngine\DiligentCore\ThirdParty\xxHash\build\cmake\Debug\xxhash.lib
+  TracyClient.vcxproj -> C:\tge\clion-vs2022b-rel\_deps\tracy-build\Debug\TracyClient.lib
+  enkiTS.vcxproj -> C:\tge\clion-vs2022b-rel\_deps\enkits-build\Debug\enkiTS.lib
+  Diligent-Win32Platform.vcxproj -> C:\tge\clion-vs2022b-rel\third_party\DiligentEngine\DiligentCore\Platforms\Win32\Debug\Diligent-Win32Platform.lib
+  Building Custom Rule C:/tge/clion-vs2022b-rel/_deps/assimp-src/contrib/zlib/CMakeLists.txt
+  Building Custom Rule C:/tge/clion-vs2022b-rel/_deps/spdlog-src/CMakeLists.txt
+  glm.vcxproj -> C:\tge\clion-vs2022b-rel\_deps\glm-build\glm\Debug\glm.lib
+  zlibstatic.vcxproj -> C:\tge\clion-vs2022b-rel\_deps\assimp-build\contrib\zlib\Debug\zlibstaticd.lib
+  spdlog.vcxproj -> C:\tge\clion-vs2022b-rel\_deps\spdlog-build\Debug\spdlogd.lib
+  glfw.vcxproj -> C:\tge\clion-vs2022b-rel\_deps\glfw-build\src\Debug\glfw3.lib
+  Diligent-Common.vcxproj -> C:\tge\clion-vs2022b-rel\third_party\DiligentEngine\DiligentCore\Common\Debug\Diligent-Common.lib
+  Building Custom Rule C:/Users/rocco/CLionProjects/TurboGameEngine/CMakeLists.txt
+  Diligent-GraphicsAccessories.vcxproj -> C:\tge\clion-vs2022b-rel\third_party\DiligentEngine\DiligentCore\Graphics\GraphicsAccessories\Debug\Diligent-GraphicsAccessories.lib
+  assimp.vcxproj -> C:\tge\clion-vs2022b-rel\_deps\assimp-build\lib\Debug\assimp-vc143-mtd.lib
+  engine_core.vcxproj -> C:\tge\clion-vs2022b-rel\Debug\engine_core.lib
+  Building Custom Rule C:/Users/rocco/CLionProjects/TurboGameEngine/third_party/DiligentEngine/DiligentCore/Graphics/GraphicsEngine/CMakeLists.txt
+  Building Custom Rule C:/Users/rocco/CLionProjects/TurboGameEngine/CMakeLists.txt
+  SPIRV-Tools-static.vcxproj -> C:\tge\clion-vs2022b-rel\third_party\DiligentEngine\DiligentCore\ThirdParty\SPIRV-Tools\source\Debug\SPIRV-Toolsd.lib
+  engine_ecs.vcxproj -> C:\tge\clion-vs2022b-rel\Debug\engine_ecs.lib
+  Diligent-GraphicsEngine.vcxproj -> C:\tge\clion-vs2022b-rel\third_party\DiligentEngine\DiligentCore\Graphics\GraphicsEngine\Debug\Diligent-GraphicsEngine.lib
+  SPIRV-Tools-opt.vcxproj -> C:\tge\clion-vs2022b-rel\third_party\DiligentEngine\DiligentCore\ThirdParty\SPIRV-Tools\source\opt\Debug\SPIRV-Tools-optd.lib
+  Diligent-GraphicsEngineNextGenBase.vcxproj -> C:\tge\clion-vs2022b-rel\third_party\DiligentEngine\DiligentCore\Graphics\GraphicsEngineNextGenBase\Debug\Diligent-GraphicsEngineNextGenBase.lib
+  SPIRV.vcxproj -> C:\tge\clion-vs2022b-rel\third_party\DiligentEngine\DiligentCore\ThirdParty\glslang\SPIRV\Debug\SPIRVd.lib
+  glslang.vcxproj -> C:\tge\clion-vs2022b-rel\third_party\DiligentEngine\DiligentCore\ThirdParty\glslang\glslang\Debug\glslangd.lib
+  Building Custom Rule C:/Users/rocco/CLionProjects/TurboGameEngine/third_party/DiligentEngine/DiligentCore/Graphics/ShaderTools/CMakeLists.txt
+  Diligent-ShaderTools.vcxproj -> C:\tge\clion-vs2022b-rel\third_party\DiligentEngine\DiligentCore\Graphics\ShaderTools\Debug\Diligent-ShaderTools.lib
+  Building Custom Rule C:/Users/rocco/CLionProjects/TurboGameEngine/third_party/DiligentEngine/DiligentCore/Graphics/HLSL2GLSLConverterLib/CMakeLists.txt
+  Diligent-HLSL2GLSLConverterLib.vcxproj -> C:\tge\clion-vs2022b-rel\third_party\DiligentEngine\DiligentCore\Graphics\HLSL2GLSLConverterLib\Debug\Diligent-HLSL2GLSLConverterLib.lib
+  Building Custom Rule C:/Users/rocco/CLionProjects/TurboGameEngine/third_party/DiligentEngine/DiligentCore/Graphics/GraphicsEngineVulkan/CMakeLists.txt
+  Diligent-GraphicsEngineD3DBase.vcxproj -> C:\tge\clion-vs2022b-rel\third_party\DiligentEngine\DiligentCore\Graphics\GraphicsEngineD3DBase\Debug\Diligent-GraphicsEngineD3DBase.lib
+  Diligent-GraphicsEngineOpenGL-static.vcxproj -> C:\tge\clion-vs2022b-rel\third_party\DiligentEngine\DiligentCore\Graphics\GraphicsEngineOpenGL\Debug\Diligent-GraphicsEngineOpenGL-static.lib
+  Diligent-GraphicsEngineVk-static.vcxproj -> C:\tge\clion-vs2022b-rel\third_party\DiligentEngine\DiligentCore\Graphics\GraphicsEngineVulkan\Debug\Diligent-GraphicsEngineVk-static.lib
+  Building Custom Rule C:/Users/rocco/CLionProjects/TurboGameEngine/third_party/DiligentEngine/DiligentCore/Graphics/GraphicsEngineD3D12/CMakeLists.txt
+  Diligent-GraphicsTools.vcxproj -> C:\tge\clion-vs2022b-rel\third_party\DiligentEngine\DiligentCore\Graphics\GraphicsTools\Debug\Diligent-GraphicsTools.lib
+  Diligent-GraphicsEngineD3D11-static.vcxproj -> C:\tge\clion-vs2022b-rel\third_party\DiligentEngine\DiligentCore\Graphics\GraphicsEngineD3D11\Debug\Diligent-GraphicsEngineD3D11-static.lib
+  Diligent-Imgui.vcxproj -> C:\tge\clion-vs2022b-rel\third_party\DiligentEngine\DiligentTools\Imgui\Debug\Diligent-Imgui.lib
+  Diligent-GraphicsEngineD3D12-static.vcxproj -> C:\tge\clion-vs2022b-rel\third_party\DiligentEngine\DiligentCore\Graphics\GraphicsEngineD3D12\Debug\Diligent-GraphicsEngineD3D12-static.lib
+  Building Custom Rule C:/Users/rocco/CLionProjects/TurboGameEngine/CMakeLists.txt
+  engine_rhi_diligent.vcxproj -> C:\tge\clion-vs2022b-rel\Debug\engine_rhi_diligent.lib
+  Building Custom Rule C:/Users/rocco/CLionProjects/TurboGameEngine/CMakeLists.txt
+  engine_rhi.vcxproj -> C:\tge\clion-vs2022b-rel\Debug\engine_rhi.lib
+  Building Custom Rule C:/Users/rocco/CLionProjects/TurboGameEngine/CMakeLists.txt
+  engine_renderer.vcxproj -> C:\tge\clion-vs2022b-rel\Debug\engine_renderer.lib
+  Building Custom Rule C:/Users/rocco/CLionProjects/TurboGameEngine/CMakeLists.txt
+  engine_transform_batch_tests.vcxproj -> C:\tge\clion-vs2022b-rel\Debug\engine_transform_batch_tests.exe

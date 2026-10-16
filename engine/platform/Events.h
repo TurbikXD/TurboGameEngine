@@ -37,6 +37,9 @@ enum class KeyCode : std::uint16_t {
     Right,
     Up,
     Down,
+    C,
+    V,
+    X,
     Count
 };
 

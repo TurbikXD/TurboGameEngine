@@ -1,0 +1,6 @@
+{
+  "version": 1,
+  "name": "ЛР 2 — Collectathon",
+  "assets": "assets",
+  "startupScene": "assets/scenes/collectathon.scene.json"
+}

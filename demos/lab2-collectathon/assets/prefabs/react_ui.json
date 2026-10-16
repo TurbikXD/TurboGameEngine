@@ -1,0 +1,10 @@
+{
+  "name": "ReactLuauHUD",
+  "components": {
+    "tag": "ReactLuauHUD",
+    "script": {
+      "path": "scripts/ui/demo_ui.luau",
+      "fields": { "title": "Luau Collectathon" }
+    }
+  }
+}

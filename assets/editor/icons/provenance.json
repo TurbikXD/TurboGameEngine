@@ -1,0 +1,390 @@
+{
+  "schemaVersion": 1,
+  "purpose": "Local editor visual reference implementation requested by the user",
+  "sourceProduct": "Roblox Studio",
+  "sourceVersion": "version-9b554450a0fc4e65",
+  "sourceOwner": "Roblox Corporation",
+  "license": "Original vendor artwork; no open-source license is asserted. Copied from the user-supplied installed application for the explicitly requested local visual implementation.",
+  "modifiedPixels": false,
+  "density": "2x source PNGs, rendered at logical size",
+  "entries": [
+    {
+      "file": "RibbonSelect.png",
+      "source": "C:/Users/rocco/AppData/Local/Roblox/Versions/version-9b554450a0fc4e65/content/studio_svg_textures/Shared/Ribbon/Dark/Medium/RibbonSelect@2x.png",
+      "sha256": "d435b24dd198f41a167fd0b76c2f5cfdcb2a2ee26657176a80c7d650ab8043f8",
+      "width": 48,
+      "height": 48
+    },
+    {
+      "file": "RibbonMove.png",
+      "source": "C:/Users/rocco/AppData/Local/Roblox/Versions/version-9b554450a0fc4e65/content/studio_svg_textures/Shared/Ribbon/Dark/Medium/RibbonMove@2x.png",
+      "sha256": "bcf2b81d21c2ad6c693dd8ba5e8cf32910b7dd6442e0a8ea77cc40acbce0d2a9",
+      "width": 48,
+      "height": 48
+    },
+    {
+      "file": "RibbonScale.png",
+      "source": "C:/Users/rocco/AppData/Local/Roblox/Versions/version-9b554450a0fc4e65/content/studio_svg_textures/Shared/Ribbon/Dark/Medium/RibbonScale@2x.png",
+      "sha256": "e2d07de3a2f08fa6cdd3420957e6899bca3feb8d7447e5d1126d173f0805cb64",
+      "width": 48,
+      "height": 48
+    },
+    {
+      "file": "RibbonRotate.png",
+      "source": "C:/Users/rocco/AppData/Local/Roblox/Versions/version-9b554450a0fc4e65/content/studio_svg_textures/Shared/Ribbon/Dark/Medium/RibbonRotate@2x.png",
+      "sha256": "1ed2ee2370358bcbd9b9e194effbb04df4b3d3ff9b0bdef0773098da85a52d95",
+      "width": 48,
+      "height": 48
+    },
+    {
+      "file": "RibbonGeometric.png",
+      "source": "C:/Users/rocco/AppData/Local/Roblox/Versions/version-9b554450a0fc4e65/content/studio_svg_textures/Shared/Ribbon/Dark/Medium/RibbonGeometric@2x.png",
+      "sha256": "e406b4f5f50d8913f38637f171bc43315949eb1695f2f1c6432c368bd557d246",
+      "width": 48,
+      "height": 48
+    },
+    {
+      "file": "RibbonUIGridLayout.png",
+      "source": "C:/Users/rocco/AppData/Local/Roblox/Versions/version-9b554450a0fc4e65/content/studio_svg_textures/Shared/Ribbon/Dark/Medium/RibbonUIGridLayout@2x.png",
+      "sha256": "26f1651900369666a03a33dd56b33e78b74d7e6ef06e095568705d57422d52b9",
+      "width": 48,
+      "height": 48
+    },
+    {
+      "file": "RibbonPart.png",
+      "source": "C:/Users/rocco/AppData/Local/Roblox/Versions/version-9b554450a0fc4e65/content/studio_svg_textures/Shared/Ribbon/Dark/Medium/RibbonPart@2x.png",
+      "sha256": "35dc9648f2a6a27802829b81a61e548af04ae82b5c162628f82b1a5ec217c83e",
+      "width": 48,
+      "height": 48
+    },
+    {
+      "file": "RibbonPart_Sphere.png",
+      "source": "C:/Users/rocco/AppData/Local/Roblox/Versions/version-9b554450a0fc4e65/content/studio_svg_textures/Shared/Ribbon/Dark/Medium/RibbonPart_Sphere@2x.png",
+      "sha256": "3a6385045b6c51b29451a373d8f6700f91a0835dbd0b9c09793f8642cafbd77a",
+      "width": 48,
+      "height": 48
+    },
+    {
+      "file": "RibbonPart_Wedge.png",
+      "source": "C:/Users/rocco/AppData/Local/Roblox/Versions/version-9b554450a0fc4e65/content/studio_svg_textures/Shared/Ribbon/Dark/Medium/RibbonPart_Wedge@2x.png",
+      "sha256": "8c9c1aee742cfa71d609f95888ea6ded6f795cb39761d0ff9ec47556b53157b2",
+      "width": 48,
+      "height": 48
+    },
+    {
+      "file": "RibbonViewportFrame.png",
+      "source": "C:/Users/rocco/AppData/Local/Roblox/Versions/version-9b554450a0fc4e65/content/studio_svg_textures/Shared/Ribbon/Dark/Medium/RibbonViewportFrame@2x.png",
+      "sha256": "caed8203f40c5ebbaf2749bd652a6d0aef2c9b15813de2acb0f005f1bbb1a109",
+      "width": 48,
+      "height": 48
+    },
+    {
+      "file": "RibbonColor.png",
+      "source": "C:/Users/rocco/AppData/Local/Roblox/Versions/version-9b554450a0fc4e65/content/studio_svg_textures/Shared/InsertableObjects/Dark/Standard/Color@2x.png",
+      "sha256": "60cd8b49f17819c61369345acb3a31f776e22e6e87176e65e1985c5310c213b1",
+      "width": 32,
+      "height": 32
+    },
+    {
+      "file": "RibbonEffect_Highlight.png",
+      "source": "C:/Users/rocco/AppData/Local/Roblox/Versions/version-9b554450a0fc4e65/content/studio_svg_textures/Shared/Ribbon/Dark/Medium/RibbonEffect_Highlight@2x.png",
+      "sha256": "eda5979b89e753360c0630109c99bbcd8824fcb38f91febda42a1fb984df7f0a",
+      "width": 48,
+      "height": 48
+    },
+    {
+      "file": "RibbonAnchor.png",
+      "source": "C:/Users/rocco/AppData/Local/Roblox/Versions/version-9b554450a0fc4e65/content/studio_svg_textures/Shared/Ribbon/Dark/Medium/RibbonAnchor@2x.png",
+      "sha256": "d6324054579022c1fc0316247a4560c46550bb1e2f6879b78683fd29b08381eb",
+      "width": 48,
+      "height": 48
+    },
+    {
+      "file": "RibbonVectorForce.png",
+      "source": "C:/Users/rocco/AppData/Local/Roblox/Versions/version-9b554450a0fc4e65/content/studio_svg_textures/Shared/Ribbon/Dark/Medium/RibbonVectorForce@2x.png",
+      "sha256": "1c93eae035e53eb30d7e564191bb3b4e6c734831d0ae3c1db8c312ece6421711",
+      "width": 48,
+      "height": 48
+    },
+    {
+      "file": "RibbonPhysical.png",
+      "source": "C:/Users/rocco/AppData/Local/Roblox/Versions/version-9b554450a0fc4e65/content/studio_svg_textures/Shared/Ribbon/Dark/Medium/RibbonPhysical@2x.png",
+      "sha256": "07696a4a2e66a1e0a7011279f052531fe278bb986107990489a0343d880c3ae1",
+      "width": 48,
+      "height": 48
+    },
+    {
+      "file": "RibbonAddTools.png",
+      "source": "C:/Users/rocco/AppData/Local/Roblox/Versions/version-9b554450a0fc4e65/content/studio_svg_textures/Shared/Ribbon/Dark/Medium/RibbonAddTools@2x.png",
+      "sha256": "e7899062e7df054a434fa3ae2231f796728e4ecb28b8d0c084925ea9ee0b2c86",
+      "width": 48,
+      "height": 48
+    },
+    {
+      "file": "RibbonExplorer.png",
+      "source": "C:/Users/rocco/AppData/Local/Roblox/Versions/version-9b554450a0fc4e65/content/studio_svg_textures/Shared/Ribbon/Dark/Medium/RibbonExplorer@2x.png",
+      "sha256": "f69d8dd0a4b6468703fc9c51d27f85825e119b1cf6cb8126341b3b768df376a9",
+      "width": 48,
+      "height": 48
+    },
+    {
+      "file": "RibbonProperties.png",
+      "source": "C:/Users/rocco/AppData/Local/Roblox/Versions/version-9b554450a0fc4e65/content/studio_svg_textures/Shared/Ribbon/Dark/Medium/RibbonProperties@2x.png",
+      "sha256": "8a8ceed71896c4d3ba3ae8cefc08f1145eb69146d1634f3e3e977f20547aa578",
+      "width": 48,
+      "height": 48
+    },
+    {
+      "file": "RibbonAssetManager.png",
+      "source": "C:/Users/rocco/AppData/Local/Roblox/Versions/version-9b554450a0fc4e65/content/studio_svg_textures/Shared/Ribbon/Dark/Medium/RibbonAssetManager@2x.png",
+      "sha256": "f78aabb95af2a92d1e152e94fe6604dee513074141e957cc38a01f75475d73e3",
+      "width": 48,
+      "height": 48
+    },
+    {
+      "file": "RibbonPerformance.png",
+      "source": "C:/Users/rocco/AppData/Local/Roblox/Versions/version-9b554450a0fc4e65/content/studio_svg_textures/Shared/Ribbon/Dark/Medium/RibbonPerformance@2x.png",
+      "sha256": "7d81736109197065a07b2b16edc56d25a31989637d28e9f04aa1a959691318fc",
+      "width": 48,
+      "height": 48
+    },
+    {
+      "file": "RibbonAI.png",
+      "source": "C:/Users/rocco/AppData/Local/Roblox/Versions/version-9b554450a0fc4e65/content/studio_svg_textures/Shared/Ribbon/Dark/Medium/RibbonAI@2x.png",
+      "sha256": "57af9a280989d3b63a7ebc151d9c3df6e130638f789feaa11a78d92ae50a156e",
+      "width": 48,
+      "height": 48
+    },
+    {
+      "file": "RibbonScript.png",
+      "source": "C:/Users/rocco/AppData/Local/Roblox/Versions/version-9b554450a0fc4e65/content/studio_svg_textures/Shared/Ribbon/Dark/Medium/RibbonScript@2x.png",
+      "sha256": "ca95069da6188377826b29b4697a100191f084c70ed630abb77cad57555c0f2b",
+      "width": 48,
+      "height": 48
+    },
+    {
+      "file": "RibbonPlaySmall.png",
+      "source": "C:/Users/rocco/AppData/Local/Roblox/Versions/version-9b554450a0fc4e65/content/studio_svg_textures/Shared/Ribbon/Dark/Standard/RibbonPlaySmall@2x.png",
+      "sha256": "ec941033a5f4ab5d186eef1c89309eaad05b361119e9a53c1d9d1835ca5bff44",
+      "width": 32,
+      "height": 32
+    },
+    {
+      "file": "RibbonClientSmall.png",
+      "source": "C:/Users/rocco/AppData/Local/Roblox/Versions/version-9b554450a0fc4e65/content/studio_svg_textures/Shared/Ribbon/Dark/Standard/RibbonClientSmall@2x.png",
+      "sha256": "2f4e3fea1d6f4b2aa626ac8316634f09149f3f311adfd1729e577ede574bf96b",
+      "width": 32,
+      "height": 32
+    },
+    {
+      "file": "RibbonPauseSmall.png",
+      "source": "C:/Users/rocco/AppData/Local/Roblox/Versions/version-9b554450a0fc4e65/content/studio_svg_textures/Shared/Ribbon/Dark/Standard/RibbonPauseSmall@2x.png",
+      "sha256": "7621429cec882f28883c9c32f60b15044182833348d48eca0cd8eb00cfbc0ece",
+      "width": 32,
+      "height": 32
+    },
+    {
+      "file": "RibbonStopActiveSmall.png",
+      "source": "C:/Users/rocco/AppData/Local/Roblox/Versions/version-9b554450a0fc4e65/content/studio_svg_textures/Shared/Ribbon/Dark/Standard/RibbonStopActiveSmall@2x.png",
+      "sha256": "eb488f17c2454a6f4c534cd6fac8cd81a7523e65af8f5236721dc40eaeca19b9",
+      "width": 32,
+      "height": 32
+    },
+    {
+      "file": "RibbonStepForwardSmall.png",
+      "source": "C:/Users/rocco/AppData/Local/Roblox/Versions/version-9b554450a0fc4e65/content/studio_svg_textures/Shared/Ribbon/Dark/Standard/RibbonStepForwardSmall@2x.png",
+      "sha256": "8b90eb4c1d73a2a46844a94e9bbdee598c433e5fad10b7a098cc0a5a2a83ece2",
+      "width": 32,
+      "height": 32
+    },
+    {
+      "file": "RibbonBack.png",
+      "source": "C:/Users/rocco/AppData/Local/Roblox/Versions/version-9b554450a0fc4e65/content/studio_svg_textures/Shared/Ribbon/Dark/Medium/RibbonBack@2x.png",
+      "sha256": "4078855dcabfb4308baaa9f86b8ef5770269473a296b82d198d9a78b46bf1b5b",
+      "width": 48,
+      "height": 48
+    },
+    {
+      "file": "RibbonFwd.png",
+      "source": "C:/Users/rocco/AppData/Local/Roblox/Versions/version-9b554450a0fc4e65/content/studio_svg_textures/Shared/Ribbon/Dark/Medium/RibbonFwd@2x.png",
+      "sha256": "8ebdcd3237467270bd2fa7f4577843816469e24acd2c5dc26cdc9b91289e1b30",
+      "width": 48,
+      "height": 48
+    },
+    {
+      "file": "RibbonGroup.png",
+      "source": "C:/Users/rocco/AppData/Local/Roblox/Versions/version-9b554450a0fc4e65/content/studio_svg_textures/Shared/Ribbon/Dark/Medium/RibbonGroup@2x.png",
+      "sha256": "d572ddcfd9a1c83d413d36ffed460f3083bd56083bcb93558ce021a07d29301e",
+      "width": 48,
+      "height": 48
+    },
+    {
+      "file": "RibbonDeleteSmall.png",
+      "source": "C:/Users/rocco/AppData/Local/Roblox/Versions/version-9b554450a0fc4e65/content/studio_svg_textures/Shared/Ribbon/Dark/Standard/RibbonDeleteSmall@2x.png",
+      "sha256": "0cab5b5ba1a8b81cf2b93ecfc45e298221e53272a077cb395115e6b904f22d87",
+      "width": 32,
+      "height": 32
+    },
+    {
+      "file": "RibbonFrame.png",
+      "source": "C:/Users/rocco/AppData/Local/Roblox/Versions/version-9b554450a0fc4e65/content/studio_svg_textures/Shared/Ribbon/Dark/Medium/RibbonFrame@2x.png",
+      "sha256": "7a1807cd8ba86a301636e7997a451343f5801a67ee4483444e36304cc8389cda",
+      "width": 48,
+      "height": 48
+    },
+    {
+      "file": "RibbonResetPivot.png",
+      "source": "C:/Users/rocco/AppData/Local/Roblox/Versions/version-9b554450a0fc4e65/content/studio_svg_textures/Shared/Ribbon/Dark/Medium/RibbonResetPivot@2x.png",
+      "sha256": "85b0a0cd2b783fff47076b18f680dcc844f25c14bc33535885e23b177141c27c",
+      "width": 48,
+      "height": 48
+    },
+    {
+      "file": "RibbonAlignPosition.png",
+      "source": "C:/Users/rocco/AppData/Local/Roblox/Versions/version-9b554450a0fc4e65/content/studio_svg_textures/Shared/Ribbon/Dark/Medium/RibbonAlignPosition@2x.png",
+      "sha256": "3b9a0855b1955fa49e83e14af6728e5028333133557348af1fc6e6a64416be95",
+      "width": 48,
+      "height": 48
+    },
+    {
+      "file": "RibbonReactDevTools.png",
+      "source": "C:/Users/rocco/AppData/Local/Roblox/Versions/version-9b554450a0fc4e65/content/studio_svg_textures/Shared/Ribbon/Dark/Medium/RibbonReactDevTools@2x.png",
+      "sha256": "cc132fb4c7808f66e7195ec6406d32c2f4d0f624e7e7d21262207138d96b3446",
+      "width": 48,
+      "height": 48
+    },
+    {
+      "file": "RibbonOutput.png",
+      "source": "C:/Users/rocco/AppData/Local/Roblox/Versions/version-9b554450a0fc4e65/content/studio_svg_textures/Shared/Ribbon/Dark/Medium/RibbonOutput@2x.png",
+      "sha256": "8a765b684c14070ad2660111a681a50d262dc3d58dde883e5c67e2b2cfbaf1bc",
+      "width": 48,
+      "height": 48
+    },
+    {
+      "file": "RibbonLock.png",
+      "source": "C:/Users/rocco/AppData/Local/Roblox/Versions/version-9b554450a0fc4e65/content/studio_svg_textures/Shared/Ribbon/Dark/Medium/RibbonLock@2x.png",
+      "sha256": "95f21b986f10858c57623f28fb0a6365af391cc233aaeba31d796eaaafc67ea0",
+      "width": 48,
+      "height": 48
+    },
+    {
+      "file": "RibbonUpdateSmall.png",
+      "source": "C:/Users/rocco/AppData/Local/Roblox/Versions/version-9b554450a0fc4e65/content/studio_svg_textures/Shared/Ribbon/Dark/Standard/RibbonUpdateSmall@2x.png",
+      "sha256": "3a1d8af4b0b6ea0feba767cc8a29a06d893c2a17ad658460d4eb0bddafdf64e2",
+      "width": 32,
+      "height": 32
+    },
+    {
+      "file": "RibbonAnalysis.png",
+      "source": "C:/Users/rocco/AppData/Local/Roblox/Versions/version-9b554450a0fc4e65/content/studio_svg_textures/Shared/Ribbon/Dark/Medium/RibbonAnalysis@2x.png",
+      "sha256": "efa3f28a6203fd9f563846a9b81e6d7c2470c04dbeca729749be0d33b2cffd51",
+      "width": 48,
+      "height": 48
+    },
+    {
+      "file": "RibbonFind.png",
+      "source": "C:/Users/rocco/AppData/Local/Roblox/Versions/version-9b554450a0fc4e65/content/studio_svg_textures/Shared/Ribbon/Dark/Medium/RibbonFind@2x.png",
+      "sha256": "8e684a6a81f700a5d3f7cf40ac0d7479fdf7ce58e8ade4e2c958d179ed2132d4",
+      "width": 48,
+      "height": 48
+    },
+    {
+      "file": "RibbonGoToLine.png",
+      "source": "C:/Users/rocco/AppData/Local/Roblox/Versions/version-9b554450a0fc4e65/content/studio_svg_textures/Shared/Ribbon/Dark/Medium/RibbonGoToLine@2x.png",
+      "sha256": "e2b92bd4d79ac7aabb1f693e59f64f8e56024019c073fcc66c61cda70d33573b",
+      "width": 48,
+      "height": 48
+    },
+    {
+      "file": "RibbonCodeSnippet.png",
+      "source": "C:/Users/rocco/AppData/Local/Roblox/Versions/version-9b554450a0fc4e65/content/studio_svg_textures/Shared/Ribbon/Dark/Medium/RibbonCodeSnippet@2x.png",
+      "sha256": "1b39bc269d3b3b4a953b5fbe3768b6f52f099f9dde9748dd168cebb45b9ca1f9",
+      "width": 48,
+      "height": 48
+    },
+    {
+      "file": "RibbonFormatDocument.png",
+      "source": "C:/Users/rocco/AppData/Local/Roblox/Versions/version-9b554450a0fc4e65/content/studio_svg_textures/Shared/Ribbon/Dark/Medium/RibbonFormatDocument@2x.png",
+      "sha256": "5dece3dffb98963a244378ad975d2da52884cd8c3e7afc00d423d50ad4a60468",
+      "width": 48,
+      "height": 48
+    },
+    {
+      "file": "RibbonCommand.png",
+      "source": "C:/Users/rocco/AppData/Local/Roblox/Versions/version-9b554450a0fc4e65/content/studio_svg_textures/Shared/Ribbon/Dark/Medium/RibbonCommand@2x.png",
+      "sha256": "15b1956028aac5bfc761499572d4f9297d8750315c98e78145e6ecec86452117",
+      "width": 48,
+      "height": 48
+    },
+    {
+      "file": "RibbonWatch.png",
+      "source": "C:/Users/rocco/AppData/Local/Roblox/Versions/version-9b554450a0fc4e65/content/studio_svg_textures/Shared/Ribbon/Dark/Medium/RibbonWatch@2x.png",
+      "sha256": "a6a6071efa150e264d2242c6a7ca5f46cbe3a3752aa9e59f7970e84087e39c74",
+      "width": 48,
+      "height": 48
+    },
+    {
+      "file": "RibbonCallStack.png",
+      "source": "C:/Users/rocco/AppData/Local/Roblox/Versions/version-9b554450a0fc4e65/content/studio_svg_textures/Shared/Ribbon/Dark/Medium/RibbonCallStack@2x.png",
+      "sha256": "6cbf321047ed13a62286c3017ca3e5985c906da4b0c11a45c9ae610b9b0f6d15",
+      "width": 48,
+      "height": 48
+    },
+    {
+      "file": "RibbonArrowDownAngleSmall.png",
+      "source": "C:/Users/rocco/AppData/Local/Roblox/Versions/version-9b554450a0fc4e65/content/studio_svg_textures/Shared/Ribbon/Dark/Standard/DropDownArrowDown@2x.png",
+      "sha256": "c63b49ca88dd9fb07e52fa7eb70da919a028555dd0e253f975df31c84f5118b3",
+      "width": 32,
+      "height": 32
+    },
+    {
+      "file": "RibbonMoreSmall.png",
+      "source": "C:/Users/rocco/AppData/Local/Roblox/Versions/version-9b554450a0fc4e65/content/studio_svg_textures/Shared/Ribbon/Dark/Standard/RibbonMoreSmall@2x.png",
+      "sha256": "475d11ccf81e345934eaa880f40292b89256660f94b56f4a0174525f7fd5707c",
+      "width": 32,
+      "height": 32
+    },
+    {
+      "file": "RibbonMoveSpinboxSmall.png",
+      "source": "C:/Users/rocco/AppData/Local/Roblox/Versions/version-9b554450a0fc4e65/content/studio_svg_textures/Shared/Ribbon/Dark/Standard/RibbonMoveSpinboxSmall@2x.png",
+      "sha256": "c4b54d514509a9fb952191b45a2f51a89e05118522a70b7ed980b31a6fdb8157",
+      "width": 32,
+      "height": 32
+    },
+    {
+      "file": "RibbonRotateSpinboxSmall.png",
+      "source": "C:/Users/rocco/AppData/Local/Roblox/Versions/version-9b554450a0fc4e65/content/studio_svg_textures/Shared/Ribbon/Dark/Standard/RibbonRotateSpinboxSmall@2x.png",
+      "sha256": "6ce0225bcdcbc4363406752d546b730afc5c89e2b51860ee9a7bd6080519daa1",
+      "width": 32,
+      "height": 32
+    },
+    {
+      "file": "Geometric.png",
+      "source": "C:/Users/rocco/AppData/Local/Roblox/Versions/version-9b554450a0fc4e65/content/studio_svg_textures/Shared/Ribbon/Dark/Medium/Geometric@2x.png",
+      "sha256": "e406b4f5f50d8913f38637f171bc43315949eb1695f2f1c6432c368bd557d246",
+      "width": 48,
+      "height": 48
+    },
+    {
+      "file": "RibbonDuplicate.png",
+      "source": "C:/Users/rocco/AppData/Local/Roblox/Versions/version-9b554450a0fc4e65/content/studio_svg_textures/Shared/Clipboard/Dark/Standard/Duplicate@2x.png",
+      "sha256": "1375041b36a5fb6187ad50398aad8541533b70cc51790d32372c0f21fd07a0b8",
+      "width": 32,
+      "height": 32
+    },
+    {
+      "file": "RibbonCamera.png",
+      "source": "C:/Users/rocco/AppData/Local/Roblox/Versions/version-9b554450a0fc4e65/content/studio_svg_textures/Shared/InsertableObjects/Dark/Standard/Camera@2x.png",
+      "sha256": "ee3539ff9dc2ce2af3f044e70b4eaacf8dcda0422c55fc82a4e3a3f71d421e53",
+      "width": 32,
+      "height": 32
+    },
+    {
+      "file": "RibbonVisible.png",
+      "source": "C:/Users/rocco/AppData/Local/Roblox/Versions/version-9b554450a0fc4e65/content/studio_svg_textures/Lua/AvatarSettings/Dark/Standard/eye-fill-dark@2x.png",
+      "sha256": "321014d9143a36848ba403107e75a856dd963d499163ae629d12caf6db080fe3",
+      "width": 32,
+      "height": 32
+    }
+  ]
+}

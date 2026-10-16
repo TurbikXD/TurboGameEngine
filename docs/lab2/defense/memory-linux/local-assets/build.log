@@ -1,0 +1,108 @@
+[  2%] Building CXX object spdlog/CMakeFiles/spdlog.dir/src/spdlog.cpp.o
+[  2%] Building CXX object luau/CMakeFiles/Luau.Common.dir/Common/src/BytecodeWire.cpp.o
+[  5%] Building CXX object luau/CMakeFiles/Luau.Common.dir/Common/src/StringUtils.cpp.o
+[  5%] Building CXX object luau/CMakeFiles/Luau.Common.dir/Common/src/TimeTrace.cpp.o
+[  5%] Linking CXX static library libLuau.Common.a
+[  5%] Built target Luau.Common
+[  5%] Building CXX object enkits/CMakeFiles/enkiTS.dir/src/TaskScheduler.cpp.o
+[  7%] Linking CXX static library libenkiTS.a
+[  7%] Built target enkiTS
+[  7%] Building CXX object spdlog/CMakeFiles/spdlog.dir/src/stdout_sinks.cpp.o
+[ 10%] Building CXX object spdlog/CMakeFiles/spdlog.dir/src/color_sinks.cpp.o
+[ 10%] Building CXX object spdlog/CMakeFiles/spdlog.dir/src/file_sinks.cpp.o
+[ 12%] Building CXX object spdlog/CMakeFiles/spdlog.dir/src/async.cpp.o
+[ 12%] Building CXX object spdlog/CMakeFiles/spdlog.dir/src/cfg.cpp.o
+[ 12%] Building CXX object spdlog/CMakeFiles/spdlog.dir/src/bundled_fmtlib_format.cpp.o
+[ 12%] Building CXX object luau/CMakeFiles/Luau.Ast.dir/Ast/src/Allocator.cpp.o
+[ 15%] Building CXX object luau/CMakeFiles/Luau.Ast.dir/Ast/src/Ast.cpp.o
+[ 15%] Building CXX object luau/CMakeFiles/Luau.Ast.dir/Ast/src/Confusables.cpp.o
+[ 17%] Linking CXX static library libspdlogd.a
+[ 17%] Built target spdlog
+[ 20%] Building CXX object luau/CMakeFiles/Luau.Bytecode.dir/Bytecode/src/BytecodeBuilder.cpp.o
+[ 23%] Building CXX object luau/CMakeFiles/Luau.Ast.dir/Ast/src/Cst.cpp.o
+[ 23%] Building CXX object luau/CMakeFiles/Luau.Ast.dir/Ast/src/Lexer.cpp.o
+[ 25%] Building CXX object luau/CMakeFiles/Luau.Ast.dir/Ast/src/Location.cpp.o
+[ 25%] Building CXX object luau/CMakeFiles/Luau.Ast.dir/Ast/src/Parser.cpp.o
+[ 25%] Building CXX object luau/CMakeFiles/Luau.Bytecode.dir/Bytecode/src/BytecodeDump.cpp.o
+[ 25%] Building CXX object luau/CMakeFiles/Luau.Bytecode.dir/Bytecode/src/BytecodeGraph.cpp.o
+[ 28%] Building CXX object luau/CMakeFiles/Luau.Ast.dir/Ast/src/PrettyPrinter.cpp.o
+[ 30%] Building CXX object luau/CMakeFiles/Luau.Bytecode.dir/Bytecode/src/Sccp.cpp.o
+[ 30%] Linking CXX static library libLuau.Bytecode.a
+[ 30%] Built target Luau.Bytecode
+[ 30%] Building CXX object luau/CMakeFiles/Luau.VM.dir/VM/src/lapi.cpp.o
+[ 33%] Building CXX object luau/CMakeFiles/Luau.VM.dir/VM/src/laux.cpp.o
+[ 33%] Building CXX object luau/CMakeFiles/Luau.VM.dir/VM/src/lbaselib.cpp.o
+[ 33%] Building CXX object luau/CMakeFiles/Luau.VM.dir/VM/src/lbitlib.cpp.o
+[ 33%] Linking CXX static library libLuau.Ast.a
+[ 33%] Built target Luau.Ast
+[ 35%] Building CXX object luau/CMakeFiles/Luau.VM.dir/VM/src/lbuffer.cpp.o
+[ 35%] Building CXX object luau/CMakeFiles/Luau.VM.dir/VM/src/lbuflib.cpp.o
+[ 38%] Building CXX object luau/CMakeFiles/Luau.VM.dir/VM/src/lbuiltins.cpp.o
+[ 38%] Building CXX object luau/CMakeFiles/Luau.VM.dir/VM/src/lcorolib.cpp.o
+[ 41%] Building CXX object luau/CMakeFiles/Luau.VM.dir/VM/src/ldblib.cpp.o
+[ 41%] Building CXX object luau/CMakeFiles/Luau.VM.dir/VM/src/ldebug.cpp.o
+[ 43%] Building CXX object luau/CMakeFiles/Luau.VM.dir/VM/src/ldo.cpp.o
+[ 43%] Building CXX object luau/CMakeFiles/Luau.VM.dir/VM/src/lfunc.cpp.o
+[ 46%] Building CXX object luau/CMakeFiles/Luau.VM.dir/VM/src/lgc.cpp.o
+[ 46%] Building CXX object luau/CMakeFiles/Luau.VM.dir/VM/src/lgcdebug.cpp.o
+[ 46%] Building CXX object luau/CMakeFiles/Luau.VM.dir/VM/src/linit.cpp.o
+[ 48%] Building CXX object luau/CMakeFiles/Luau.VM.dir/VM/src/lmathlib.cpp.o
+[ 48%] Building CXX object luau/CMakeFiles/Luau.VM.dir/VM/src/lmem.cpp.o
+[ 51%] Building CXX object luau/CMakeFiles/Luau.VM.dir/VM/src/lnumprint.cpp.o
+[ 51%] Building CXX object luau/CMakeFiles/Luau.VM.dir/VM/src/lobject.cpp.o
+[ 53%] Building CXX object luau/CMakeFiles/Luau.VM.dir/VM/src/loslib.cpp.o
+[ 53%] Building CXX object luau/CMakeFiles/Luau.VM.dir/VM/src/lperf.cpp.o
+[ 56%] Building CXX object luau/CMakeFiles/Luau.VM.dir/VM/src/lstate.cpp.o
+[ 56%] Building CXX object luau/CMakeFiles/Luau.VM.dir/VM/src/lstring.cpp.o
+[ 56%] Building CXX object luau/CMakeFiles/Luau.VM.dir/VM/src/lstrlib.cpp.o
+[ 58%] Building CXX object luau/CMakeFiles/Luau.VM.dir/VM/src/ltable.cpp.o
+[ 58%] Building CXX object luau/CMakeFiles/Luau.VM.dir/VM/src/ltablib.cpp.o
+[ 61%] Building CXX object luau/CMakeFiles/Luau.VM.dir/VM/src/ltm.cpp.o
+[ 61%] Building CXX object luau/CMakeFiles/Luau.VM.dir/VM/src/ludata.cpp.o
+[ 64%] Building CXX object luau/CMakeFiles/Luau.VM.dir/VM/src/lutf8lib.cpp.o
+[ 64%] Building CXX object luau/CMakeFiles/Luau.VM.dir/VM/src/lveclib.cpp.o
+[ 66%] Building CXX object luau/CMakeFiles/Luau.VM.dir/VM/src/lintlib.cpp.o
+[ 66%] Building CXX object luau/CMakeFiles/Luau.VM.dir/VM/src/lvmexecute.cpp.o
+[ 66%] Building CXX object luau/CMakeFiles/Luau.VM.dir/VM/src/lclass.cpp.o
+[ 69%] Building CXX object luau/CMakeFiles/Luau.VM.dir/VM/src/lclasslib.cpp.o
+[ 69%] Building CXX object luau/CMakeFiles/Luau.VM.dir/VM/src/lvector.cpp.o
+[ 71%] Building CXX object luau/CMakeFiles/Luau.VM.dir/VM/src/lvmload.cpp.o
+[ 71%] Building CXX object luau/CMakeFiles/Luau.VM.dir/VM/src/lvmutils.cpp.o
+[ 74%] Building CXX object luau/CMakeFiles/Luau.Compiler.dir/Compiler/src/Compiler.cpp.o
+[ 76%] Linking CXX static library libLuau.VM.a
+[ 76%] Built target Luau.VM
+[ 76%] Building CXX object luau/CMakeFiles/Luau.Compiler.dir/Compiler/src/Builtins.cpp.o
+[ 79%] Building CXX object luau/CMakeFiles/Luau.Compiler.dir/Compiler/src/BuiltinFolding.cpp.o
+[ 79%] Building CXX object luau/CMakeFiles/Luau.Compiler.dir/Compiler/src/ConstantFolding.cpp.o
+[ 82%] Building CXX object luau/CMakeFiles/Luau.Compiler.dir/Compiler/src/CostModel.cpp.o
+[ 82%] Building CXX object luau/CMakeFiles/Luau.Compiler.dir/Compiler/src/TableShape.cpp.o
+[ 84%] Building CXX object luau/CMakeFiles/Luau.Compiler.dir/Compiler/src/Types.cpp.o
+[ 84%] Building CXX object luau/CMakeFiles/Luau.Compiler.dir/Compiler/src/ValueTracking.cpp.o
+[ 87%] Building CXX object luau/CMakeFiles/Luau.Compiler.dir/Compiler/src/lcode.cpp.o
+[ 87%] Linking CXX static library libLuau.Compiler.a
+[ 87%] Built target Luau.Compiler
+[ 87%] Building CXX object CMakeFiles/tge_memory_runtime.dir/mnt/c/Users/rocco/CLionProjects/TurboGameEngine/engine/core/JobSystem.cpp.o
+[ 89%] Building CXX object CMakeFiles/tge_memory_runtime.dir/mnt/c/Users/rocco/CLionProjects/TurboGameEngine/engine/core/LiveFileWatcher.cpp.o
+[ 89%] Building CXX object CMakeFiles/tge_memory_runtime.dir/mnt/c/Users/rocco/CLionProjects/TurboGameEngine/engine/core/Log.cpp.o
+[ 92%] Building CXX object CMakeFiles/tge_memory_runtime.dir/mnt/c/Users/rocco/CLionProjects/TurboGameEngine/engine/ecs/world.cpp.o
+[ 92%] Building CXX object CMakeFiles/tge_memory_runtime.dir/mnt/c/Users/rocco/CLionProjects/TurboGameEngine/engine/platform/Input.cpp.o
+[ 94%] Building CXX object CMakeFiles/tge_memory_runtime.dir/mnt/c/Users/rocco/CLionProjects/TurboGameEngine/engine/scripting/ScriptingSystem.cpp.o
+[ 94%] Building CXX object CMakeFiles/tge_memory_runtime.dir/mnt/c/Users/rocco/CLionProjects/TurboGameEngine/engine/scripting/react/ReactRuntime.cpp.o
+[ 97%] Linking CXX static library libtge_memory_runtime.a
+[ 97%] Built target tge_memory_runtime
+[100%] Building CXX object CMakeFiles/lab2_scripting_memory.dir/mnt/c/Users/rocco/CLionProjects/TurboGameEngine/tests/ScriptingSystemTests.cpp.o
+[100%] Linking CXX executable lab2_scripting_memory
+[100%] Built target lab2_scripting_memory
+[  2%] Built target Luau.Common
+[  5%] Built target enkiTS
+[ 15%] Built target Luau.Ast
+[ 26%] Built target spdlog
+[ 31%] Built target Luau.Bytecode
+[ 44%] Built target Luau.Compiler
+[ 89%] Built target Luau.VM
+[ 92%] Building CXX object CMakeFiles/tge_memory_runtime.dir/mnt/c/Users/rocco/CLionProjects/TurboGameEngine/engine/scripting/ScriptingSystem.cpp.o
+[ 94%] Linking CXX static library libtge_memory_runtime.a
+[100%] Built target tge_memory_runtime
+[100%] Building CXX object CMakeFiles/lab2_react_memory.dir/mnt/c/Users/rocco/CLionProjects/TurboGameEngine/tests/ReactRuntimeTests.cpp.o
+[100%] Linking CXX executable lab2_react_memory
+[100%] Built target lab2_react_memory

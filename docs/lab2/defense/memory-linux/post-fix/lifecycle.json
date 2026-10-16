@@ -1,0 +1,2013 @@
+{
+  "passed": true,
+  "phases": [
+    {
+      "completedCycles": 120,
+      "forcedGcDuringCycles": false,
+      "passed": true,
+      "phase": "normal_gc_pacing",
+      "requestedCycles": 120,
+      "samples": [
+        {
+          "aliveEntities": 16,
+          "cycle": 0,
+          "moment": "baseline_after_full_gc",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 3476060
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 1,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 6607332
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 2,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 7402452
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 3,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 6386332
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 4,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 6645996
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 5,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 6763724
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 6,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 7452204
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 7,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 6318524
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 8,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 6561828
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 9,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 6734908
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 10,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 7200948
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 11,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 7998748
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 12,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 6575948
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 13,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 6699948
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 14,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 6855180
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 15,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 7185972
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 16,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 7500212
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 17,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 6342572
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 18,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 6420532
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 19,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 6580292
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 20,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 7062692
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 21,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 7930492
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 22,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 6562852
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 23,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 6706252
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 24,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 6861260
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 25,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 7452652
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 26,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 6527092
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 27,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 6551412
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 28,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 6726012
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 29,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 6974812
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 30,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 7640212
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 31,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 7548716
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 32,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 6734276
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 33,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 6774956
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 34,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 6831804
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 35,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 7418860
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 36,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 6219740
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 37,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 6461524
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 38,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 6783364
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 39,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 7234564
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 40,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 8081444
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 41,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 6550204
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 42,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 6842364
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 43,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 6783396
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 44,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 7380476
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 45,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 6294836
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 46,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 6435196
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 47,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 6556156
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 48,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 6873196
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 49,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 7636756
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 50,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 6602396
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 51,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 6677316
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 52,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 6671764
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 53,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 7255556
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 54,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 7791596
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 55,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 6437636
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 56,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 6515596
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 57,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 6757156
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 58,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 7638276
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 59,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 6648716
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 60,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 6687596
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 61,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 6646284
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 62,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 6898364
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 63,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 7398836
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 64,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 6278476
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 65,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 6384596
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 66,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 6544356
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 67,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 6925556
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 68,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 7773956
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 69,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 6622036
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 70,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 6682116
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 71,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 6808964
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 72,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 7159380
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 73,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 7546660
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 74,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 6653820
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 75,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 6466980
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 76,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 6787300
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 77,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 7504820
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 78,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 8146484
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 79,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 6777324
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 80,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 6627764
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 81,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 6913652
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 82,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 7381628
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 83,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 6420532
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 84,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 6364796
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 85,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 6636260
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 86,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 6923860
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 87,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 7674324
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 88,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 6668124
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 89,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 6549764
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 90,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 6804452
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 91,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 7076108
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 92,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 7723628
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 93,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 6289388
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 94,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 6413388
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 95,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 6684628
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 96,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 7201268
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 97,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 7963532
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 98,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 6644972
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 99,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 6621732
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 100,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 6840660
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 101,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 7158132
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 102,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 7640756
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 103,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 6319516
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 104,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 6462916
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 105,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 6734156
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 106,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 7201716
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 107,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 8030716
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 108,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 6554636
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 109,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 6711356
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 110,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 6964524
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 111,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 7365588
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 112,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 6456564
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 113,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 6382724
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 114,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 6604884
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 115,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 6910364
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 116,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 7525164
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 117,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 7696724
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 118,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 6813804
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 119,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 6823284
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 120,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 6814692
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 120,
+          "moment": "end_before_full_gc",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 6814692
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 120,
+          "moment": "end_after_full_gc",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 3527060
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 120,
+          "moment": "after_stop_reset_full_gc",
+          "queuedEvents": 0,
+          "roots": 0,
+          "vmBytes": 3427204
+        }
+      ],
+      "vmBytesAfterShutdown": 0,
+      "wallSeconds": 50.322304364
+    },
+    {
+      "completedCycles": 120,
+      "forcedGcDuringCycles": true,
+      "passed": true,
+      "phase": "full_gc_each_cycle",
+      "requestedCycles": 120,
+      "samples": [
+        {
+          "aliveEntities": 16,
+          "cycle": 0,
+          "moment": "baseline_after_full_gc",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 3476060
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 1,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 3657604
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 2,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 3657804
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 3,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 3690700
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 4,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 3689180
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 5,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 3739380
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 6,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 3723196
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 7,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 3723372
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 8,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 3690876
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 9,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 3722940
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 10,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 3706756
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 11,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 3690572
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 12,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 3707108
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 13,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 3723692
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 14,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 3722988
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 15,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 3690444
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 16,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 3723340
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 17,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 3739876
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 18,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 3738260
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 19,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 3706692
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 20,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 3723228
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 21,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 3707092
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 22,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 3738260
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 23,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 3706676
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 24,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 3706852
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 25,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 3723436
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 26,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 3723660
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 27,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 3739380
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 28,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 3706836
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 29,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 3723372
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 30,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 3690828
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 31,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 3721900
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 32,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 3706676
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 33,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 3706852
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 34,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 3690668
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 35,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 3707252
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 36,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 3755660
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 37,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 3706756
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 38,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 3723292
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 39,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 3707108
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 40,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 3707332
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 41,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 3706628
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 42,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 3723164
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 43,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 3772420
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 44,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 3739924
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 45,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 3754620
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 46,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 3755756
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 47,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 3706852
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 48,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 3723436
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 49,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 3689180
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 50,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 3706676
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 51,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 3723212
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 52,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 3707028
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 53,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 3723676
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 54,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 3770980
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 55,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 3739508
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 56,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 3739684
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 57,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 3690780
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 58,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 3705540
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 59,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 3723036
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 60,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 3755932
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 61,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 3739748
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 62,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 3772756
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 63,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 3738260
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 64,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 3772180
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 65,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 3723276
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 66,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 3756220
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 67,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 3705540
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 68,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 3755804
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 69,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 3690540
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 70,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 3739908
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 71,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 3705540
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 72,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 3772116
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 73,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 3739620
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 74,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 3756204
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 75,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 3689180
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 76,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 3755756
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 77,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 3723212
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 78,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 3739748
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 79,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 3772692
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 80,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 3754620
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 81,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 3755788
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 82,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 3755964
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 83,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 3723420
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 84,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 3756364
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 85,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 3738260
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 86,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 3772164
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 87,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 3690540
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 88,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 3756204
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 89,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 3721900
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 90,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 3755756
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 91,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 3706900
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 92,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 3739844
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 93,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 3738260
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 94,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 3739396
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 95,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 3739572
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 96,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 3723388
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 97,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 3756332
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 98,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 3755660
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 99,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 3706756
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 100,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 3739700
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 101,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 3756284
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 102,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 3754620
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 103,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 3739396
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 104,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 3739572
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 105,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 3739748
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 106,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 3723612
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 107,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 3755660
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 108,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 3723116
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 109,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 3739700
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 110,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 3756236
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 111,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 3770980
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 112,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 3739412
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 113,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 3739588
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 114,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 3723452
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 115,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 3738260
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 116,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 3723084
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 117,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 3739620
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 118,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 3756204
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 119,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 3754620
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 120,
+          "moment": "settled_cycle",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 3739396
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 120,
+          "moment": "end_before_full_gc",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 3739396
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 120,
+          "moment": "end_after_full_gc",
+          "queuedEvents": 0,
+          "roots": 1,
+          "vmBytes": 3739396
+        },
+        {
+          "aliveEntities": 16,
+          "cycle": 120,
+          "moment": "after_stop_reset_full_gc",
+          "queuedEvents": 0,
+          "roots": 0,
+          "vmBytes": 3608692
+        }
+      ],
+      "vmBytesAfterShutdown": 0,
+      "wallSeconds": 49.062587071
+    }
+  ],
+  "productionCallbackBudgetMs": 100,
+  "scope": "Same LinuxCPU VM, real controller/prefabs/demo_ui/React; no GPU, no hot reload"
+}

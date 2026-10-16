@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <array>
 #include <cctype>
+#include <cmath>
 #include <chrono>
 #include <cstdint>
 #include <cstdlib>
@@ -21,6 +22,9 @@
 #    endif
 #    include <windows.h>
 #endif
+#if defined(__linux__)
+#include <unistd.h>
+#endif
 
 #include <glm/ext/matrix_clip_space.hpp>
 #include <glm/ext/matrix_transform.hpp>
@@ -30,6 +34,7 @@
 #include "engine/core/Profiling.h"
 #include "engine/core/Time.h"
 #include "engine/ecs/components.h"
+#include "engine/editor/ProjectLauncher.h"
 #include "engine/game/GameplayState.h"
 #include "engine/game/MenuState.h"
 #include "engine/game/PauseState.h"
@@ -86,6 +91,10 @@ std::filesystem::path getExecutableDirectory() {
         pathBuffer.resize(copied);
         return std::filesystem::path(pathBuffer).parent_path();
     }
+#elif defined(__linux__)
+    std::error_code error;
+    const auto executable = std::filesystem::read_symlink("/proc/self/exe", error);
+    if (!error) return executable.parent_path();
 #endif
     return std::filesystem::current_path();
 }
@@ -227,8 +236,9 @@ bool launchDetachedProcess(
 
 namespace engine::core {
 
-Application::Application(rhi::BackendType backend)
-    : m_backend(backend), m_labOptions(LabOptions::fromEnvironment()), m_jobs(true, m_labOptions.jobWorkers) {}
+Application::Application(rhi::BackendType backend, std::optional<PlayLaunch> standalone)
+    : m_backend(backend), m_labOptions(LabOptions::fromEnvironment()), m_standalone(std::move(standalone)),
+      m_jobs(true, m_labOptions.jobWorkers) {}
 
 Application::~Application() {
     shutdown();
@@ -241,6 +251,16 @@ bool Application::init() {
     ENGINE_LOG_INFO("Application init started");
 
     m_config = Config::load("config.json");
+    if (m_standalone) {
+        m_labOptions.scene.clear(); m_labOptions.stressScene = false; m_labOptions.waitForTracy = false;
+        m_config.width = m_standalone->width; m_config.height = m_standalone->height;
+        m_config.vsync = m_standalone->vsync; m_config.diligentDevice = m_standalone->device;
+        m_config.title = m_standalone->project.name + " - Play";
+        m_activeProject = m_standalone->project;
+        m_stateStack.setStandalone(true);
+        m_stateStack.setProject(&*m_activeProject);
+        m_renderer.setProjectAssetRoot(m_activeProject->assetRoot);
+    }
     m_stateStack.setServices(&m_jobs, &m_labOptions);
     m_renderer.setJobSystem(&m_jobs);
     m_renderer.setAsyncLoadingEnabled(m_labOptions.asyncLoading);
@@ -287,13 +307,33 @@ bool Application::init() {
         return false;
     }
 
-    if (m_config.initialState == "gameplay") {
-        m_stateStack.push(std::make_unique<game::GameplayState>(m_stateStack));
-    } else if (m_config.initialState == "pause") {
-        m_stateStack.push(std::make_unique<game::GameplayState>(m_stateStack));
-        m_stateStack.push(std::make_unique<game::PauseState>(m_stateStack));
+    m_stateStack.setProjectSelectorCallback([this] { m_projectSelectorRequested = true; });
+    m_stateStack.setPlayWindowCallbacks(
+        [this](const std::string& scene, const std::filesystem::path& assets, std::string& error) {
+            PlayLaunch options;
+            if (m_activeProject) options.project = *m_activeProject;
+            else { options.project.name = "Engine Demo"; options.project.root = assets.parent_path(); }
+            options.project.assetRoot = std::filesystem::absolute(assets);
+            options.width = std::max(320, m_window->width()); options.height = std::max(200, m_window->height());
+            options.vsync = m_config.vsync; options.device = m_config.diligentDevice;
+#if defined(_WIN32)
+            const auto executable = getExecutableDirectory() / "app.exe";
+#else
+            const auto executable = getExecutableDirectory() / "app";
+#endif
+            return m_playSession.start(executable, scene, options, error);
+        }, [this] { m_playSession.stop(); }, [this] { return m_playSession.running(); });
+    m_projectSelectorVisible = !m_standalone && !m_labOptions.active() && !m_labOptions.stressActive();
+    if (m_projectSelectorVisible) {
+        m_projectLauncher = std::make_unique<editor::ProjectLauncher>(m_projects,
+            [this](Project project) {
+                m_pendingProject = std::move(project);
+                m_projectLaunchRequested = true;
+            },
+            [this] { m_pendingProject.reset(); m_projectLaunchRequested = true; });
+        m_window->setTitle(m_config.title + " - Projects");
     } else {
-        m_stateStack.push(std::make_unique<game::MenuState>(m_stateStack, m_config.diligentDevice));
+        m_stateStack.push(std::make_unique<game::GameplayState>(m_stateStack));
     }
     m_stateStack.applyPendingChanges();
     m_selectedSampleBackendMode = modeIndexFromString(m_config.diligentDevice);
@@ -303,6 +343,39 @@ bool Application::init() {
     m_initialized = true;
     ENGINE_LOG_INFO("Application init complete, backend={}", rhi::toString(m_backend));
     return true;
+}
+
+void Application::applyProjectSelection() {
+    if (!m_projectLaunchRequested && !m_projectSelectorRequested) { return; }
+    m_playSession.stop();
+    // UI callbacks only queue this transition. Dispose the old ECS, VM and
+    // documents before assigning new roots or submitting another scene.
+    m_stateStack.clear();
+    m_stateStack.applyPendingChanges();
+    m_stateStack.setProject(nullptr);
+    m_activeProject.reset();
+    m_tutorial03Mesh.reset();
+    m_tutorial03Texture.reset();
+    m_tutorial03Shader.reset();
+    m_workspaceMode = WorkspaceMode::EngineStates;
+    if (m_projectSelectorRequested) {
+        m_renderer.setProjectAssetRoot({});
+        m_projectSelectorVisible = true;
+        m_projects.refresh();
+        m_window->setTitle(m_config.title + " - Projects");
+    } else {
+        m_activeProject = std::move(m_pendingProject);
+        m_renderer.setProjectAssetRoot(m_activeProject ? m_activeProject->assetRoot : std::filesystem::path{});
+        m_stateStack.setProject(m_activeProject ? &*m_activeProject : nullptr);
+        m_projectSelectorVisible = false;
+        m_stateStack.push(std::make_unique<game::GameplayState>(m_stateStack));
+        m_stateStack.applyPendingChanges();
+        m_window->setTitle(m_config.title + " - " + (m_activeProject ? m_activeProject->name : "Engine Demo"));
+    }
+    m_pendingProject.reset();
+    m_projectLaunchRequested = false;
+    m_projectSelectorRequested = false;
+    platform::Input::reset();
 }
 
 int Application::run() {
@@ -333,35 +406,60 @@ int Application::run() {
     constexpr double fixedDt = 1.0 / 60.0;
     double accumulator = 0.0;
     TimeStatsAggregator stats(1.0);
+    const bool diagnostics = std::getenv("TGE_FRAME_DIAGNOSTICS") != nullptr;
+    std::array<double, 5> stageMs{};
+    unsigned diagnosticFrames = 0, updateSteps = 0;
+    double discardedSimulationMs = 0.0;
 
     while (m_running && m_window && !m_window->shouldClose()) {
         ENGINE_PROFILE_ZONE("Main Frame");
+        applyProjectSelection();
         const double elapsed = std::chrono::duration<double>(std::chrono::steady_clock::now() - runStart).count();
         m_stateStack.setLabElapsedSeconds(elapsed);
         if (m_labOptions.durationSeconds > 0.0 && elapsed >= m_labOptions.durationSeconds) {
             break;
         }
+        auto stageStart = std::chrono::steady_clock::now();
+        const auto measureStage = [&](const std::size_t index) {
+            const auto now = std::chrono::steady_clock::now();
+            if (diagnostics) stageMs[index] += std::chrono::duration<double, std::milli>(now - stageStart).count();
+            stageStart = now;
+        };
         {
             ENGINE_PROFILE_ZONE("Input and Hot Reload");
             platform::InputManager::beginFrame();
             m_window->pollEvents();
             if (!m_labOptions.active()) { pollRuntimeHotReload(); }
         }
+        measureStage(0);
 
-        double frameDt = timer.tickSeconds();
-        frameDt = std::min(frameDt, 0.25);
+        const double rawFrameDt = timer.tickSeconds();
+        const double frameDt = std::min(rawFrameDt, 0.25);
         m_workspaceSampleTime += frameDt;
 
         if (m_workspaceMode == WorkspaceMode::EngineStates) {
             ENGINE_PROFILE_ZONE("Fixed Update");
             accumulator += frameDt;
-            while (accumulator >= fixedDt) {
+            unsigned frameSteps = 0;
+            const unsigned maxSteps = m_labOptions.active() ? 16U : 4U;
+            const auto updateStart = std::chrono::steady_clock::now();
+            while (accumulator >= fixedDt && frameSteps < maxSteps) {
                 ENGINE_PROFILE_ZONE("State Update Step");
                 m_stateStack.update(fixedDt);
                 m_stateStack.applyPendingChanges();
+                ++updateSteps;
+                ++frameSteps;
                 accumulator -= fixedDt;
+                // A slow script must not multiply its cost by a frame's entire backlog.
+                if (!m_labOptions.active() && std::chrono::steady_clock::now() - updateStart >= std::chrono::milliseconds(8)) break;
+            }
+            if (accumulator >= fixedDt) {
+                const double remainder = std::fmod(accumulator, fixedDt);
+                discardedSimulationMs += (accumulator - remainder)*1000.0;
+                accumulator = remainder;
             }
         }
+        measureStage(1);
 
         {
             ENGINE_PROFILE_ZONE("Frame Render");
@@ -370,12 +468,16 @@ int Application::run() {
             m_renderer.beginFrame(clearColor);
             m_renderer.beginImGuiFrame(static_cast<float>(frameDt));
             renderWorkspace(frameDt);
+            measureStage(2);
             renderWorkspaceUi(frameDt);
+            measureStage(3);
             m_renderer.renderImGui();
             m_renderer.endFrame();
+            measureStage(4);
         }
 
-        stats.sample(frameDt);
+        stats.sample(rawFrameDt);
+        ++diagnosticFrames;
         TimeStats sampled{};
         if (stats.consume(sampled)) {
             ENGINE_LOG_INFO(
@@ -384,9 +486,17 @@ int Application::run() {
                 sampled.minMs,
                 sampled.maxMs,
                 sampled.sampleCount);
+            if (diagnostics) {
+                const double frames = static_cast<double>(diagnosticFrames);
+                ENGINE_LOG_INFO("Frame CPU: input={:.2f} update={:.2f} render={:.2f} ui={:.2f} present={:.2f} ms, steps/frame={:.2f}, discarded={:.2f} ms/frame",
+                    stageMs[0]/frames, stageMs[1]/frames, stageMs[2]/frames, stageMs[3]/frames, stageMs[4]/frames,
+                    static_cast<double>(updateSteps)/frames, discardedSimulationMs/frames);
+            }
+            stageMs.fill(0.0); diagnosticFrames = 0; updateSteps = 0;
+            discardedSimulationMs = 0.0;
         }
 
-        if (m_workspaceMode == WorkspaceMode::EngineStates && m_stateStack.empty()) {
+        if (!m_projectSelectorVisible && m_workspaceMode == WorkspaceMode::EngineStates && m_stateStack.empty()) {
             ENGINE_LOG_WARN("State stack empty, exiting");
             m_running = false;
         }
@@ -408,9 +518,15 @@ void Application::shutdown() {
         ENGINE_LOG_INFO("Application shutdown started");
     }
     m_running = false;
+    m_playSession.stop();
+    m_stateStack.setPlayWindowCallbacks({}, {}, {});
     m_stateStack.clear();
     m_stateStack.applyPendingChanges();
     m_stateStack.setWindow(nullptr);
+    m_stateStack.setProject(nullptr);
+    m_stateStack.setProjectSelectorCallback({});
+    m_projectLauncher.reset();
+    m_activeProject.reset();
     m_tutorial03Mesh.reset();
     m_tutorial03Texture.reset();
     m_tutorial03Shader.reset();
@@ -429,6 +545,7 @@ void Application::shutdown() {
 }
 
 void Application::renderWorkspace(const double frameDtSeconds) {
+    if (m_projectSelectorVisible) { return; }
     switch (m_workspaceMode) {
         case WorkspaceMode::EngineStates:
             m_stateStack.render(m_renderer);
@@ -458,6 +575,11 @@ void Application::renderWorkspace(const double frameDtSeconds) {
 
 void Application::renderWorkspaceUi(const double frameDtSeconds) {
     if (!m_renderer.isImGuiEnabled()) {
+        return;
+    }
+
+    if (m_projectSelectorVisible) {
+        if (m_projectLauncher) { m_projectLauncher->render(); }
         return;
     }
 
@@ -804,6 +926,9 @@ void Application::onEvent(const platform::Event& event) {
     platform::InputManager::onEvent(event);
     m_renderer.onEvent(event);
     platform::InputManager::setCaptureState(m_renderer.wantsKeyboardCapture(), m_renderer.wantsMouseCapture());
+    if (m_standalone && event.type == platform::EventType::KeyPressed && event.key == platform::KeyCode::Escape) {
+        m_window->requestClose(); return;
+    }
 
     if (event.type == platform::EventType::Quit) {
         ENGINE_LOG_INFO("Quit event received");

@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "cameraEntity": 1,
+  "selectedEntity": 2,
+  "entities": [
+    {
+      "sourceId": 1,
+      "tag": { "value": "DefenseCamera" },
+      "transform": { "position": [0, 3.5, -12], "rotationEulerRadians": [-0.16, 0, 0], "scale": [1, 1, 1] },
+      "camera": { "active": true, "nearPlane": 0.1, "farPlane": 100, "verticalFovRadians": 0.9075712 }
+    },
+    {
+      "sourceId": 2,
+      "tag": { "value": "Lab2DefenseController" },
+      "transform": { "position": [0, 0, 0], "scale": [1, 1, 1] },
+      "script": { "path": "scripts/Defense.luau", "enabled": true, "fields": {} }
+    },
+    {
+      "sourceId": 3,
+      "tag": { "value": "Lab2Stage" },
+      "transform": { "position": [0, -1.1, 5], "scale": [10, 0.15, 7] },
+      "meshRenderer": {
+        "meshId": "__diligent_cube__",
+        "textureId": "assets/textures/white.ppm",
+        "shaderId": "assets/shaders_hlsl/textured.shader.json",
+        "tint": [0.09, 0.14, 0.24, 1],
+        "visible": true
+      }
+    }
+  ]
+}

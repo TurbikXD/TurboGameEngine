@@ -1,0 +1,24 @@
+{
+  "startedUtc": "2026-10-16T12:21:15.227142+00:00",
+  "app": "C:\\tge\\profile\\Release\\app.exe",
+  "appSha256": "23dd0699fbaa8d370b2fa54a57774c106e146c084f81de32c2f60ecacee765b5",
+  "configuration": "Release / D3D12 / 1280x720 / vsync",
+  "requestedSeconds": 300,
+  "elapsedSeconds": 304.156,
+  "exitCode": 0,
+  "samples": 304,
+  "spawnResetCycles": 0,
+  "reloadRequests": 29,
+  "appliedReloadCallbacks": 0,
+  "postWarmupPrivateMiBPerMinute": 12.679397401231224,
+  "postWarmupPrivateMiBRange": [
+    571.96875,
+    695.234375
+  ],
+  "handleRange": [
+    410,
+    766
+  ],
+  "complete": true,
+  "limits": "Windows process counters do not identify native/GPU leaks. A bounded run cannot prove that all engine paths are leak-free."
+}

@@ -1,0 +1,6 @@
+{
+  "version": 1,
+  "name": "ЛР 2 — Лаборатория скриптов",
+  "assets": "assets",
+  "startupScene": "assets/scenes/defense.scene.json"
+}

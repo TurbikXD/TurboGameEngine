@@ -1,4 +1,6 @@
 #include "engine/game/GameplayState.h"
+#include "engine/core/AtomicFile.h"
+#include "engine/editor/EditorTheme.h"
 
 #include <algorithm>
 #include <array>
@@ -15,6 +17,7 @@
 #include <sstream>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -31,6 +34,8 @@
 #include "engine/ecs/collision_utils.h"
 #include "engine/ecs/components.h"
 #include "engine/ecs/transform_utils.h"
+#include "engine/scripting/react/ReactRuntime.h"
+#include "engine/scripting/react/ReactUI.h"
 #include "engine/game/StateStack.h"
 #include "engine/platform/Input.h"
 #include "engine/platform/Window.h"
@@ -66,10 +71,9 @@ const glm::vec3 kShowcaseSphereStartPosition{-9.2F, -1.1F, 16.0F};
 const glm::vec3 kShowcaseSphereLaunchVelocity{7.5F, 0.0F, -2.2F};
 constexpr std::size_t kSpawnBudgetPerFrame = 6U;
 constexpr std::size_t kMaxEditorHistory = 64U;
-constexpr float kWindowMargin = 8.0F;
-constexpr float kToolbarHeight = 44.0F;
-constexpr float kStatusBarHeight = 28.0F;
-constexpr float kViewportHeaderHeight = 34.0F;
+constexpr float kWindowMargin = 1.0F;
+constexpr float kStatusBarHeight = 68.0F;
+constexpr float kViewportHeaderHeight = 68.0F;
 constexpr float kMinGizmoScale = 0.05F;
 constexpr float kMaxGizmoScale = 200.0F;
 constexpr const char* kEditorDockPayload = "TGE_DOCK_PANEL";
@@ -87,9 +91,92 @@ struct EditorLayout final {
     ImVec2 inspectorSize;
     ImVec2 statsPos;
     ImVec2 statsSize;
+    ImVec2 assistantPos;
+    ImVec2 assistantSize;
     ImVec2 statusPos;
     ImVec2 statusSize;
 };
+
+// Native dock bodies share geometry; editor/VM mutations remain at the call sites.
+struct PanelBody final {
+    explicit PanelBody(const ImVec2 padding = ImVec2(6, 2)) {
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, padding);
+        ImGui::BeginChild("##PanelBody", ImVec2(0, 0), ImGuiChildFlags_AlwaysUseWindowPadding);
+    }
+    ~PanelBody() { ImGui::EndChild(); ImGui::PopStyleVar(); }
+};
+struct FlatPanelStyle final {
+    FlatPanelStyle() {
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
+        ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(4, 0));
+        ImGui::PushStyleVar(ImGuiStyleVar_ScrollbarSize, 8.0F);
+    }
+    ~FlatPanelStyle() { ImGui::PopStyleVar(3); }
+};
+struct PropertySection final {
+    bool open{};
+    explicit PropertySection(const char* label, const bool defaultOpen = true) {
+        ImGui::PushStyleColor(ImGuiCol_Header, IM_COL32(32, 34, 39, 255));
+        ImGui::PushStyleColor(ImGuiCol_HeaderHovered, IM_COL32(43, 45, 53, 255));
+        ImGui::PushFont(engine::editor::nativeSemiboldFont(), engine::editor::kEditorFontSize);
+        ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(6, 5.5F));
+        ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 0.0F);
+        const bool expanded = ImGui::CollapsingHeader(label, defaultOpen ? ImGuiTreeNodeFlags_DefaultOpen : 0);
+        ImGui::PopStyleVar(2); ImGui::PopFont(); ImGui::PopStyleColor(2);
+        if (!expanded) return;
+        ImGui::PushID(label);
+        ImGui::PushStyleVar(ImGuiStyleVar_CellPadding, ImVec2(6, 3));
+        ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(2, 1));
+        ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 0);
+        ImGui::PushStyleColor(ImGuiCol_FrameBg, IM_COL32(25, 26, 31, 255));
+        open = ImGui::BeginTable("##Properties", 2, ImGuiTableFlags_SizingStretchProp |
+            ImGuiTableFlags_BordersInnerH | ImGuiTableFlags_BordersInnerV);
+        if (open) {
+            ImGui::TableSetupColumn("Property", ImGuiTableColumnFlags_WidthStretch, .48F);
+            ImGui::TableSetupColumn("Value", ImGuiTableColumnFlags_WidthStretch, .52F);
+        } else { ImGui::PopStyleColor(); ImGui::PopStyleVar(3); ImGui::PopID(); }
+    }
+    ~PropertySection() {
+        if (open) { ImGui::EndTable(); ImGui::PopStyleColor(); ImGui::PopStyleVar(3); ImGui::PopID(); }
+    }
+    explicit operator bool() const { return open; }
+};
+struct PropertyCell final {
+    explicit PropertyCell(const char* label, const float labelInset = 24.0F) {
+        ImGui::TableNextRow(0, engine::editor::kPropertyRowHeight);
+        ImGui::TableSetColumnIndex(0); ImGui::SetCursorPosX(ImGui::GetCursorPosX() + labelInset);
+        ImGui::AlignTextToFramePadding(); ImGui::TextUnformatted(label);
+        ImGui::TableSetColumnIndex(1); ImGui::SetNextItemWidth(-1); ImGui::PushID(label);
+    }
+    ~PropertyCell() { ImGui::PopID(); }
+};
+// These wrappers leave LastItemData on the actual edit widget. History tracking
+// must run immediately afterwards, before advancing the next table row.
+bool propertyCheckbox(const char* name, bool* value) { PropertyCell cell(name); return ImGui::Checkbox("##Value", value); }
+bool propertyInput(const char* name, std::string* value) { PropertyCell cell(name); return ImGui::InputText("##Value", value); }
+bool propertyColor(const char* name, float* value) { PropertyCell cell(name); return ImGui::ColorEdit4("##Value", value, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaPreview); }
+bool propertyDrag(const char* name, float* value, float speed, float minimum, float maximum, const char* format) {
+    PropertyCell cell(name); return ImGui::DragFloat("##Value", value, speed, minimum, maximum, format);
+}
+bool propertyDrag2(const char* name, float* value, float speed, float minimum, float maximum, const char* format) {
+    PropertyCell cell(name); return ImGui::DragFloat2("##Value", value, speed, minimum, maximum, format);
+}
+bool propertyDrag3(const char* name, float* value, float speed, float minimum, float maximum, const char* format) {
+    PropertyCell cell(name); return ImGui::DragFloat3("##Value", value, speed, minimum, maximum, format);
+}
+bool propertySlider(const char* name, float* value, float minimum, float maximum, const char* format) {
+    PropertyCell cell(name); return ImGui::SliderFloat("##Value", value, minimum, maximum, format);
+}
+bool propertyCombo(const char* name, int* value, const char* const* labels, int count) {
+    PropertyCell cell(name); return ImGui::Combo("##Value", value, labels, count);
+}
+engine::editor::EditorIcons::Resolver iconResolver(engine::renderer::Renderer* renderer) {
+    if (!renderer) return {};
+    return [renderer](const std::string_view id) {
+        const auto image = renderer->resolveEditorIcon(id);
+        return engine::editor::EditorIcons::Image{image.textureId, image.width, image.height};
+    };
+}
 
 struct TransformComponents final {
     glm::vec3 position{0.0F};
@@ -104,38 +191,35 @@ std::string toLowerCopy(std::string value) {
     return value;
 }
 
-std::filesystem::path editorScenePath() {
+std::filesystem::path legacyEditorScenePath() {
 #if defined(ENGINE_SOURCE_ROOT)
-    return std::filesystem::path(ENGINE_SOURCE_ROOT) / kEditorScenePath;
+    if (std::filesystem::exists(std::filesystem::path(ENGINE_SOURCE_ROOT) / "assets")) {
+        return std::filesystem::path(ENGINE_SOURCE_ROOT) / kEditorScenePath;
+    }
+    return std::filesystem::path(kEditorScenePath);
 #else
     return std::filesystem::path(kEditorScenePath);
 #endif
 }
 
-std::filesystem::path editorLayoutPath() {
+std::filesystem::path legacyEditorLayoutPath() {
 #if defined(ENGINE_SOURCE_ROOT)
-    return std::filesystem::path(ENGINE_SOURCE_ROOT) / kEditorLayoutPath;
+    if (std::filesystem::exists(std::filesystem::path(ENGINE_SOURCE_ROOT) / "assets")) {
+        return std::filesystem::path(ENGINE_SOURCE_ROOT) / kEditorLayoutPath;
+    }
+    return std::filesystem::path(kEditorLayoutPath);
 #else
     return std::filesystem::path(kEditorLayoutPath);
 #endif
 }
 
-std::filesystem::path editorAssetsRoot() {
+std::filesystem::path legacyEditorAssetsRoot() {
 #if defined(ENGINE_SOURCE_ROOT)
-    return std::filesystem::path(ENGINE_SOURCE_ROOT) / "assets";
+    const auto sourceAssets = std::filesystem::path(ENGINE_SOURCE_ROOT) / "assets";
+    return std::filesystem::exists(sourceAssets) ? sourceAssets : std::filesystem::path("assets");
 #else
     return std::filesystem::path("assets");
 #endif
-}
-
-std::string toAssetPath(const std::filesystem::path& path) {
-    const std::filesystem::path root = editorAssetsRoot();
-    std::error_code error;
-    std::filesystem::path relative = std::filesystem::relative(path, root, error);
-    if (error) {
-        relative = path.filename();
-    }
-    return (std::filesystem::path("assets") / relative).generic_string();
 }
 
 std::string classifyAsset(const std::filesystem::path& path) {
@@ -150,6 +234,8 @@ std::string classifyAsset(const std::filesystem::path& path) {
     if (extension == ".obj") {
         return "Mesh";
     }
+    if (extension == ".lua" || extension == ".luau") { return "Script"; }
+    if (filename.ends_with(".prefab.json") || path.parent_path().filename() == "prefabs") { return "Prefab"; }
     if (extension == ".json") {
         return "Scene";
     }
@@ -415,37 +501,6 @@ std::string buildAssetDetails(const std::filesystem::path& path, const std::stri
     return details.str();
 }
 
-const char* assetKindGlyph(const std::string& kind) {
-    if (kind == "Texture") {
-        return "T";
-    }
-    if (kind == "Mesh") {
-        return "M";
-    }
-    if (kind == "Scene") {
-        return "S";
-    }
-    if (kind == "Shader" || kind == "Shader Source") {
-        return "H";
-    }
-    return "A";
-}
-
-ImVec4 assetKindColor(const std::string& kind) {
-    if (kind == "Texture") {
-        return ImVec4(0.30F, 0.62F, 0.95F, 1.0F);
-    }
-    if (kind == "Mesh") {
-        return ImVec4(0.92F, 0.67F, 0.28F, 1.0F);
-    }
-    if (kind == "Scene") {
-        return ImVec4(0.36F, 0.78F, 0.58F, 1.0F);
-    }
-    if (kind == "Shader" || kind == "Shader Source") {
-        return ImVec4(0.78F, 0.48F, 0.96F, 1.0F);
-    }
-    return ImVec4(0.58F, 0.64F, 0.72F, 1.0F);
-}
 
 bool assetMatchesFilter(
     const std::string& path,
@@ -628,59 +683,56 @@ glm::vec4 pyramidAccentColor(const std::size_t index) {
 }
 
 EditorLayout computeEditorLayout(
-    const float requestedLeftWidth,
-    const float requestedRightWidth,
-    const float requestedLeftSplit,
-    const float requestedRightSplit) {
+    const float requestedLeftWidth, const float requestedRightWidth,
+    const float requestedLeftSplit, const float requestedRightSplit,
+    const float toolbarHeight, const bool leftTop, const bool leftBottom,
+    const bool rightTop, const bool rightBottom, const bool assistant,
+    const bool toolbar, const bool status) {
     const ImGuiViewport* viewport = ImGui::GetMainViewport();
+    // The native menu uses this explicit role/size even when another UI font is active.
+    ImGui::PushFont(engine::editor::nativeFont(), engine::editor::kEditorFontSize);
     const float menuBarHeight = ImGui::GetFrameHeight();
-    const float defaultLeftWidth = std::clamp(viewport->Size.x * 0.19F, 250.0F, 360.0F);
-    const float defaultRightWidth = std::clamp(viewport->Size.x * 0.24F, 320.0F, 430.0F);
-    const float minLeftWidth = 210.0F;
-    const float minRightWidth = 280.0F;
-    const float minViewportWidth = 420.0F;
-    const float sidebarBudget = std::max(
-        minLeftWidth + minRightWidth,
-        viewport->Size.x - minViewportWidth - (kWindowMargin * 4.0F));
-    float leftWidth = requestedLeftWidth > 0.0F ? requestedLeftWidth : defaultLeftWidth;
-    float rightWidth = requestedRightWidth > 0.0F ? requestedRightWidth : defaultRightWidth;
-    leftWidth = std::clamp(leftWidth, minLeftWidth, std::min(560.0F, sidebarBudget - minRightWidth));
-    rightWidth = std::clamp(rightWidth, minRightWidth, std::min(620.0F, sidebarBudget - minLeftWidth));
+    ImGui::PopFont();
+    const float assistantWidth = assistant ? std::min(466.0F, viewport->Size.x * 0.5F) : 0.0F;
+    const float availableWidth = std::max(1.0F, viewport->Size.x);
+    const bool left = leftTop || leftBottom, right = rightTop || rightBottom;
+    float leftWidth = left ? (requestedLeftWidth > 0 ? requestedLeftWidth : 270.0F) : 0.0F;
+    float rightWidth = right ? (requestedRightWidth > 0 ? requestedRightWidth : 310.0F) : 0.0F;
+    if (assistant) rightWidth = std::max(rightWidth, assistantWidth);
+    if (left) leftWidth = std::clamp(leftWidth, 180.0F, 560.0F);
+    if (right || assistant) rightWidth = std::min(std::clamp(rightWidth, 220.0F, 620.0F), availableWidth * .5F);
+    const float sidebarBudget = std::max(0.0F, availableWidth - 320.0F);
     if (leftWidth + rightWidth > sidebarBudget) {
-        const float overflow = leftWidth + rightWidth - sidebarBudget;
-        const float shrinkLeft = std::min(overflow * 0.5F, leftWidth - minLeftWidth);
-        leftWidth -= shrinkLeft;
-        rightWidth -= std::min(overflow - shrinkLeft, rightWidth - minRightWidth);
+        const float scale = sidebarBudget / std::max(1.0F, leftWidth + rightWidth);
+        leftWidth *= scale; rightWidth *= scale;
     }
-
-    const float statusPosY = viewport->Pos.y + viewport->Size.y - kStatusBarHeight - kWindowMargin;
-    const float panelsTop = viewport->Pos.y + menuBarHeight + kToolbarHeight + (kWindowMargin * 2.0F);
-    const float panelsHeight = std::max(220.0F, statusPosY - panelsTop - kWindowMargin);
-    const float stackHeight = std::max(160.0F, panelsHeight - kWindowMargin);
+    const float statusHeight = status ? kStatusBarHeight : 0.0F;
+    const float panelsTop = viewport->Pos.y + menuBarHeight + (toolbar ? toolbarHeight : 0.0F);
+    const float statusPosY = viewport->Pos.y + viewport->Size.y - statusHeight;
+    const float panelsHeight = std::max(1.0F, statusPosY - panelsTop);
     const float leftSplit = std::clamp(requestedLeftSplit, 0.22F, 0.82F);
     const float rightSplit = std::clamp(requestedRightSplit, 0.22F, 0.82F);
-    const float hierarchyHeight = std::clamp(stackHeight * leftSplit, 96.0F, stackHeight - 96.0F);
-    const float projectHeight = std::max(96.0F, stackHeight - hierarchyHeight);
-    const float inspectorHeight = std::clamp(stackHeight * rightSplit, 120.0F, stackHeight - 96.0F);
-    const float statsHeight = std::max(96.0F, stackHeight - inspectorHeight);
-    const float viewportWidth =
-        std::max(380.0F, viewport->Size.x - leftWidth - rightWidth - (kWindowMargin * 4.0F));
-
+    const float hierarchyHeight = leftTop && leftBottom ? panelsHeight * leftSplit : (leftTop ? panelsHeight : 0.0F);
+    const float assistantHeight = !assistant ? 0.0F : !right ? panelsHeight : std::min(panelsHeight * .4F, 360.0F);
+    const float rightPanelsHeight = panelsHeight - assistantHeight;
+    const float inspectorHeight = rightTop && rightBottom ? rightPanelsHeight * rightSplit : (rightTop ? rightPanelsHeight : 0.0F);
     EditorLayout layout{};
-    layout.toolbarPos = ImVec2(viewport->Pos.x + kWindowMargin, viewport->Pos.y + menuBarHeight + kWindowMargin);
-    layout.toolbarSize = ImVec2(viewport->Size.x - (kWindowMargin * 2.0F), kToolbarHeight);
-    layout.hierarchyPos = ImVec2(viewport->Pos.x + kWindowMargin, panelsTop);
+    layout.toolbarPos = ImVec2(viewport->Pos.x, viewport->Pos.y + menuBarHeight);
+    layout.toolbarSize = ImVec2(viewport->Size.x, toolbarHeight);
+    layout.hierarchyPos = ImVec2(viewport->Pos.x, panelsTop);
     layout.hierarchySize = ImVec2(leftWidth, hierarchyHeight);
-    layout.projectPos = ImVec2(layout.hierarchyPos.x, layout.hierarchyPos.y + layout.hierarchySize.y + kWindowMargin);
-    layout.projectSize = ImVec2(leftWidth, projectHeight);
-    layout.viewportPos = ImVec2(layout.hierarchyPos.x + layout.hierarchySize.x + kWindowMargin, panelsTop);
-    layout.viewportSize = ImVec2(viewportWidth, panelsHeight);
-    layout.inspectorPos = ImVec2(layout.viewportPos.x + layout.viewportSize.x + kWindowMargin, panelsTop);
+    layout.projectPos = ImVec2(viewport->Pos.x, panelsTop + hierarchyHeight);
+    layout.projectSize = ImVec2(leftWidth, leftBottom ? panelsHeight - hierarchyHeight : 0.0F);
+    layout.viewportPos = ImVec2(viewport->Pos.x + leftWidth, panelsTop);
+    layout.viewportSize = ImVec2(std::max(1.0F, availableWidth - leftWidth - rightWidth), panelsHeight);
+    layout.inspectorPos = ImVec2(layout.viewportPos.x + layout.viewportSize.x, panelsTop);
     layout.inspectorSize = ImVec2(rightWidth, inspectorHeight);
-    layout.statsPos = ImVec2(layout.inspectorPos.x, layout.inspectorPos.y + layout.inspectorSize.y + kWindowMargin);
-    layout.statsSize = ImVec2(rightWidth, statsHeight);
-    layout.statusPos = ImVec2(viewport->Pos.x + kWindowMargin, statusPosY);
-    layout.statusSize = ImVec2(viewport->Size.x - (kWindowMargin * 2.0F), kStatusBarHeight);
+    layout.statsPos = ImVec2(layout.inspectorPos.x, panelsTop + inspectorHeight);
+    layout.statsSize = ImVec2(rightWidth, rightBottom ? rightPanelsHeight - inspectorHeight : 0.0F);
+    layout.assistantPos = ImVec2(viewport->Pos.x + viewport->Size.x - rightWidth, panelsTop + rightPanelsHeight);
+    layout.assistantSize = ImVec2(rightWidth, assistantHeight);
+    layout.statusPos = ImVec2(viewport->Pos.x, statusPosY);
+    layout.statusSize = ImVec2(viewport->Size.x, statusHeight);
     return layout;
 }
 
@@ -1099,10 +1151,31 @@ bool renderSplitterHandle(const char* id, const ImVec2& position, const ImVec2& 
 namespace engine::game {
 
 GameplayState::GameplayState(StateStack& stack) : IGameState(stack) {
+    if (stack.project()) { m_project = *stack.project(); }
     const auto* options = stack.labOptions();
     auto* jobs = options == nullptr || options->parallelEcs ? stack.jobs() : nullptr;
     m_physicsSystem.setJobSystem(jobs);
     m_renderSystem.setJobSystem(jobs);
+    initializeEditorCommands();
+}
+
+std::filesystem::path GameplayState::editorAssetsRoot() const {
+    return m_project ? m_project->assetRoot : legacyEditorAssetsRoot();
+}
+
+std::filesystem::path GameplayState::editorScenePath() const {
+    return m_project ? m_project->scenePath : legacyEditorScenePath();
+}
+
+std::filesystem::path GameplayState::editorLayoutPath() const {
+    return m_project ? m_project->layoutPath : legacyEditorLayoutPath();
+}
+
+std::string GameplayState::toAssetPath(const std::filesystem::path& path) const {
+    std::error_code error;
+    auto relative = std::filesystem::relative(path, editorAssetsRoot(), error);
+    if (error) { relative = path.filename(); }
+    return (std::filesystem::path("assets") / relative).generic_string();
 }
 
 bool GameplayState::labActive() const {
@@ -1112,11 +1185,66 @@ bool GameplayState::labActive() const {
 void GameplayState::onEnter() {
     ENGINE_LOG_INFO("Entered GameplayState editor scene");
     m_eventBus.clear();
-    if (!labActive()) { loadEditorLayout(); }
+    if (!labActive() && !stack().standalone()) { loadEditorLayout(); }
     bindCollisionEventHandlers();
     resetDemoScene();
+    if (m_project && !labActive()) {
+        loadSceneFromDisk();
+        m_undoStack.clear();
+        m_redoStack.clear();
+    }
+    if (!labActive()) {
+        m_scripts.initialize(m_world, stack().jobs(), editorAssetsRoot());
+        // Scripting flushes its queue after callbacks, outside stable ECS
+        // queries. Apply here so destroyed handles are invalid immediately.
+        m_scripts.setDestroyCallback([this](const ecs::EntityId entity) { deleteEntityNow(entity); });
+        scripting::ReactRuntime::install(m_scripts);
+        m_scriptWorkspace.initialize(editorAssetsRoot(), m_scripts, {
+            [this] { if (m_editorMode == EditorMode::Edit) { enterPlayMode(); } else { startSimulation(); } },
+            [this] { pauseSimulation(); }, [this] { stopPlayMode(); },
+            [this] { if (m_editorMode == EditorMode::Play) { m_simulationRunning = false; m_stepScriptTick = true; } },
+            [this] { createScriptDemo(); }, [this] { launchStandalonePlay(); }
+        }, stack().jobs());
+        m_scriptWorkspace.setCommandRegistry(&m_editorCommands);
+        m_codexAssistant.setProjectRoot(m_project ? m_project->root : std::filesystem::absolute(editorAssetsRoot()).parent_path());
+        m_codexAssistant.setContextProvider([this] {
+            return "Saved Luau, require dependencies, React UI and startup-scene JSON update live in both Play modes. "
+                "Preserve existing scene sourceId values. Runtime self.state survives reload; Init is not rerun. "
+                "Use OnReload(self) for migrations or Init-created scene/UI changes, preserving existing objects. "
+                "UI uses real React Luau with a native renderer and Roblox UI Instance/Enum compatibility. "
+                "Use local UI=require('ReactTurbo'); UI.UDim2.new/fromScale/fromOffset for Size/Position, "
+                "UI.Vector2.new for AnchorPoint and UI.Color3.fromRGB for colors. "
+                "Global Instance, Enum, UDim, UDim2, Vector2, Color3 and require('ReactRoblox') are also available. "
+                "UI refs expose Instance properties, IsA, GetChildren, FindFirstChild and property signals. "
+                "ReactRoblox.createRoot(instance) and createPortal support portable UI bootstrap; roots are synchronous. "
+                "Frame/TextLabel/TextButton support BackgroundColor3, BackgroundTransparency, TextColor3 and TextSize. "
+                "UICorner(CornerRadius=UI.UDim.new), UIPadding and UIListLayout(Padding=UI.UDim.new, "
+                "FillDirection='Vertical'/'Horizontal', SortOrder='LayoutOrder') provide styling/layout; "
+                "children use LayoutOrder. Typed UI Enum values and legacy strings are accepted. "
+                "UIStroke, AutomaticSize and read-only AbsoluteSize/AbsolutePosition/TextBounds are supported. "
+                "UIGradient uses global ColorSequence/NumberSequence and keypoints, Rotation/Offset. "
+                "ImageLabel/ImageButton load project-local assets; rbxassetid:// ids map through assets/ui_images.json. "
+                "Images support tint/alpha, atlas rectangles and ScaleType Stretch/Fit/Crop/Tile/Slice. "
+                "TextBox, ScrollingFrame, UIGridLayout, UIScale and size/aspect constraints are supported. "
+                "Use React.Change.Text/CanvasPosition for controlled inputs; ImageButton supports hover/pressed variants. "
+                "For UI animation use game:GetService('TweenService'):Create(uiInstance,TweenInfo.new(seconds,Enum.EasingStyle.Quad,Enum.EasingDirection.Out),goals). "
+                "TweenService supports Play/Pause/Cancel/Destroy, Completed and repeat/reverse/delay for number/UDim/UDim2/Vector2/Color3. "
+                "Animate UIGradient.Rotation/Offset; sequences are not tweenable. Do not tween a property owned by a React binding; clean up tweens and connections in effects. "
+                "CanvasGroup flattens a whole UI subtree; tween GroupTransparency for window fades and GroupColor3 for tint, including nested groups. "
+                "ClipsDescendants is always true; its UICorner/UIGradient apply to the whole layer. Fully transparent groups and Interactable=false ancestors block descendant input in this engine. "
+                "UI.getNativeFeatures() reports native support; updating bootstrap/C++ requires restart. "
+                "HTTP/Roblox CDN images, CSS/flex and full Roblox platform services are not implemented. "
+                "Engine.getRotation/setRotation use Euler radians. Startup scene: " + toAssetPath(editorScenePath()) +
+                "\n" + m_scriptWorkspace.assistantContext();
+        });
+        m_sceneWatcher.initialize(stack().jobs());
+        const auto liveScene = m_project && !m_project->liveScenePath.empty() ? m_project->liveScenePath : editorScenePath();
+        m_sceneWatcher.watch(liveScene);
+        try { std::ifstream input(liveScene); m_diskScene = nlohmann::json::parse(input); }
+        catch (...) { m_diskScene = nlohmann::json::object(); }
+    }
     const auto* options = stack().labOptions();
-    if (options != nullptr && options->stressActive()) { enterPlayMode(); }
+    if (stack().standalone() || (options != nullptr && options->stressActive())) { enterPlayMode(); }
     ENGINE_LOG_INFO("Scene ready: mode={} entities={} stress={}",
         m_editorMode == EditorMode::Play ? "Play" : "Edit", m_world.aliveCount(),
         options != nullptr && options->stressActive());
@@ -1124,12 +1252,17 @@ void GameplayState::onEnter() {
 
 void GameplayState::onExit() {
     ENGINE_LOG_INFO("Exited GameplayState editor scene");
-    if (!labActive()) { saveEditorLayout(); }
+    if (!labActive() && !stack().standalone()) { saveEditorLayout(); }
     setCameraLookActive(false);
+    m_codexAssistant.shutdown();
+    m_sceneWatcher.clear();
+    m_scripts.shutdown();
     m_pendingSpawnJobs.clear();
     m_pendingRuntimeDeletes.clear();
     m_undoStack.clear();
     m_redoStack.clear();
+    m_editUndoStack.clear();
+    m_editRedoStack.clear();
     m_editModeSnapshot.reset();
     m_pendingSceneEdit.reset();
     m_gizmoEditSnapshot.reset();
@@ -1153,6 +1286,12 @@ void GameplayState::onExit() {
 }
 
 void GameplayState::handleEvent(const platform::Event& event) {
+    if (stack().standalone()) {
+        if (event.type == platform::EventType::KeyPressed && event.key == platform::KeyCode::Escape && stack().window()) {
+            stack().window()->requestClose();
+        }
+        return;
+    }
     if (labActive()) { return; }
     if (event.type == platform::EventType::MouseButtonPressed && event.mouseButton == platform::MouseButton::Right) {
         if (m_viewportHovered) {
@@ -1170,48 +1309,18 @@ void GameplayState::handleEvent(const platform::Event& event) {
         return;
     }
 
-    const bool wantsTextInput = ImGui::GetCurrentContext() != nullptr && ImGui::GetIO().WantTextInput;
-
-    if (!wantsTextInput && event.key == platform::KeyCode::Delete) {
-        deleteEntity(m_selectedEntity);
-        return;
-    }
-
+    using Command = editor::EditorCommandId;
+    if (sceneShortcutsBlocked()) return;
+    if (event.key == platform::KeyCode::Delete) { m_editorCommands.execute(Command::Delete); return; }
     if (event.key == platform::KeyCode::Escape) {
-        if (m_cameraLookActive) {
-            setCameraLookActive(false);
-        } else if (m_editorMode == EditorMode::Play) {
-            stopPlayMode();
-        }
+        if (m_cameraLookActive) setCameraLookActive(false);
+        else m_editorCommands.execute(Command::Stop);
         return;
     }
-
-    if (event.key == platform::KeyCode::F1) {
-        m_showColliderDebug = !m_showColliderDebug;
-        return;
-    }
-
+    if (event.key == platform::KeyCode::F1) { m_editorCommands.execute(Command::ToggleColliderDebug); return; }
     if (event.key == platform::KeyCode::Space) {
-        if (m_editorMode == EditorMode::Edit) {
-            enterPlayMode();
-        } else {
-            launchStriker();
-        }
-        return;
-    }
-
-    if (!(m_viewportHovered || m_viewportFocused) || m_cameraLookActive) {
-        return;
-    }
-
-    if (event.key == platform::KeyCode::W) {
-        m_gizmoOperation = GizmoOperation::Translate;
-    } else if (event.key == platform::KeyCode::E) {
-        m_gizmoOperation = GizmoOperation::Rotate;
-    } else if (event.key == platform::KeyCode::F) {
-        focusSelectedEntity();
-    } else if (event.key == platform::KeyCode::R) {
-        m_gizmoOperation = GizmoOperation::Scale;
+        if (m_editorMode == EditorMode::Edit) m_editorCommands.execute(Command::Play);
+        else launchStriker();
     }
 }
 
@@ -1221,14 +1330,17 @@ void GameplayState::bindCollisionEventHandlers() {
         m_lastCollisionMessage = "Enter: " + std::to_string(event.contact.entityA) + " <-> " +
                                  std::to_string(event.contact.entityB) + " depth=" +
                                  std::to_string(event.contact.penetrationDepth);
+        m_scripts.queueEvent("CollisionEnter", {{"entityA", event.contact.entityA}, {"entityB", event.contact.entityB}});
     });
-    m_eventBus.subscribe<ecs::CollisionStayEvent>([this](const ecs::CollisionStayEvent&) {
+    m_eventBus.subscribe<ecs::CollisionStayEvent>([this](const ecs::CollisionStayEvent& event) {
         ++m_collisionStayCount;
+        if (m_scripts.playing()) { m_scripts.queueEvent("CollisionStay", {{"entityA", event.contact.entityA}, {"entityB", event.contact.entityB}}); }
     });
     m_eventBus.subscribe<ecs::CollisionExitEvent>([this](const ecs::CollisionExitEvent& event) {
         ++m_collisionExitCount;
         m_lastCollisionMessage =
             "Exit: " + std::to_string(event.contact.entityA) + " <-> " + std::to_string(event.contact.entityB);
+        m_scripts.queueEvent("CollisionExit", {{"entityA", event.contact.entityA}, {"entityB", event.contact.entityB}});
     });
 }
 
@@ -1353,12 +1465,7 @@ ecs::EntityId GameplayState::spawnDynamicSphere(
     return entity;
 }
 
-void GameplayState::createDemoScene() {
-    ENGINE_PROFILE_ZONE("Create Demo Scene");
-    if (m_sceneInitialized) {
-        return;
-    }
-
+void GameplayState::createEditorCamera() {
     m_cameraEntity = m_world.createEntity();
     ecs::Transform cameraTransform{};
     cameraTransform.position = kCameraStartPosition;
@@ -1370,10 +1477,23 @@ void GameplayState::createDemoScene() {
     m_world.addComponent<ecs::Transform>(m_cameraEntity, cameraTransform);
     m_world.addComponent<ecs::Camera>(m_cameraEntity, camera);
     m_world.addComponent<ecs::Tag>(m_cameraEntity, ecs::Tag{"editor_camera"});
+}
+
+void GameplayState::createDemoScene() {
+    ENGINE_PROFILE_ZONE("Create Demo Scene");
+    if (m_sceneInitialized) { return; }
+    createEditorCamera();
 
     if (labActive()) {
         createLabScene();
         m_sceneInitialized = true;
+        return;
+    }
+
+    if (m_project) {
+        m_sceneInitialized = true;
+        m_selectedEntity = ecs::kInvalidEntity;
+        m_lastCollisionMessage = "Blank project scene ready.";
         return;
     }
 
@@ -1620,6 +1740,9 @@ void GameplayState::renderLabUi(renderer::Renderer& rendererInstance) {
 }
 
 void GameplayState::resetDemoScene() {
+    scripting::ReactRuntime::reset(m_scripts);
+    m_scripts.stop();
+    m_stepScriptTick = false;
     m_pendingRuntimeDeletes.clear();
     m_world.clear();
     m_labEntities.clear();
@@ -1650,7 +1773,47 @@ void GameplayState::resetDemoScene() {
     m_gizmoChanged = false;
     setCameraLookActive(false);
     createDemoScene();
-    m_editorStatusMessage = "Demo scene reset.";
+    m_editorStatusMessage = m_project ? "Blank scene ready." : "Demo scene reset.";
+}
+
+void GameplayState::createScriptDemo() {
+    if (!canEditScene()) { m_editorStatusMessage = "Stop Play before loading the Lab 2 demo."; return; }
+    if (m_project) {
+        // Import the sample only when explicitly requested. A new project
+        // stays empty and its editable scripts never share the engine demo.
+        try {
+            const auto assets = std::filesystem::weakly_canonical(editorAssetsRoot());
+            for (const auto* relative : {"scripts/Collectathon.luau", "scripts/ui/demo_ui.luau",
+                    "prefabs/collectathon_controller.json", "prefabs/collectathon_player.json",
+                    "prefabs/collectible.json", "prefabs/react_ui.json"}) {
+                const auto target = std::filesystem::weakly_canonical(assets / relative);
+                const auto within = target.lexically_relative(assets);
+                if (within.empty() || *within.begin() == "..") { throw std::runtime_error("Demo destination is outside project assets"); }
+                if (std::filesystem::exists(target)) { continue; }
+                std::filesystem::create_directories(target.parent_path());
+                std::filesystem::copy_file(legacyEditorAssetsRoot() / relative, target);
+            }
+        } catch (const std::exception& error) {
+            m_editorStatusMessage = std::string("Cannot import script demo: ") + error.what();
+            return;
+        }
+    }
+    commitSceneEdit();
+    ecs::EntityId controller = ecs::kInvalidEntity;
+    ecs::EntityId hud = ecs::kInvalidEntity;
+    m_world.forEach<scripting::ScriptComponent>([&](const ecs::EntityId entity, const auto& component) {
+        if (component.path == "scripts/Collectathon.luau") { controller = entity; }
+        if (component.path == "scripts/ui/demo_ui.luau") { hud = entity; }
+    });
+    if (controller == ecs::kInvalidEntity || hud == ecs::kInvalidEntity) { recordSceneHistory("Add Lab 2 Script Demo"); }
+    if (controller == ecs::kInvalidEntity) { controller = m_scripts.spawnPrefab("prefabs/collectathon_controller.json"); }
+    if (controller == ecs::kInvalidEntity) { m_editorStatusMessage = "Demo prefab failed; see Script Output."; return; }
+    m_selectedEntity = controller;
+    if (hud == ecs::kInvalidEntity) { m_scripts.spawnPrefab("prefabs/react_ui.json"); }
+    m_showScriptWorkspace = true;
+    m_scriptWorkspace.openScript("scripts/Collectathon.luau");
+    m_projectAssetsDirty = true;
+    m_editorStatusMessage = "Collectathon demo ready. Play, then use arrows to collect tokens.";
 }
 
 void GameplayState::startSimulation(const bool relaunchStriker) {
@@ -1766,8 +1929,13 @@ void GameplayState::enterPlayMode() {
         return;
     }
 
+    commitSceneEdit();
     m_editModeSnapshot = captureSceneSnapshot();
+    m_editUndoStack = std::move(m_undoStack);
+    m_editRedoStack = std::move(m_redoStack);
+    m_undoStack.clear(); m_redoStack.clear();
     m_editorMode = EditorMode::Play;
+    m_scripts.start();
     startSimulation();
 }
 
@@ -1777,12 +1945,17 @@ void GameplayState::stopPlayMode() {
     }
 
     // A pending Play deletion must never target the restored Edit scene's IDs.
+    scripting::ReactRuntime::reset(m_scripts);
+    m_scripts.stop();
+    m_stepScriptTick = false;
     m_pendingRuntimeDeletes.clear();
     if (m_editModeSnapshot.has_value()) {
         restoreSceneSnapshot(*m_editModeSnapshot);
         m_editModeSnapshot.reset();
     }
     m_editorMode = EditorMode::Edit;
+    m_undoStack = std::move(m_editUndoStack);
+    m_redoStack = std::move(m_editRedoStack);
     setCameraLookActive(false);
     m_lastCollisionMessage = "Returned to Edit mode.";
 }
@@ -1797,12 +1970,14 @@ GameplayState::EntitySnapshot GameplayState::captureEntitySnapshot(const ecs::En
     if (const auto* component = m_world.getComponent<ecs::Rigidbody>(entity)) { snapshot.rigidbody = *component; }
     if (const auto* component = m_world.getComponent<ecs::Collider>(entity)) { snapshot.collider = *component; }
     if (const auto* component = m_world.getComponent<ecs::MeshRenderer>(entity)) { snapshot.meshRenderer = *component; }
+    if (const auto* component = m_world.getComponent<scripting::ScriptComponent>(entity)) { snapshot.script = *component; }
     return snapshot;
 }
 
 GameplayState::SceneSnapshot GameplayState::captureSceneSnapshot() const {
     ENGINE_PROFILE_ZONE("Editor Scene Snapshot");
     SceneSnapshot snapshot{};
+    snapshot.fileEntities = m_fileEntities;
     snapshot.cameraEntity = m_cameraEntity;
     snapshot.strikerEntity = m_strikerEntity;
     snapshot.showcaseSphereEntity = m_showcaseSphereEntity;
@@ -1819,6 +1994,8 @@ GameplayState::SceneSnapshot GameplayState::captureSceneSnapshot() const {
 }
 
 void GameplayState::restoreSceneSnapshot(const SceneSnapshot& snapshot) {
+    scripting::ReactRuntime::reset(m_scripts);
+    m_scripts.stop();
     m_pendingRuntimeDeletes.clear();
     m_world.clear();
     m_physicsSystem.clear();
@@ -1836,6 +2013,10 @@ void GameplayState::restoreSceneSnapshot(const SceneSnapshot& snapshot) {
     for (const auto& entitySnapshot : snapshot.entities) {
         const ecs::EntityId recreated = m_world.createEntity();
         entityMap.emplace(entitySnapshot.sourceId, recreated);
+    }
+    m_fileEntities.clear();
+    for (const auto& [source, oldEntity] : snapshot.fileEntities) {
+        if (const auto it = entityMap.find(oldEntity); it != entityMap.end()) m_fileEntities.emplace(source, it->second);
     }
 
     for (const auto& entitySnapshot : snapshot.entities) {
@@ -1866,6 +2047,9 @@ void GameplayState::restoreSceneSnapshot(const SceneSnapshot& snapshot) {
         if (entitySnapshot.meshRenderer.has_value()) {
             m_world.addComponent<ecs::MeshRenderer>(entity, *entitySnapshot.meshRenderer);
         }
+        if (entitySnapshot.script.has_value()) {
+            m_world.addComponent<scripting::ScriptComponent>(entity, *entitySnapshot.script);
+        }
     }
 
     const auto remapEntity = [&](const ecs::EntityId source) {
@@ -1877,6 +2061,9 @@ void GameplayState::restoreSceneSnapshot(const SceneSnapshot& snapshot) {
     };
 
     m_cameraEntity = remapEntity(snapshot.cameraEntity);
+    if (!m_world.hasComponent<ecs::Camera>(m_cameraEntity) || !m_world.hasComponent<ecs::Transform>(m_cameraEntity)) {
+        createEditorCamera();
+    }
     m_strikerEntity = remapEntity(snapshot.strikerEntity);
     m_showcaseSphereEntity = remapEntity(snapshot.showcaseSphereEntity);
     m_selectedEntity = remapEntity(snapshot.selectedEntity);
@@ -1891,7 +2078,7 @@ void GameplayState::restoreSceneSnapshot(const SceneSnapshot& snapshot) {
 }
 
 bool GameplayState::canEditScene() const {
-    return m_editorMode == EditorMode::Edit;
+    return !stack().standalone();
 }
 
 bool GameplayState::hasUndo() const {
@@ -2016,7 +2203,9 @@ void GameplayState::undoSceneEdit() {
     EditorHistoryEntry entry = std::move(m_undoStack.back());
     m_undoStack.pop_back();
     m_redoStack.push_back(EditorHistoryEntry{entry.label, captureSceneSnapshot()});
+    const bool wasRunning = m_simulationRunning;
     restoreSceneSnapshot(entry.snapshot);
+    if (m_editorMode == EditorMode::Play) { m_scripts.start(); m_simulationRunning = wasRunning; }
     m_editorStatusMessage = "Undo: " + entry.label;
 }
 
@@ -2032,21 +2221,19 @@ void GameplayState::redoSceneEdit() {
         m_undoStack.erase(m_undoStack.begin());
     }
     m_undoStack.push_back(EditorHistoryEntry{entry.label, captureSceneSnapshot()});
+    const bool wasRunning = m_simulationRunning;
     restoreSceneSnapshot(entry.snapshot);
+    if (m_editorMode == EditorMode::Play) { m_scripts.start(); m_simulationRunning = wasRunning; }
     m_editorStatusMessage = "Redo: " + entry.label;
 }
 
-void GameplayState::saveSceneToDisk() {
-    if (!canEditScene()) {
-        m_editorStatusMessage = "Stop Play mode before saving.";
-        return;
-    }
-
-    commitSceneEdit();
-    const SceneSnapshot snapshot = captureSceneSnapshot();
-
+std::string GameplayState::serializeScene(const SceneSnapshot& snapshot, const bool playSession) const {
     nlohmann::json sceneJson;
     sceneJson["version"] = 1;
+    if (playSession) {
+        sceneJson["liveSourceMap"] = nlohmann::json::object();
+        for (const auto& [source, entity] : snapshot.fileEntities) sceneJson["liveSourceMap"][std::to_string(source)] = entity;
+    }
     sceneJson["cameraEntity"] = snapshot.cameraEntity;
     sceneJson["strikerEntity"] = snapshot.strikerEntity;
     sceneJson["showcaseSphereEntity"] = snapshot.showcaseSphereEntity;
@@ -2059,55 +2246,217 @@ void GameplayState::saveSceneToDisk() {
     for (const EntitySnapshot& entitySnapshot : snapshot.entities) {
         nlohmann::json entityJson;
         entityJson["sourceId"] = entitySnapshot.sourceId;
-        if (entitySnapshot.transform.has_value()) {
-            entityJson["transform"] = transformToJson(*entitySnapshot.transform);
-        }
-        if (entitySnapshot.tag.has_value()) {
-            entityJson["tag"] = nlohmann::json{{"value", entitySnapshot.tag->value}};
-        }
-        if (entitySnapshot.hierarchy.has_value()) {
-            entityJson["hierarchy"] = nlohmann::json{{"parent", entitySnapshot.hierarchy->parent}};
-        }
-        if (entitySnapshot.camera.has_value()) {
-            entityJson["camera"] = cameraToJson(*entitySnapshot.camera);
-        }
-        if (entitySnapshot.rigidbody.has_value()) {
-            entityJson["rigidbody"] = rigidbodyToJson(*entitySnapshot.rigidbody);
-        }
-        if (entitySnapshot.collider.has_value()) {
-            entityJson["collider"] = colliderToJson(*entitySnapshot.collider);
-        }
-        if (entitySnapshot.meshRenderer.has_value()) {
-            entityJson["meshRenderer"] = meshRendererToJson(*entitySnapshot.meshRenderer);
+        if (entitySnapshot.transform) entityJson["transform"] = transformToJson(*entitySnapshot.transform);
+        if (entitySnapshot.tag) entityJson["tag"] = {{"value", entitySnapshot.tag->value}};
+        if (entitySnapshot.hierarchy) entityJson["hierarchy"] = {{"parent", entitySnapshot.hierarchy->parent}};
+        if (entitySnapshot.camera) entityJson["camera"] = cameraToJson(*entitySnapshot.camera);
+        if (entitySnapshot.rigidbody) entityJson["rigidbody"] = rigidbodyToJson(*entitySnapshot.rigidbody);
+        if (entitySnapshot.collider) entityJson["collider"] = colliderToJson(*entitySnapshot.collider);
+        if (entitySnapshot.meshRenderer) entityJson["meshRenderer"] = meshRendererToJson(*entitySnapshot.meshRenderer);
+        if (entitySnapshot.script) {
+            const auto& script = *entitySnapshot.script;
+            entityJson["script"] = {{"path", script.path}, {"enabled", script.enabled}, {"fields", script.fields}};
         }
         sceneJson["entities"].push_back(std::move(entityJson));
     }
+    return sceneJson.dump(4);
+}
 
+void GameplayState::launchStandalonePlay() {
+    commitSceneEdit();
+    std::string error;
+    try {
+        if (stack().launchPlayWindow(serializeScene(captureSceneSnapshot(), true), editorAssetsRoot(), error)) {
+            if (m_editorMode == EditorMode::Play) stopPlayMode();
+            m_editorStatusMessage = "Game started in a separate window.";
+        } else m_editorStatusMessage = error;
+    } catch (const std::exception& failure) { m_editorStatusMessage = failure.what(); }
+}
+
+bool GameplayState::saveSceneToDisk() {
+    if (m_editorMode == EditorMode::Play || !canEditScene()) {
+        m_editorStatusMessage = "Stop Play mode before saving.";
+        return false;
+    }
+
+    commitSceneEdit();
     const std::filesystem::path scenePath = editorScenePath();
     try {
         if (scenePath.has_parent_path()) {
             std::filesystem::create_directories(scenePath.parent_path());
         }
 
-        std::ofstream file(scenePath);
-        if (!file.is_open()) {
+        std::string error;
+        if (!core::writeFileAtomically(scenePath, serializeScene(captureSceneSnapshot()), error)) {
             m_editorStatusMessage = "Failed to save scene.";
-            ENGINE_LOG_WARN("Failed to open scene '{}' for writing", scenePath.string());
-            return;
+            ENGINE_LOG_WARN("Failed to save scene '{}': {}", scenePath.string(), error);
+            return false;
         }
-
-        file << sceneJson.dump(4);
+        m_diskScene = nlohmann::json::parse(serializeScene(captureSceneSnapshot()));
+        m_fileEntities.clear();
+        m_world.forEachEntity([&](const ecs::EntityId entity) { m_fileEntities.emplace(entity, entity); });
         m_projectAssetsDirty = true;
         m_editorStatusMessage = "Saved scene to " + scenePath.string();
         ENGINE_LOG_INFO("Saved editor scene to '{}'", scenePath.string());
+        return true;
     } catch (const std::exception& ex) {
         m_editorStatusMessage = "Failed to save scene.";
         ENGINE_LOG_WARN("Failed saving scene '{}': {}", scenePath.string(), ex.what());
+        return false;
     }
 }
 
+GameplayState::SceneSnapshot GameplayState::parseScene(const nlohmann::json& sceneJson) const {
+    if (!sceneJson.is_object() || sceneJson.value("version", 0) != 1 ||
+        !sceneJson.contains("entities") || !sceneJson["entities"].is_array()) {
+        throw std::runtime_error("Scene requires version 1 and an entities array");
+    }
+
+    SceneSnapshot snapshot{};
+    std::unordered_set<ecs::EntityId> sourceIds;
+    snapshot.cameraEntity = sceneJson.value("cameraEntity", ecs::kInvalidEntity);
+    snapshot.strikerEntity = sceneJson.value("strikerEntity", ecs::kInvalidEntity);
+    snapshot.showcaseSphereEntity = sceneJson.value("showcaseSphereEntity", ecs::kInvalidEntity);
+    snapshot.selectedEntity = sceneJson.value("selectedEntity", ecs::kInvalidEntity);
+    snapshot.spawnSequence = sceneJson.value("spawnSequence", 0U);
+    snapshot.showColliderDebug = sceneJson.value("showColliderDebug", false);
+    snapshot.showcaseSphereLaunched = sceneJson.value("showcaseSphereLaunched", false);
+
+    for (const auto& entityJson : sceneJson.value("entities", nlohmann::json::array())) {
+        EntitySnapshot entitySnapshot{};
+        entitySnapshot.sourceId = entityJson.value("sourceId", ecs::kInvalidEntity);
+        if (entitySnapshot.sourceId == ecs::kInvalidEntity || !sourceIds.insert(entitySnapshot.sourceId).second) {
+            throw std::runtime_error("Scene entity IDs must be unique and valid");
+        }
+        if (entityJson.contains("transform")) {
+            entitySnapshot.transform = transformFromJson(entityJson["transform"]);
+        }
+        if (entityJson.contains("tag")) {
+            entitySnapshot.tag = ecs::Tag{entityJson["tag"].value("value", std::string{})};
+        }
+        if (entityJson.contains("hierarchy")) {
+            entitySnapshot.hierarchy = ecs::Hierarchy{entityJson["hierarchy"].value("parent", ecs::kInvalidEntity)};
+        }
+        if (entityJson.contains("camera")) {
+            entitySnapshot.camera = cameraFromJson(entityJson["camera"]);
+        }
+        if (entityJson.contains("rigidbody")) {
+            entitySnapshot.rigidbody = rigidbodyFromJson(entityJson["rigidbody"]);
+        }
+        if (entityJson.contains("collider")) {
+            entitySnapshot.collider = colliderFromJson(entityJson["collider"]);
+        }
+        if (entityJson.contains("meshRenderer")) {
+            entitySnapshot.meshRenderer = meshRendererFromJson(entityJson["meshRenderer"]);
+        }
+        if (entityJson.contains("script")) {
+            const auto& script = entityJson["script"];
+            scripting::ScriptComponent component;
+            component.path = script.value("path", std::string{});
+            component.enabled = script.value("enabled", true);
+            component.fields = script.value("fields", nlohmann::json::object());
+            if (!component.fields.is_object()) { throw std::runtime_error("Script fields must be an object"); }
+            entitySnapshot.script = std::move(component);
+        }
+        snapshot.fileEntities.emplace(entitySnapshot.sourceId, entitySnapshot.sourceId);
+        snapshot.entities.push_back(std::move(entitySnapshot));
+    }
+    if (stack().standalone() && sceneJson.contains("liveSourceMap")) {
+        snapshot.fileEntities.clear();
+        for (const auto& [source, entity] : sceneJson.at("liveSourceMap").items()) snapshot.fileEntities.emplace(static_cast<ecs::EntityId>(std::stoul(source)), entity.get<ecs::EntityId>());
+    }
+    return snapshot;
+}
+
+void GameplayState::pollSceneChanges() {
+    for (const auto& change : m_sceneWatcher.poll()) {
+        try {
+            if (!change.error.empty()) throw std::runtime_error(change.error);
+            const auto scene = nlohmann::json::parse(change.contents);
+            if (scene == m_diskScene) continue;
+            applyLiveScene(scene);
+        } catch (const std::exception& error) {
+            m_editorStatusMessage = "Live scene retained: " + std::string(error.what());
+            ENGINE_LOG_WARN("Live scene rejected: {}", error.what());
+        }
+    }
+}
+
+void GameplayState::applyLiveScene(const nlohmann::json& scene) {
+    // Validate the complete file before modifying a live World.
+    (void)parseScene(scene);
+    using Json = nlohmann::json;
+    std::unordered_map<ecs::EntityId, Json> oldEntities, newEntities;
+    if (m_diskScene.contains("entities")) for (const auto& entity : m_diskScene["entities"])
+        oldEntities.emplace(entity.at("sourceId").get<ecs::EntityId>(), entity);
+    for (const auto& entity : scene.at("entities")) newEntities.emplace(entity.at("sourceId").get<ecs::EntityId>(), entity);
+    const auto merge = [&](auto&& visit, Json current, const Json& old, const Json& next) -> Json {
+        if (old == next) return current;
+        if (!old.is_object() || !next.is_object()) return next;
+        if (!current.is_object()) current = Json::object();
+        for (const auto& [key, value] : old.items()) { (void)value; if (!next.contains(key)) current.erase(key); }
+        for (const auto& [key, value] : next.items()) {
+            if (!old.contains(key)) current[key] = value;
+            else if (old.at(key) != value) current[key] = visit(visit, current.value(key, Json()), old.at(key), value);
+        }
+        return current;
+    };
+    struct Edit { ecs::EntityId source; EntitySnapshot snapshot; bool remapParent; };
+    std::vector<Edit> edits;
+    for (const auto& [source, next] : newEntities) {
+        const auto old = oldEntities.find(source);
+        if (old != oldEntities.end() && old->second == next) continue;
+        Json current = Json::object();
+        if (const auto found = m_fileEntities.find(source); found != m_fileEntities.end() && m_world.isAlive(found->second)) {
+            SceneSnapshot single; single.entities.push_back(captureEntitySnapshot(found->second));
+            current = Json::parse(serializeScene(single)).at("entities").front();
+        }
+        auto merged = merge(merge, current, old == oldEntities.end() ? Json() : old->second, next);
+        merged["sourceId"] = source;
+        const Json one = {{"version", 1}, {"entities", Json::array({merged})}};
+        const bool parentChanged = old == oldEntities.end() || old->second.value("hierarchy", Json()) != next.value("hierarchy", Json());
+        edits.push_back({source, parseScene(one).entities.front(), parentChanged});
+    }
+    commitSceneEdit();
+    if (canEditScene()) recordSceneHistory("Live Scene Update");
+    for (const auto& [source, previous] : oldEntities) {
+        (void)previous;
+        if (newEntities.contains(source)) continue;
+        if (const auto found = m_fileEntities.find(source); found != m_fileEntities.end()) {
+            m_scripts.forgetEntity(found->second);
+            m_world.destroyEntity(found->second); m_fileEntities.erase(found);
+        }
+    }
+    for (const auto& edit : edits) {
+        const auto found = m_fileEntities.find(edit.source);
+        if (found == m_fileEntities.end() || !m_world.isAlive(found->second)) m_fileEntities[edit.source] = m_world.createEntity();
+    }
+    const auto remap = [&](const ecs::EntityId source) {
+        const auto found = m_fileEntities.find(source);
+        return found == m_fileEntities.end() ? ecs::kInvalidEntity : found->second;
+    };
+    for (auto& edit : edits) {
+        const auto entity = m_fileEntities.at(edit.source);
+        auto& data = edit.snapshot;
+        if (data.hierarchy && edit.remapParent) data.hierarchy->parent = remap(data.hierarchy->parent);
+        const auto assign = [&]<class T>(const std::optional<T>& component) {
+            if (component) m_world.addComponent<T>(entity, *component);
+            else m_world.removeComponent<T>(entity);
+        };
+        assign(data.transform); assign(data.tag); assign(data.hierarchy); assign(data.camera);
+        assign(data.rigidbody); assign(data.collider); assign(data.meshRenderer); assign(data.script);
+    }
+    if (scene.value("cameraEntity", ecs::kInvalidEntity) != m_diskScene.value("cameraEntity", ecs::kInvalidEntity))
+        m_cameraEntity = remap(scene.value("cameraEntity", ecs::kInvalidEntity));
+    if (!m_world.isAlive(m_cameraEntity)) createEditorCamera();
+    ensureSelectedEntityValid();
+    m_diskScene = scene; m_projectAssetsDirty = true;
+    m_editorStatusMessage = "Live scene updated (game state preserved).";
+    ENGINE_LOG_INFO("Live scene applied: {} changes, {} entities", edits.size(), m_world.aliveCount());
+}
+
 void GameplayState::loadSceneFromDisk() {
-    if (!canEditScene()) {
+    if (m_editorMode != EditorMode::Edit) {
         m_editorStatusMessage = "Stop Play mode before loading.";
         return;
     }
@@ -2129,55 +2478,13 @@ void GameplayState::loadSceneFromDisk() {
 
         nlohmann::json sceneJson;
         file >> sceneJson;
-
-        SceneSnapshot snapshot{};
-        snapshot.cameraEntity = sceneJson.value("cameraEntity", ecs::kInvalidEntity);
-        snapshot.strikerEntity = sceneJson.value("strikerEntity", ecs::kInvalidEntity);
-        snapshot.showcaseSphereEntity = sceneJson.value("showcaseSphereEntity", ecs::kInvalidEntity);
-        snapshot.selectedEntity = sceneJson.value("selectedEntity", ecs::kInvalidEntity);
-        snapshot.spawnSequence = sceneJson.value("spawnSequence", 0U);
-        snapshot.showColliderDebug = sceneJson.value("showColliderDebug", false);
-        snapshot.showcaseSphereLaunched = sceneJson.value("showcaseSphereLaunched", false);
-
-        for (const auto& entityJson : sceneJson.value("entities", nlohmann::json::array())) {
-            EntitySnapshot entitySnapshot{};
-            entitySnapshot.sourceId = entityJson.value("sourceId", ecs::kInvalidEntity);
-            if (entitySnapshot.sourceId == ecs::kInvalidEntity) {
-                continue;
-            }
-            if (entityJson.contains("transform")) {
-                entitySnapshot.transform = transformFromJson(entityJson["transform"]);
-            }
-            if (entityJson.contains("tag")) {
-                entitySnapshot.tag = ecs::Tag{entityJson["tag"].value("value", std::string{})};
-            }
-            if (entityJson.contains("hierarchy")) {
-                entitySnapshot.hierarchy = ecs::Hierarchy{entityJson["hierarchy"].value("parent", ecs::kInvalidEntity)};
-            }
-            if (entityJson.contains("camera")) {
-                entitySnapshot.camera = cameraFromJson(entityJson["camera"]);
-            }
-            if (entityJson.contains("rigidbody")) {
-                entitySnapshot.rigidbody = rigidbodyFromJson(entityJson["rigidbody"]);
-            }
-            if (entityJson.contains("collider")) {
-                entitySnapshot.collider = colliderFromJson(entityJson["collider"]);
-            }
-            if (entityJson.contains("meshRenderer")) {
-                entitySnapshot.meshRenderer = meshRendererFromJson(entityJson["meshRenderer"]);
-            }
-            snapshot.entities.push_back(std::move(entitySnapshot));
-        }
-
-        if (snapshot.entities.empty()) {
-            m_editorStatusMessage = "Scene file has no entities.";
-            return;
-        }
+        const auto snapshot = parseScene(sceneJson);
 
         if (canEditScene()) {
             recordSceneHistory("Load Scene");
         }
         restoreSceneSnapshot(snapshot);
+        m_diskScene = sceneJson;
         m_editorStatusMessage = "Loaded scene from " + scenePath.string();
         ENGINE_LOG_INFO("Loaded editor scene from '{}'", scenePath.string());
     } catch (const std::exception& ex) {
@@ -2344,6 +2651,9 @@ ecs::EntityId GameplayState::duplicateEntity(const ecs::EntityId entity) {
     if (const auto* collider = m_world.getComponent<ecs::Collider>(entity)) {
         m_world.addComponent<ecs::Collider>(copy, *collider);
     }
+    if (const auto* script = m_world.getComponent<scripting::ScriptComponent>(entity)) {
+        m_world.addComponent<scripting::ScriptComponent>(copy, *script);
+    }
     if (const auto* rigidbody = m_world.getComponent<ecs::Rigidbody>(entity)) {
         ecs::Rigidbody copiedRigidbody = *rigidbody;
         copiedRigidbody.velocity = glm::vec3(0.0F);
@@ -2370,6 +2680,7 @@ void GameplayState::deleteEntity(const ecs::EntityId entity) {
         // the main thread before the next physics/spawn step, after prior jobs.
         if (std::find(m_pendingRuntimeDeletes.begin(), m_pendingRuntimeDeletes.end(), entity) ==
             m_pendingRuntimeDeletes.end()) {
+            recordSceneHistory("Delete Entity");
             m_pendingRuntimeDeletes.push_back(entity);
         }
         m_editorStatusMessage = "Runtime delete queued: " + entityDisplayName(entity);
@@ -2388,7 +2699,7 @@ void GameplayState::applyPendingRuntimeDeletes() {
 
 void GameplayState::deleteEntityNow(const ecs::EntityId entity) {
     if (!m_world.isAlive(entity)) { return; }
-    if (canEditScene()) { recordSceneHistory("Delete Entity"); }
+    if (m_editorMode == EditorMode::Edit && canEditScene()) { recordSceneHistory("Delete Entity"); }
     m_world.forEachEntity([&](const ecs::EntityId candidate) {
         if (auto* hierarchy = m_world.getComponent<ecs::Hierarchy>(candidate);
             hierarchy != nullptr && hierarchy->parent == entity) {
@@ -2399,6 +2710,7 @@ void GameplayState::deleteEntityNow(const ecs::EntityId entity) {
     const std::string deletedName = entityDisplayName(entity);
     // Drop cached contact pairs before the free-list can reuse this entity ID.
     m_physicsSystem.forgetEntity(entity, m_eventBus);
+    m_scripts.forgetEntity(entity);
     m_world.destroyEntity(entity);
     if (m_cameraEntity == entity) {
         m_cameraEntity = ecs::kInvalidEntity;
@@ -2450,63 +2762,48 @@ void GameplayState::ensureSelectedEntityValid() {
 }
 
 void GameplayState::processEditorShortcuts() {
+    using Command = editor::EditorCommandId;
+    if (ImGui::GetCurrentContext() && ImGui::IsPopupOpen(nullptr, ImGuiPopupFlags_AnyPopupId | ImGuiPopupFlags_AnyPopupLevel)) return;
     const bool controlDown = platform::InputManager::isKeyDownRaw(platform::KeyCode::LeftControl) ||
                              platform::InputManager::isKeyDownRaw(platform::KeyCode::RightControl);
-    if (!controlDown) {
-        return;
-    }
-
+    if (!controlDown) return;
+    if (platform::InputManager::isKeyDownRaw(platform::KeyCode::LeftAlt) ||
+        platform::InputManager::isKeyDownRaw(platform::KeyCode::RightAlt)) return;
     const bool shiftDown = platform::InputManager::isKeyDownRaw(platform::KeyCode::LeftShift) ||
                            platform::InputManager::isKeyDownRaw(platform::KeyCode::RightShift);
-
-    if (platform::InputManager::wasKeyPressedRaw(platform::KeyCode::S)) {
-        saveSceneToDisk();
-        return;
+    const auto pressed = [](platform::KeyCode key) { return platform::InputManager::wasKeyPressedRaw(key); };
+    if (m_showScriptWorkspace && m_scriptWorkspace.focused()) {
+        if (pressed(platform::KeyCode::S)) m_editorCommands.execute(shiftDown ? Command::ScriptSaveAll : Command::ScriptSave);
+        else if (pressed(platform::KeyCode::O)) m_editorCommands.execute(Command::ScriptOpen);
+        else if (pressed(platform::KeyCode::N)) m_editorCommands.execute(Command::ScriptNew);
+        else if (pressed(platform::KeyCode::F)) {
+            if (!m_editorCommands.state(Command::ScriptFind).checked) m_editorCommands.execute(Command::ScriptFind);
+        }
+        else if (ImGui::GetCurrentContext() && ImGui::IsKeyPressed(ImGuiKey_G, false)) m_editorCommands.execute(Command::ScriptGoToLine);
+        return; // TextEditor retains document Undo/Redo and editing shortcuts.
     }
-    if (platform::InputManager::wasKeyPressedRaw(platform::KeyCode::O)) {
-        loadSceneFromDisk();
-        return;
-    }
-    if (platform::InputManager::wasKeyPressedRaw(platform::KeyCode::N)) {
-        createEditorEntity(EditorEntityKind::Empty);
-        return;
-    }
-    if (platform::InputManager::wasKeyPressedRaw(platform::KeyCode::D)) {
-        duplicateEntity(m_selectedEntity);
-        return;
-    }
-    if (platform::InputManager::wasKeyPressedRaw(platform::KeyCode::Y) ||
-        (shiftDown && platform::InputManager::wasKeyPressedRaw(platform::KeyCode::Z))) {
-        redoSceneEdit();
-        return;
-    }
-    if (platform::InputManager::wasKeyPressedRaw(platform::KeyCode::Z)) {
-        undoSceneEdit();
-    }
+    if (sceneShortcutsBlocked() || m_cameraLookActive) return;
+    if (pressed(platform::KeyCode::S)) m_editorCommands.execute(Command::SaveScene);
+    else if (pressed(platform::KeyCode::O)) m_editorCommands.execute(Command::LoadScene);
+    else if (pressed(platform::KeyCode::N)) m_editorCommands.execute(Command::CreateEmpty);
+    else if (pressed(platform::KeyCode::D)) m_editorCommands.execute(Command::Duplicate);
+    else if (pressed(platform::KeyCode::Y) || (shiftDown && pressed(platform::KeyCode::Z))) m_editorCommands.execute(Command::Redo);
+    else if (pressed(platform::KeyCode::Z)) m_editorCommands.execute(Command::Undo);
 }
 
 void GameplayState::applyViewportHotkeys() {
-    if (!(m_viewportHovered || m_viewportFocused) || ImGui::GetIO().WantTextInput || m_cameraLookActive) {
-        return;
-    }
-
-    const bool controlDown = platform::InputManager::isKeyDownRaw(platform::KeyCode::LeftControl) ||
-                             platform::InputManager::isKeyDownRaw(platform::KeyCode::RightControl);
-    const bool altDown = platform::InputManager::isKeyDownRaw(platform::KeyCode::LeftAlt) ||
-                         platform::InputManager::isKeyDownRaw(platform::KeyCode::RightAlt);
-    if (controlDown || altDown) {
-        return;
-    }
-
-    if (platform::InputManager::wasKeyPressedRaw(platform::KeyCode::W)) {
-        m_gizmoOperation = GizmoOperation::Translate;
-    } else if (platform::InputManager::wasKeyPressedRaw(platform::KeyCode::E)) {
-        m_gizmoOperation = GizmoOperation::Rotate;
-    } else if (platform::InputManager::wasKeyPressedRaw(platform::KeyCode::F)) {
-        focusSelectedEntity();
-    } else if (platform::InputManager::wasKeyPressedRaw(platform::KeyCode::R)) {
-        m_gizmoOperation = GizmoOperation::Scale;
-    }
+    if (!(m_viewportHovered || m_viewportFocused) || sceneShortcutsBlocked() || m_cameraLookActive) return;
+    const bool modified = platform::InputManager::isKeyDownRaw(platform::KeyCode::LeftControl) ||
+        platform::InputManager::isKeyDownRaw(platform::KeyCode::RightControl) ||
+        platform::InputManager::isKeyDownRaw(platform::KeyCode::LeftAlt) ||
+        platform::InputManager::isKeyDownRaw(platform::KeyCode::RightAlt);
+    if (modified) return;
+    using Command = editor::EditorCommandId;
+    if (platform::InputManager::wasKeyPressedRaw(platform::KeyCode::Q)) m_editorCommands.execute(Command::ToolSelect);
+    else if (platform::InputManager::wasKeyPressedRaw(platform::KeyCode::W)) m_editorCommands.execute(Command::ToolMove);
+    else if (platform::InputManager::wasKeyPressedRaw(platform::KeyCode::E)) m_editorCommands.execute(Command::ToolRotate);
+    else if (platform::InputManager::wasKeyPressedRaw(platform::KeyCode::R)) m_editorCommands.execute(Command::ToolScale);
+    else if (platform::InputManager::wasKeyPressedRaw(platform::KeyCode::F)) m_editorCommands.execute(Command::FocusSelected);
 }
 
 void GameplayState::wakeEntity(const ecs::EntityId entity) {
@@ -2559,6 +2856,7 @@ void GameplayState::refreshProjectAssets() {
 
         AssetEntry asset{};
         asset.path = toAssetPath(entry.path());
+        if (asset.path.starts_with("assets/scripts/react-luau/")) { continue; }
         asset.name = assetDisplayName(entry.path());
         asset.kind = classifyAsset(entry.path());
         asset.details = buildAssetDetails(entry.path(), asset.kind);
@@ -2863,25 +3161,36 @@ const EditorDockSlot* GameplayState::dockSlotForPanel(const EditorPanelId panelI
     return nullptr;
 }
 
+bool GameplayState::hasDockedPanel(const EditorDockSlot slot) const {
+    return (m_showToolbarPanel && m_toolbarDockSlot == slot) ||
+        (m_showHierarchyPanel && m_hierarchyDockSlot == slot) ||
+        (m_showProjectPanel && m_projectDockSlot == slot) ||
+        (m_showInspectorPanel && m_inspectorDockSlot == slot) ||
+        (m_showStatsPanel && m_statsDockSlot == slot) ||
+        (m_showStatusPanel && m_statusDockSlot == slot);
+}
+
 void GameplayState::resetEditorLayout() {
+    m_ribbonState = {};
     m_showToolbarPanel = true;
-    m_showHierarchyPanel = true;
-    m_showProjectPanel = true;
-    m_showInspectorPanel = true;
-    m_showStatsPanel = true;
+    m_showHierarchyPanel = false;
+    m_showProjectPanel = false;
+    m_showInspectorPanel = false;
+    m_showStatsPanel = false;
+    m_showAssistant = true;
     m_showViewportPanel = true;
     m_showStatusPanel = true;
     m_toolbarDockSlot = EditorDockSlot::Top;
-    m_hierarchyDockSlot = EditorDockSlot::LeftTop;
+    m_hierarchyDockSlot = EditorDockSlot::RightTop;
     m_projectDockSlot = EditorDockSlot::LeftBottom;
-    m_inspectorDockSlot = EditorDockSlot::RightTop;
-    m_statsDockSlot = EditorDockSlot::RightBottom;
+    m_inspectorDockSlot = EditorDockSlot::RightBottom;
+    m_statsDockSlot = EditorDockSlot::LeftTop;
     m_viewportDockSlot = EditorDockSlot::Center;
     m_statusDockSlot = EditorDockSlot::Bottom;
     m_editorLeftWidth = 0.0F;
     m_editorRightWidth = 0.0F;
     m_editorLeftSplit = 0.72F;
-    m_editorRightSplit = 0.68F;
+    m_editorRightSplit = 0.76F;
     m_resetEditorLayout = true;
     markEditorLayoutDirty();
 }
@@ -2903,6 +3212,7 @@ void GameplayState::loadEditorLayout() {
             m_showStatsPanel = visibility->value("stats", m_showStatsPanel);
             m_showViewportPanel = visibility->value("viewport", m_showViewportPanel);
             m_showStatusPanel = visibility->value("status", m_showStatusPanel);
+            m_showAssistant = visibility->value("assistant", m_showAssistant);
         }
 
         if (const auto slots = layout.find("dockSlots"); slots != layout.end() && slots->is_object()) {
@@ -2940,6 +3250,19 @@ void GameplayState::loadEditorLayout() {
             m_editorRightSplit = std::clamp(sizing->value("rightSplit", m_editorRightSplit), 0.22F, 0.82F);
         }
 
+        if (const auto ribbon = layout.find("ribbon"); ribbon != layout.end() && ribbon->is_object()) {
+            m_ribbonState.tab = static_cast<editor::EditorRibbonTab>(ribbon->value("tab", 0));
+            m_ribbonState.compact = ribbon->value("compact", false);
+            m_ribbonState.showLabels = ribbon->value("showLabels", true);
+            m_ribbonState.createCommand = static_cast<editor::EditorCommandId>(ribbon->value("createCommand", static_cast<int>(editor::EditorCommandId::CreatePhysicsCube)));
+            m_ribbonState.playCommand = static_cast<editor::EditorCommandId>(ribbon->value("playCommand", static_cast<int>(editor::EditorCommandId::Play)));
+            m_ribbonState.moveSnap = ribbon->value("moveSnap", 0.5F);
+            m_ribbonState.rotateSnap = ribbon->value("rotateSnap", 15.0F);
+            m_ribbonState.scaleSnap = ribbon->value("scaleSnap", 0.1F);
+            editor::EditorRibbon::sanitizeState(m_ribbonState);
+            m_useLocalGizmoSpace = ribbon->value("localSpace", m_useLocalGizmoSpace);
+            m_snapEnabled = ribbon->value("snap", m_snapEnabled);
+        }
         m_editorLayoutLocked = layout.value("locked", m_editorLayoutLocked);
         m_editorLayoutDirty = false;
     } catch (const std::exception& exception) {
@@ -2955,6 +3278,12 @@ void GameplayState::saveEditorLayout() const {
     nlohmann::json layout;
     layout["version"] = 1;
     layout["locked"] = m_editorLayoutLocked;
+    layout["ribbon"] = {
+        {"tab", static_cast<int>(m_ribbonState.tab)}, {"compact", m_ribbonState.compact}, {"showLabels", m_ribbonState.showLabels},
+        {"createCommand", static_cast<int>(m_ribbonState.createCommand)}, {"playCommand", static_cast<int>(m_ribbonState.playCommand)},
+        {"moveSnap", m_ribbonState.moveSnap}, {"rotateSnap", m_ribbonState.rotateSnap}, {"scaleSnap", m_ribbonState.scaleSnap},
+        {"localSpace", m_useLocalGizmoSpace}, {"snap", m_snapEnabled}
+    };
     layout["visibility"] = {
         {"toolbar", m_showToolbarPanel},
         {"hierarchy", m_showHierarchyPanel},
@@ -2963,6 +3292,7 @@ void GameplayState::saveEditorLayout() const {
         {"stats", m_showStatsPanel},
         {"viewport", m_showViewportPanel},
         {"status", m_showStatusPanel},
+        {"assistant", m_showAssistant},
     };
     layout["dockSlots"] = {
         {"toolbar", dockSlotToString(m_toolbarDockSlot)},
@@ -2980,12 +3310,10 @@ void GameplayState::saveEditorLayout() const {
         {"rightSplit", m_editorRightSplit},
     };
 
-    std::ofstream file(path, std::ios::trunc);
-    if (!file.is_open()) {
-        ENGINE_LOG_WARN("Failed to save editor layout '{}'", path.string());
-        return;
+    std::string failure;
+    if (!core::writeFileAtomically(path, layout.dump(2) + "\n", failure)) {
+        ENGINE_LOG_WARN("Failed to save editor layout '{}': {}", path.string(), failure);
     }
-    file << std::setw(2) << layout << '\n';
 }
 
 void GameplayState::markEditorLayoutDirty() {
@@ -3022,6 +3350,13 @@ void GameplayState::update(const double dt) {
 
     ensureSelectedEntityValid();
 
+    m_codexAssistant.update();
+    m_scriptWorkspace.update();
+    pollSceneChanges();
+    m_scripts.pollReload();
+    m_scripts.setInputEnabled(m_editorMode == EditorMode::Play && (stack().standalone() || m_viewportHovered || m_viewportFocused) &&
+        !m_cameraLookActive && !(ImGui::GetCurrentContext() && ImGui::GetIO().WantTextInput));
+
     if ((m_viewportHovered || m_cameraLookActive) && stack().window() != nullptr) {
         const auto [scrollX, scrollY] = platform::InputManager::scrollDelta();
         (void)scrollX;
@@ -3037,7 +3372,7 @@ void GameplayState::update(const double dt) {
         setCameraLookActive(false);
     }
 
-    if (auto* cameraTransform = m_world.getComponent<ecs::Transform>(m_cameraEntity)) {
+    if (auto* cameraTransform = m_world.getComponent<ecs::Transform>(m_cameraEntity); cameraTransform && !stack().standalone()) {
         const bool allowMouseLook = m_cameraLookActive && !m_skipNextCameraLookDelta;
         if (m_skipNextCameraLookDelta) {
             platform::InputManager::resetMouseDelta();
@@ -3048,9 +3383,14 @@ void GameplayState::update(const double dt) {
 
     if (m_editorMode == EditorMode::Play) {
         processPendingSpawns();
-        if (m_simulationRunning) {
+        if (m_simulationRunning || m_stepScriptTick) {
+            const double tickDt = m_stepScriptTick ? 1.0 / 60.0 : dt;
+            m_stepScriptTick = false;
+            m_scripts.update(tickDt);
             ENGINE_PROFILE_ZONE("Physics");
-            m_physicsSystem.update(m_world, dt, m_eventBus);
+            m_physicsSystem.update(m_world, tickDt, m_eventBus);
+            m_scripts.dispatchEvents();
+            scripting::ReactRuntime::pump(m_scripts, tickDt);
         }
     }
 }
@@ -3246,48 +3586,33 @@ void GameplayState::render(renderer::Renderer& rendererInstance) {
         ENGINE_PROFILE_ZONE("Scene Render");
         m_renderSystem.render(m_world, renderAdapter, cameraFrame.viewProjection);
     }
-    if (m_showColliderDebug) {
+    if (m_showColliderDebug && !stack().standalone()) {
         ENGINE_PROFILE_ZONE("Collider Debug Render");
         m_debugRenderSystem.render(m_world, renderAdapter, cameraFrame.viewProjection);
     }
     {
         ENGINE_PROFILE_ZONE("Selection Outline");
-        renderSelectionOutline(renderAdapter, cameraFrame.viewProjection);
+        if (!stack().standalone()) renderSelectionOutline(renderAdapter, cameraFrame.viewProjection);
     }
 
     m_lastSceneRenderMs = std::chrono::duration<double, std::milli>(
                               std::chrono::high_resolution_clock::now() - renderStart)
                               .count();
+    static const bool diagnostics = std::getenv("TGE_FRAME_DIAGNOSTICS") != nullptr;
+    static auto nextDiagnostic = std::chrono::steady_clock::time_point{};
+    const auto now = std::chrono::steady_clock::now();
+    if (diagnostics && now >= nextDiagnostic) {
+        nextDiagnostic = now + std::chrono::seconds(1);
+        ENGINE_LOG_INFO("Game scene: entities={} draws={} culled={} Luau={:.2f} MiB scene={:.2f} ms",
+            m_world.aliveCount(), m_renderSystem.submittedCount(), m_renderSystem.culledCount(),
+            static_cast<double>(m_scripts.memoryUsed()) / (1024.0*1024.0), m_lastSceneRenderMs);
+    }
 }
 
 void GameplayState::renderCreateEntityMenu() {
-    const bool enabled = canEditScene();
-    if (!enabled) {
-        ImGui::BeginDisabled();
-    }
-
-    if (ImGui::MenuItem("Empty", "Ctrl+N")) {
-        createEditorEntity(EditorEntityKind::Empty);
-    }
-    if (ImGui::MenuItem("Render Cube")) {
-        createEditorEntity(EditorEntityKind::RenderCube);
-    }
-    if (ImGui::MenuItem("Physics Cube")) {
-        createEditorEntity(EditorEntityKind::PhysicsCube);
-    }
-    if (ImGui::MenuItem("Physics Sphere")) {
-        createEditorEntity(EditorEntityKind::PhysicsSphere);
-    }
-    if (ImGui::MenuItem("Physics Pyramid")) {
-        createEditorEntity(EditorEntityKind::PhysicsPyramid);
-    }
-    if (ImGui::MenuItem("Camera")) {
-        createEditorEntity(EditorEntityKind::Camera);
-    }
-
-    if (!enabled) {
-        ImGui::EndDisabled();
-    }
+    using Command = editor::EditorCommandId;
+    for (const auto id : {Command::CreateEmpty, Command::CreateRenderCube, Command::CreatePhysicsCube,
+        Command::CreatePhysicsSphere, Command::CreatePhysicsPyramid, Command::CreateCamera}) renderCommandMenuItem(id);
 }
 
 void GameplayState::renderAddComponentMenu(const ecs::EntityId entity) {
@@ -3342,6 +3667,10 @@ void GameplayState::renderAddComponentMenu(const ecs::EntityId entity) {
         m_world.addComponent<ecs::Hierarchy>(entity, ecs::Hierarchy{});
         m_editorStatusMessage = "Added Hierarchy";
     }
+    if (!m_world.hasComponent<scripting::ScriptComponent>(entity) && ImGui::MenuItem("Luau Behavior")) {
+        recordSceneHistory("Add Luau Behavior");
+        m_world.addComponent<scripting::ScriptComponent>(entity, scripting::ScriptComponent{});
+    }
 
     if (!canEditScene() || !m_world.isAlive(entity)) {
         ImGui::EndDisabled();
@@ -3391,6 +3720,11 @@ void GameplayState::renderRemoveComponentMenu(const ecs::EntityId entity) {
         m_world.removeComponent<ecs::Hierarchy>(entity);
         m_editorStatusMessage = "Removed Hierarchy";
     }
+    if (m_world.hasComponent<scripting::ScriptComponent>(entity) && ImGui::MenuItem("Luau Behavior")) {
+        recordSceneHistory("Remove Luau Behavior");
+        m_scripts.forgetEntity(entity);
+        m_world.removeComponent<scripting::ScriptComponent>(entity);
+    }
 
     if (!canEditScene() || !m_world.isAlive(entity)) {
         ImGui::EndDisabled();
@@ -3398,19 +3732,39 @@ void GameplayState::renderRemoveComponentMenu(const ecs::EntityId entity) {
 }
 
 void GameplayState::renderEntityContextMenu(const ecs::EntityId entity) {
+    m_selectedEntity = entity;
     if (ImGui::MenuItem("Select")) {
         m_selectedEntity = entity;
     }
-    if (ImGui::MenuItem("Duplicate", "Ctrl+D", false, canEditScene() && m_world.isAlive(entity))) {
-        duplicateEntity(entity);
-    }
+    renderCommandMenuItem(editor::EditorCommandId::Duplicate);
     if (ImGui::BeginMenu("Create")) {
         renderCreateEntityMenu();
         ImGui::EndMenu();
     }
-    if (ImGui::MenuItem("Delete", "Delete", false, m_world.isAlive(entity))) {
-        deleteEntity(entity);
+    renderCommandMenuItem(editor::EditorCommandId::Delete);
+}
+
+void GameplayState::renderPanelHeader(const EditorPanelId panelId, const char* title) {
+    const ImVec2 origin = ImGui::GetCursorScreenPos();
+    const float width = ImGui::GetContentRegionAvail().x, height = editor::kPanelTitleHeight;
+    auto* draw = ImGui::GetWindowDrawList();
+    draw->AddRectFilled(origin, ImVec2(origin.x + width, origin.y + height), IM_COL32(32, 34, 39, 255));
+    const ImVec2 text = editor::nativeFont() ? editor::nativeFont()->CalcTextSizeA(editor::kEditorFontSize, width, 0, title) : ImGui::CalcTextSize(title);
+    draw->AddText(editor::nativeFont(), editor::kEditorFontSize, ImVec2(origin.x + std::max(4.0F, (width - 36 - text.x) * .5F), origin.y + (height - editor::kEditorFontSize) * .5F), IM_COL32(197, 200, 207, 255), title);
+    ImGui::SetCursorScreenPos(ImVec2(origin.x + std::max(0.0F, width - 44), origin.y));
+    renderPanelDockControls(panelId, "##PanelActions");
+    ImGui::SetCursorScreenPos(ImVec2(origin.x + std::max(20.0F, width - 24), origin.y));
+    if (ImGui::InvisibleButton("##ClosePanel", ImVec2(18, height))) {
+        bool* visible = panelId == EditorPanelId::Hierarchy ? &m_showHierarchyPanel :
+            panelId == EditorPanelId::Inspector ? &m_showInspectorPanel :
+            panelId == EditorPanelId::Project ? &m_showProjectPanel : &m_showStatsPanel;
+        commitSceneEdit(); *visible = false; markEditorLayoutDirty();
     }
+    const ImU32 ink = ImGui::GetColorU32(ImGui::IsItemHovered() ? ImGuiCol_Text : ImGuiCol_TextDisabled);
+    const ImVec2 close(origin.x + width - 15, origin.y + height * .5F);
+    draw->AddLine(ImVec2(close.x - 3, close.y - 3), ImVec2(close.x + 3, close.y + 3), ink);
+    draw->AddLine(ImVec2(close.x + 3, close.y - 3), ImVec2(close.x - 3, close.y + 3), ink);
+    ImGui::SetCursorScreenPos(ImVec2(origin.x, origin.y + height)); ImGui::Dummy(ImVec2(0, 0));
 }
 
 void GameplayState::renderPanelDockControls(const EditorPanelId panelId, const char* popupId) {
@@ -3424,13 +3778,13 @@ void GameplayState::renderPanelDockControls(const EditorPanelId panelId, const c
     }
 
     EditorDockSlot& slot = *slotPtr;
-    const float handleHeight = ImGui::GetFrameHeight();
-    const float handleWidth = 34.0F;
+    const float handleHeight = editor::kPanelTitleHeight;
+    const float handleWidth = 20.0F;
     const ImVec2 handleMin = ImGui::GetCursorScreenPos();
     const ImVec2 handleSize(handleWidth, handleHeight);
 
     ImGui::PushID(popupId);
-    ImGui::InvisibleButton("DockDragGrip", handleSize);
+    if (ImGui::InvisibleButton("DockDragGrip", handleSize)) ImGui::OpenPopup(popupId);
     const bool hovered = ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenBlockedByActiveItem);
     const bool active = ImGui::IsItemActive();
     const bool canChangeLayout = !m_editorLayoutLocked;
@@ -3448,10 +3802,10 @@ void GameplayState::renderPanelDockControls(const EditorPanelId panelId, const c
         !canChangeLayout ? ImVec4(0.18F, 0.21F, 0.27F, 1.0F)
                          : (hovered || active ? ImVec4(0.35F, 0.58F, 0.88F, 1.0F)
                                              : ImVec4(0.22F, 0.27F, 0.34F, 1.0F)));
-    drawList->AddRectFilled(handleMin, handleMax, bgColor, 6.0F);
-    drawList->AddRect(handleMin, handleMax, borderColor, 6.0F, 0, hovered || active ? 1.5F : 1.0F);
+    if (hovered || active) drawList->AddRectFilled(handleMin, handleMax, bgColor, 2.0F);
+    if (hovered || active) drawList->AddRect(handleMin, handleMax, borderColor, 2.0F);
     for (int i = 0; i < 3; ++i) {
-        const float x = handleMin.x + 8.0F + static_cast<float>(i) * 4.0F;
+        const float x = handleMin.x + 6.0F + static_cast<float>(i) * 4.0F;
         drawList->AddCircleFilled(ImVec2(x, handleMin.y + handleHeight * 0.5F), 1.35F, IM_COL32(151, 165, 184, 255));
     }
     if (hovered) {
@@ -3482,6 +3836,19 @@ void GameplayState::renderPanelDockControls(const EditorPanelId panelId, const c
     }
 
     if (ImGui::BeginPopup(popupId)) {
+        if (panelId == EditorPanelId::Inspector) {
+            renderCommandMenuItem(editor::EditorCommandId::AddComponent);
+            if (ImGui::BeginMenu("Remove Component")) { renderRemoveComponentMenu(m_selectedEntity); ImGui::EndMenu(); }
+            for (const auto id : {editor::EditorCommandId::Duplicate, editor::EditorCommandId::Delete,
+                editor::EditorCommandId::ResetTransform, editor::EditorCommandId::DropToGround,
+                editor::EditorCommandId::RandomizeTint, editor::EditorCommandId::ZeroVelocity}) renderCommandMenuItem(id);
+            ImGui::Separator();
+        } else if (panelId == EditorPanelId::Hierarchy) {
+            if (ImGui::BeginMenu("Create")) { renderCreateEntityMenu(); ImGui::EndMenu(); }
+            renderCommandMenuItem(editor::EditorCommandId::Duplicate); renderCommandMenuItem(editor::EditorCommandId::Delete);
+            ImGui::Separator();
+        } else if (panelId == EditorPanelId::Project && ImGui::MenuItem("Refresh")) { m_projectAssetsDirty = true; }
+
         if (!canChangeLayout) {
             ImGui::BeginDisabled();
         }
@@ -3590,7 +3957,7 @@ void GameplayState::renderDockDropOverlay() {
     m_dockDragActive = true;
 
     const EditorLayout layout =
-        computeEditorLayout(m_editorLeftWidth, m_editorRightWidth, m_editorLeftSplit, m_editorRightSplit);
+        computeEditorLayout(m_editorLeftWidth, m_editorRightWidth, m_editorLeftSplit, m_editorRightSplit, editor::EditorRibbon::preferredHeight(m_ribbonState), true, true, true, true, m_showAssistant, hasDockedPanel(EditorDockSlot::Top), hasDockedPanel(EditorDockSlot::Bottom));
     const ImGuiViewport* viewport = ImGui::GetMainViewport();
     ImGui::SetNextWindowPos(viewport->Pos, ImGuiCond_Always);
     ImGui::SetNextWindowSize(viewport->Size, ImGuiCond_Always);
@@ -3654,7 +4021,7 @@ void GameplayState::renderDockResizeHandles() {
     }
 
     const EditorLayout layout =
-        computeEditorLayout(m_editorLeftWidth, m_editorRightWidth, m_editorLeftSplit, m_editorRightSplit);
+        computeEditorLayout(m_editorLeftWidth, m_editorRightWidth, m_editorLeftSplit, m_editorRightSplit, editor::EditorRibbon::preferredHeight(m_ribbonState), hasDockedPanel(EditorDockSlot::LeftTop), hasDockedPanel(EditorDockSlot::LeftBottom), hasDockedPanel(EditorDockSlot::RightTop), hasDockedPanel(EditorDockSlot::RightBottom), m_showAssistant, hasDockedPanel(EditorDockSlot::Top), hasDockedPanel(EditorDockSlot::Bottom));
     const ImGuiIO& io = ImGui::GetIO();
     constexpr float handleThickness = 8.0F;
 
@@ -3665,7 +4032,7 @@ void GameplayState::renderDockResizeHandles() {
         }
     };
 
-    const bool leftColumnActive = renderSplitterHandle(
+    const bool leftColumnActive = layout.hierarchySize.x > 0.0F && renderSplitterHandle(
         "##DockSplitterLeftColumn",
         ImVec2(layout.hierarchyPos.x + layout.hierarchySize.x, layout.hierarchyPos.y),
         ImVec2(handleThickness, layout.hierarchySize.y + kWindowMargin + layout.projectSize.y),
@@ -3675,7 +4042,7 @@ void GameplayState::renderDockResizeHandles() {
         applyChanged(true);
     }
 
-    const bool rightColumnActive = renderSplitterHandle(
+    const bool rightColumnActive = layout.inspectorSize.x > 0.0F && renderSplitterHandle(
         "##DockSplitterRightColumn",
         ImVec2(layout.viewportPos.x + layout.viewportSize.x, layout.viewportPos.y),
         ImVec2(handleThickness, layout.viewportSize.y),
@@ -3685,7 +4052,7 @@ void GameplayState::renderDockResizeHandles() {
         applyChanged(true);
     }
 
-    const bool leftStackActive = renderSplitterHandle(
+    const bool leftStackActive = layout.hierarchySize.y > 0 && layout.projectSize.y > 0 && renderSplitterHandle(
         "##DockSplitterLeftStack",
         ImVec2(layout.hierarchyPos.x, layout.hierarchyPos.y + layout.hierarchySize.y),
         ImVec2(layout.hierarchySize.x, handleThickness),
@@ -3696,7 +4063,7 @@ void GameplayState::renderDockResizeHandles() {
         applyChanged(true);
     }
 
-    const bool rightStackActive = renderSplitterHandle(
+    const bool rightStackActive = layout.inspectorSize.y > 0 && layout.statsSize.y > 0 && renderSplitterHandle(
         "##DockSplitterRightStack",
         ImVec2(layout.inspectorPos.x, layout.inspectorPos.y + layout.inspectorSize.y),
         ImVec2(layout.inspectorSize.x, handleThickness),
@@ -3709,341 +4076,150 @@ void GameplayState::renderDockResizeHandles() {
 }
 
 void GameplayState::renderMainMenuBar() {
-    if (!ImGui::BeginMainMenuBar()) {
-        return;
-    }
-
+    using Command = editor::EditorCommandId;
+    ImGui::PushFont(editor::nativeFont(), editor::kEditorFontSize);
+    if (!ImGui::BeginMainMenuBar()) { ImGui::PopFont(); return; }
     if (ImGui::BeginMenu("File")) {
-        if (ImGui::MenuItem("Save Scene", "Ctrl+S")) {
-            saveSceneToDisk();
-        }
-        if (ImGui::MenuItem("Load Scene", "Ctrl+O", false, canEditScene())) {
-            loadSceneFromDisk();
-        }
+        renderCommandMenuItem(Command::SaveScene);
+        renderCommandMenuItem(Command::LoadScene);
         ImGui::Separator();
-        if (ImGui::MenuItem("Reset Demo Scene")) {
-            if (canEditScene()) {
-                commitSceneEdit();
-                recordSceneHistory("Reset Demo Scene");
-            }
+        if (ImGui::MenuItem(m_project ? "New Blank Scene" : "Reset Demo Scene")) {
+            if (canEditScene()) { commitSceneEdit(); recordSceneHistory("Reset Demo Scene"); }
             resetDemoScene();
         }
-        if (ImGui::MenuItem("Exit")) {
-            if (platform::Window* window = stack().window()) {
-                window->requestClose();
-            }
-        }
-        ImGui::EndMenu();
-    }
-
-    if (ImGui::BeginMenu("Edit")) {
-        if (ImGui::MenuItem("Undo", "Ctrl+Z", false, canEditScene() && hasUndo())) {
-            undoSceneEdit();
-        }
-        if (ImGui::MenuItem("Redo", "Ctrl+Y", false, canEditScene() && hasRedo())) {
-            redoSceneEdit();
-        }
         ImGui::Separator();
-        if (ImGui::MenuItem("Duplicate Selected", "Ctrl+D", false, canEditScene() && m_world.isAlive(m_selectedEntity))) {
-            duplicateEntity(m_selectedEntity);
-        }
-        if (ImGui::MenuItem("Delete Selected", "Delete", false, m_world.isAlive(m_selectedEntity))) {
-            deleteEntity(m_selectedEntity);
-        }
+        renderCommandMenuItem(Command::ProjectSwitch);
+        if (ImGui::MenuItem("Exit")) { if (auto* window = stack().window()) window->requestClose(); }
         ImGui::EndMenu();
     }
-
+    if (ImGui::BeginMenu("Edit")) {
+        for (const auto id : {Command::Undo, Command::Redo, Command::Duplicate, Command::Delete}) renderCommandMenuItem(id);
+        ImGui::EndMenu();
+    }
     if (ImGui::BeginMenu("GameObject")) {
         renderCreateEntityMenu();
         ImGui::Separator();
-        if (ImGui::MenuItem("Select Next", nullptr, false, m_world.aliveCount() > 1U)) {
-            selectNextEntity(1);
-        }
-        if (ImGui::MenuItem("Select Previous", nullptr, false, m_world.aliveCount() > 1U)) {
-            selectNextEntity(-1);
-        }
-        if (ImGui::MenuItem("Focus Selected", "F", false, m_world.isAlive(m_selectedEntity))) {
-            focusSelectedEntity();
-        }
-        if (ImGui::MenuItem("Frame Scene", nullptr, false, computeSceneBounds().has_value())) {
-            focusSceneBounds();
-        }
-        ImGui::Separator();
-        if (ImGui::MenuItem("Reset Transform", nullptr, false, canEditScene() && m_world.isAlive(m_selectedEntity))) {
-            resetSelectedTransform();
-        }
-        if (ImGui::MenuItem("Drop To Ground", nullptr, false, canEditScene() && m_world.isAlive(m_selectedEntity))) {
-            dropSelectedToGround();
-        }
-        if (ImGui::MenuItem("Zero Velocity", nullptr, false, canEditScene() && m_world.hasComponent<ecs::Rigidbody>(m_selectedEntity))) {
-            zeroSelectedVelocity();
-        }
-        if (ImGui::MenuItem("Randomize Tint", nullptr, false, canEditScene() && m_world.hasComponent<ecs::MeshRenderer>(m_selectedEntity))) {
-            randomizeSelectedTint();
-        }
-        if (ImGui::MenuItem("Hide Selected", nullptr, false, canEditScene() && m_world.hasComponent<ecs::MeshRenderer>(m_selectedEntity))) {
-            setSelectedVisible(false);
-        }
-        if (ImGui::MenuItem("Show Selected", nullptr, false, canEditScene() && m_world.hasComponent<ecs::MeshRenderer>(m_selectedEntity))) {
-            setSelectedVisible(true);
-        }
+        if (ImGui::MenuItem("Select Next", nullptr, false, m_world.aliveCount() > 1U)) selectNextEntity(1);
+        if (ImGui::MenuItem("Select Previous", nullptr, false, m_world.aliveCount() > 1U)) selectNextEntity(-1);
+        for (const auto id : {Command::FocusSelected, Command::FrameScene, Command::ResetTransform, Command::DropToGround,
+            Command::ZeroVelocity, Command::RandomizeTint, Command::ToggleVisible, Command::ToggleStatic, Command::ToggleGravity, Command::ToggleCollider}) renderCommandMenuItem(id);
         ImGui::EndMenu();
     }
-
     if (ImGui::BeginMenu("Tools")) {
-        if (ImGui::MenuItem("Zero All Velocities", nullptr, false, canEditScene())) {
-            zeroAllVelocities();
-        }
-        if (ImGui::MenuItem("Freeze All Rigidbodies", nullptr, false, canEditScene())) {
-            setAllDynamicsStatic(true);
-        }
-        if (ImGui::MenuItem("Unfreeze All Rigidbodies", nullptr, false, canEditScene())) {
-            setAllDynamicsStatic(false);
-        }
-        ImGui::Separator();
+        if (ImGui::MenuItem("Zero All Velocities", nullptr, false, canEditScene())) zeroAllVelocities();
+        if (ImGui::MenuItem("Freeze All Rigidbodies", nullptr, false, canEditScene())) setAllDynamicsStatic(true);
+        if (ImGui::MenuItem("Unfreeze All Rigidbodies", nullptr, false, canEditScene())) setAllDynamicsStatic(false);
         if (ImGui::BeginMenu("Camera Bookmarks")) {
-            for (std::size_t index = 0; index < m_cameraBookmarks.size(); ++index) {
-                const std::string storeLabel = "Store " + std::to_string(index + 1U);
-                const std::string recallLabel = "Recall " + std::to_string(index + 1U);
-                if (ImGui::MenuItem(storeLabel.c_str())) {
-                    storeCameraBookmark(index);
-                }
-                if (ImGui::MenuItem(recallLabel.c_str(), nullptr, false, m_cameraBookmarks[index].has_value())) {
-                    recallCameraBookmark(index);
-                }
-                if (index + 1U < m_cameraBookmarks.size()) {
-                    ImGui::Separator();
+            for (std::size_t index=0; index<m_cameraBookmarks.size(); ++index) {
+                if (index == 0) { renderCommandMenuItem(Command::BookmarkStore1); renderCommandMenuItem(Command::BookmarkRecall1); }
+                else {
+                    const auto store = "Store " + std::to_string(index+1U), recall = "Recall " + std::to_string(index+1U);
+                    if (ImGui::MenuItem(store.c_str())) storeCameraBookmark(index);
+                    if (ImGui::MenuItem(recall.c_str(), nullptr, false, m_cameraBookmarks[index].has_value())) recallCameraBookmark(index);
                 }
             }
             ImGui::EndMenu();
         }
         ImGui::EndMenu();
     }
-
     if (ImGui::BeginMenu("Scene")) {
-        if (m_editorMode == EditorMode::Edit) {
-            if (ImGui::MenuItem("Enter Play Mode", "Space")) {
-                enterPlayMode();
-            }
-        } else {
-            if (ImGui::MenuItem("Stop Play Mode", "Esc")) {
-                stopPlayMode();
-            }
-            if (ImGui::MenuItem(m_simulationRunning ? "Pause Simulation" : "Resume Simulation")) {
-                if (m_simulationRunning) {
-                    pauseSimulation();
-                } else {
-                    startSimulation();
-                }
-            }
-            if (ImGui::MenuItem("Launch Striker")) {
-                launchStriker();
-            }
-            if (ImGui::MenuItem("Spawn Drop Wave")) {
-                spawnDropWave();
-            }
+        for (const auto id : {Command::Play, Command::Pause, Command::Stop, Command::StepTick, Command::PlayWindow, Command::StopWindow}) renderCommandMenuItem(id);
+        if (m_editorMode == EditorMode::Play) {
+            if (ImGui::MenuItem("Launch Striker")) launchStriker();
+            if (ImGui::MenuItem("Spawn Drop Wave")) spawnDropWave();
         }
         ImGui::EndMenu();
     }
-
     if (ImGui::BeginMenu("View")) {
-        ImGui::MenuItem("Hover Outline", nullptr, &m_showHoverOutline);
-        ImGui::MenuItem("Collider Bounds", nullptr, &m_showColliderDebug);
-        ImGui::MenuItem("Local Gizmo Space", nullptr, &m_useLocalGizmoSpace);
-        ImGui::MenuItem("Snap", nullptr, &m_snapEnabled);
-        ImGui::Separator();
-        if (ImGui::MenuItem("Lock Editor Layout", nullptr, &m_editorLayoutLocked)) {
-            markEditorLayoutDirty();
-        }
-        if (ImGui::MenuItem("Reset Editor Layout")) {
-            resetEditorLayout();
-        }
+        for (const auto id : {Command::ToggleHoverOutline, Command::ToggleColliderDebug, Command::ToggleLocalSpace,
+            Command::ToggleSnap, Command::ToggleLayoutLock, Command::ResetLayout, Command::SaveLayout}) renderCommandMenuItem(id);
         ImGui::EndMenu();
     }
-
     if (ImGui::BeginMenu("Window")) {
-        if (ImGui::MenuItem("Toolbar", nullptr, &m_showToolbarPanel)) {
-            markEditorLayoutDirty();
-        }
-        if (ImGui::MenuItem("Viewport", nullptr, &m_showViewportPanel)) {
-            markEditorLayoutDirty();
-        }
-        if (ImGui::MenuItem("Scene Hierarchy", nullptr, &m_showHierarchyPanel)) {
-            markEditorLayoutDirty();
-        }
-        if (ImGui::MenuItem("Content Browser", nullptr, &m_showProjectPanel)) {
-            markEditorLayoutDirty();
-        }
-        if (ImGui::MenuItem("Inspector", nullptr, &m_showInspectorPanel)) {
-            markEditorLayoutDirty();
-        }
-        if (ImGui::MenuItem("Statistics", nullptr, &m_showStatsPanel)) {
-            markEditorLayoutDirty();
-        }
-        if (ImGui::MenuItem("Status Bar", nullptr, &m_showStatusPanel)) {
-            markEditorLayoutDirty();
-        }
-        ImGui::Separator();
+        if (ImGui::MenuItem("Ribbon", nullptr, &m_showToolbarPanel)) markEditorLayoutDirty();
+        for (const auto id : {Command::ShowScriptWorkspace, Command::ShowAssistant, Command::ShowViewport, Command::ShowHierarchy,
+            Command::ShowContent, Command::ShowInspector, Command::ShowStats, Command::ShowStatus}) renderCommandMenuItem(id);
         if (ImGui::MenuItem("Show All Panels")) {
-            m_showToolbarPanel = true;
-            m_showHierarchyPanel = true;
-            m_showProjectPanel = true;
-            m_showInspectorPanel = true;
-            m_showStatsPanel = true;
-            m_showViewportPanel = true;
-            m_showStatusPanel = true;
+            m_showToolbarPanel=m_showHierarchyPanel=m_showProjectPanel=m_showInspectorPanel=m_showStatsPanel=m_showViewportPanel=m_showStatusPanel=true;
             markEditorLayoutDirty();
         }
         ImGui::EndMenu();
     }
-
-    if (ImGui::BeginMenu("Help")) {
-        if (ImGui::MenuItem("Controls")) {
-            m_showControlsPopup = true;
-        }
+    if (ImGui::BeginMenu("Script")) {
+        renderCommandMenuItem(Command::ShowScriptWorkspace);
+        renderCommandMenuItem(Command::ShowAssistant);
+        for (const auto id : {Command::ScriptNew, Command::ScriptOpen, Command::ScriptSave, Command::ScriptSaveReload, Command::ScriptSaveAll,
+            Command::ScriptCheck, Command::ScriptFind, Command::ScriptGoToLine, Command::ScriptComment, Command::ScriptFormat,
+            Command::ScriptReloadDisk, Command::ScriptOutput, Command::ScriptCommand, Command::ScriptState, Command::ScriptErrors}) renderCommandMenuItem(id);
+        ImGui::Separator();
+        renderCommandMenuItem(Command::ScriptDemo);
         ImGui::EndMenu();
     }
-
+    if (ImGui::BeginMenu("Help")) {
+        if (ImGui::MenuItem("Controls")) m_showControlsPopup=true;
+        ImGui::EndMenu();
+    }
     ImGui::EndMainMenuBar();
+    ImGui::PopFont();
+    renderProjectSwitchDialog();
 }
 
-void GameplayState::renderToolbar() {
-    if (!m_showToolbarPanel) {
-        return;
+void GameplayState::renderProjectSwitchDialog() {
+    if (m_projectSwitchRequested) {
+        ImGui::OpenPopup("Switch Project");
+        m_projectSwitchRequested = false;
     }
+    if (!ImGui::BeginPopupModal("Switch Project", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) { return; }
+    ImGui::TextWrapped("Save your scene and script documents before returning to Projects?");
+    if (m_editorMode == EditorMode::Play) { ImGui::TextWrapped("Play will stop before the editor scene is saved."); }
+    if (ImGui::Button("Save All & Switch")) {
+        if (m_editorMode == EditorMode::Play) { stopPlayMode(); }
+        if (m_scriptWorkspace.saveAll() && saveSceneToDisk()) {
+            ImGui::CloseCurrentPopup();
+            stack().requestProjectSelector();
+        } else {
+            m_showScriptWorkspace = true;
+            m_editorStatusMessage = "Project remains open: saving failed. Check Scene status and Script Output.";
+        }
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Discard & Switch")) {
+        ImGui::CloseCurrentPopup();
+        stack().requestProjectSelector();
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Cancel")) { ImGui::CloseCurrentPopup(); }
+    ImGui::EndPopup();
+}
 
-    const EditorLayout layout =
-        computeEditorLayout(m_editorLeftWidth, m_editorRightWidth, m_editorLeftSplit, m_editorRightSplit);
+void GameplayState::renderToolbar(renderer::Renderer* renderer) {
+    if (!m_showToolbarPanel) return;
+    const EditorLayout layout = computeEditorLayout(m_editorLeftWidth, m_editorRightWidth, m_editorLeftSplit, m_editorRightSplit, editor::EditorRibbon::preferredHeight(m_ribbonState), hasDockedPanel(EditorDockSlot::LeftTop), hasDockedPanel(EditorDockSlot::LeftBottom), hasDockedPanel(EditorDockSlot::RightTop), hasDockedPanel(EditorDockSlot::RightBottom), m_showAssistant, hasDockedPanel(EditorDockSlot::Top), hasDockedPanel(EditorDockSlot::Bottom));
     placeEditorPanel(layout, m_toolbarDockSlot, m_resetEditorLayout);
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(12.0F, 8.0F));
-    if (ImGui::Begin(
-            "Toolbar",
-            &m_showToolbarPanel,
-            editorPanelFlags(
-                m_editorLayoutLocked || !isFloatingSlot(m_toolbarDockSlot),
-                ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse |
-                    dockedPanelChromeFlags(m_toolbarDockSlot)))) {
-        renderPanelDockControls(EditorPanelId::Toolbar, "Dock##Toolbar");
-        ImGui::SameLine(0.0F, 18.0F);
-
-        auto toolbarButton = [](const char* label, const bool active, const ImVec2& size = ImVec2(0.0F, 0.0F)) {
-            const ImVec4 idle = ImVec4(0.15F, 0.19F, 0.24F, 1.0F);
-            const ImVec4 hover = active ? ImVec4(0.27F, 0.52F, 0.88F, 1.0F) : ImVec4(0.20F, 0.28F, 0.40F, 1.0F);
-            const ImVec4 pressed = active ? ImVec4(0.24F, 0.47F, 0.81F, 1.0F) : ImVec4(0.24F, 0.35F, 0.51F, 1.0F);
-            const ImVec4 color = active ? ImVec4(0.24F, 0.47F, 0.81F, 1.0F) : idle;
-
-            ImGui::PushStyleColor(ImGuiCol_Button, color);
-            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, hover);
-            ImGui::PushStyleColor(ImGuiCol_ButtonActive, pressed);
-            const bool pressedButton = ImGui::Button(label, size);
-            ImGui::PopStyleColor(3);
-            return pressedButton;
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0F, 0.0F));
+    if (ImGui::Begin("Toolbar", &m_showToolbarPanel,
+        editorPanelFlags(m_editorLayoutLocked || !isFloatingSlot(m_toolbarDockSlot),
+            ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse | dockedPanelChromeFlags(m_toolbarDockSlot)))) {
+        editor::EditorIcons::Resolver resolveIcon;
+        if (renderer) resolveIcon = [renderer](const std::string_view id) {
+            const auto image = renderer->resolveEditorIcon(id);
+            return editor::EditorIcons::Image{image.textureId, image.width, image.height};
         };
-
-        if (toolbarButton("Edit", m_editorMode == EditorMode::Edit, ImVec2(62.0F, 28.0F))) {
-            stopPlayMode();
-        }
-        ImGui::SameLine();
-        if (toolbarButton(
-                m_editorMode == EditorMode::Play ? "Stop" : "Play",
-                m_editorMode == EditorMode::Play,
-                ImVec2(62.0F, 28.0F))) {
-            if (m_editorMode == EditorMode::Edit) {
-                enterPlayMode();
-            } else {
-                stopPlayMode();
-            }
-        }
-
-        if (m_editorMode == EditorMode::Play) {
-            ImGui::SameLine();
-            if (toolbarButton(m_simulationRunning ? "Pause" : "Resume", false, ImVec2(72.0F, 28.0F))) {
-                if (m_simulationRunning) {
-                    pauseSimulation();
-                } else {
-                    startSimulation();
-                }
-            }
-        }
-
-        ImGui::SameLine(0.0F, 18.0F);
-        if (toolbarButton("Undo", hasUndo(), ImVec2(58.0F, 28.0F))) {
-            undoSceneEdit();
-        }
-        ImGui::SameLine();
-        if (toolbarButton("Redo", hasRedo(), ImVec2(58.0F, 28.0F))) {
-            redoSceneEdit();
-        }
-        ImGui::SameLine();
-        if (toolbarButton("+ Cube", false, ImVec2(70.0F, 28.0F))) {
-            createEditorEntity(EditorEntityKind::PhysicsCube);
-        }
-        ImGui::SameLine();
-        if (toolbarButton("Dup", false, ImVec2(52.0F, 28.0F))) {
-            duplicateEntity(m_selectedEntity);
-        }
-        ImGui::SameLine();
-        if (toolbarButton("Focus", false, ImVec2(66.0F, 28.0F))) {
-            focusSelectedEntity();
-        }
-        ImGui::SameLine();
-        if (toolbarButton("Frame", false, ImVec2(62.0F, 28.0F))) {
-            focusSceneBounds();
-        }
-
-        ImGui::SameLine(0.0F, 18.0F);
-        if (toolbarButton("Move", m_gizmoOperation == GizmoOperation::Translate, ImVec2(64.0F, 28.0F))) {
-            m_gizmoOperation = GizmoOperation::Translate;
-        }
-        ImGui::SameLine();
-        if (toolbarButton("Rotate", m_gizmoOperation == GizmoOperation::Rotate, ImVec2(70.0F, 28.0F))) {
-            m_gizmoOperation = GizmoOperation::Rotate;
-        }
-        ImGui::SameLine();
-        if (toolbarButton("Scale", m_gizmoOperation == GizmoOperation::Scale, ImVec2(64.0F, 28.0F))) {
-            m_gizmoOperation = GizmoOperation::Scale;
-        }
-
-        ImGui::SameLine(0.0F, 18.0F);
-        if (toolbarButton(m_useLocalGizmoSpace ? "Local" : "World", m_useLocalGizmoSpace, ImVec2(70.0F, 28.0F))) {
-            m_useLocalGizmoSpace = !m_useLocalGizmoSpace;
-        }
-        ImGui::SameLine();
-        if (toolbarButton(m_snapEnabled ? "Snap On" : "Snap Off", m_snapEnabled, ImVec2(80.0F, 28.0F))) {
-            m_snapEnabled = !m_snapEnabled;
-        }
-
-        ImGui::SameLine(0.0F, 18.0F);
-        auto cameraSettings = m_cameraController.settings();
-        ImGui::TextDisabled("Camera");
-        ImGui::SameLine();
-        ImGui::SetNextItemWidth(150.0F);
-        if (ImGui::SliderFloat("##CameraSpeed", &cameraSettings.moveSpeed, 1.0F, 32.0F, "%.1f")) {
-            m_cameraController.setSettings(cameraSettings);
-        }
-
-        if (m_editorMode == EditorMode::Play) {
-            ImGui::SameLine(0.0F, 18.0F);
-            if (toolbarButton("Launch Striker", false, ImVec2(110.0F, 28.0F))) {
-                launchStriker();
-            }
-            ImGui::SameLine();
-            if (toolbarButton("Drop Wave", false, ImVec2(92.0F, 28.0F))) {
-                spawnDropWave();
-            }
-        }
+        if (m_editorRibbon.render(m_editorCommands, m_ribbonState, resolveIcon)) markEditorLayoutDirty();
     }
     ImGui::End();
     ImGui::PopStyleVar();
 }
 
-void GameplayState::renderHierarchyPanel() {
+void GameplayState::renderHierarchyPanel(renderer::Renderer* renderer) {
+    const auto resolveIcon = iconResolver(renderer);
     if (!m_showHierarchyPanel) {
         return;
     }
 
+    FlatPanelStyle panelStyle;
     const EditorLayout layout =
-        computeEditorLayout(m_editorLeftWidth, m_editorRightWidth, m_editorLeftSplit, m_editorRightSplit);
+        computeEditorLayout(m_editorLeftWidth, m_editorRightWidth, m_editorLeftSplit, m_editorRightSplit, editor::EditorRibbon::preferredHeight(m_ribbonState), hasDockedPanel(EditorDockSlot::LeftTop), hasDockedPanel(EditorDockSlot::LeftBottom), hasDockedPanel(EditorDockSlot::RightTop), hasDockedPanel(EditorDockSlot::RightBottom), m_showAssistant, hasDockedPanel(EditorDockSlot::Top), hasDockedPanel(EditorDockSlot::Bottom));
     placeEditorPanel(layout, m_hierarchyDockSlot, m_resetEditorLayout);
     if (ImGui::Begin(
             "Scene Hierarchy",
@@ -4051,34 +4227,17 @@ void GameplayState::renderHierarchyPanel() {
             editorPanelFlags(
                 m_editorLayoutLocked || !isFloatingSlot(m_hierarchyDockSlot),
                 dockedPanelChromeFlags(m_hierarchyDockSlot)))) {
-        const std::string subtitle = std::to_string(m_world.aliveCount()) + " entities";
-        ImGui::TextColored(ImVec4(0.76F, 0.82F, 0.91F, 1.0F), "Scene Hierarchy");
-        ImGui::SameLine();
-        ImGui::TextDisabled("%s", subtitle.c_str());
-        ImGui::SameLine();
-        renderPanelDockControls(EditorPanelId::Hierarchy, "Dock##Hierarchy");
-        ImGui::Separator();
+        renderPanelHeader(EditorPanelId::Hierarchy, "Explorer");
+        PanelBody body;
+        ImGui::PushFont(editor::nativeFont(), editor::kExplorerFontSize);
+        struct RestoreFont { ~RestoreFont() { ImGui::PopFont(); } } restoreFont;
+        ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(4, 1));
         ImGui::SetNextItemWidth(-1.0F);
-        ImGui::InputTextWithHint("##HierarchyFilter", "Filter entities", &m_hierarchyFilter);
-        ImGui::Spacing();
-        if (ImGui::Button("+ Create", ImVec2(78.0F, 0.0F))) {
-            ImGui::OpenPopup("HierarchyCreateEntity");
-        }
-        if (ImGui::BeginPopup("HierarchyCreateEntity")) {
-            renderCreateEntityMenu();
-            ImGui::EndPopup();
-        }
-        ImGui::SameLine();
-        if (ImGui::Button("Duplicate", ImVec2(78.0F, 0.0F))) {
-            duplicateEntity(m_selectedEntity);
-        }
-        ImGui::SameLine();
-        if (ImGui::Button("Delete", ImVec2(60.0F, 0.0F))) {
-            deleteEntity(m_selectedEntity);
-        }
-        ImGui::Spacing();
-
-        if (ImGui::BeginChild("HierarchyList", ImVec2(0.0F, 0.0F), true)) {
+        ImGui::InputTextWithHint("##HierarchyFilter", "Search", &m_hierarchyFilter);
+        ImGui::PopStyleVar();
+        ImGui::Dummy(ImVec2(0, 4));
+        ImGui::PushStyleColor(ImGuiCol_Header, IM_COL32(0, 39, 204, 255));
+        if (ImGui::BeginChild("HierarchyList", ImVec2(0.0F, 0.0F), false)) {
             const std::vector<ecs::EntityId> entities = sortedEntities();
 
             bool anyVisible = false;
@@ -4088,10 +4247,15 @@ void GameplayState::renderHierarchyPanel() {
                 }
 
                 anyVisible = true;
-                std::string label = entityDisplayName(entity) + "##" + std::to_string(entity);
-                if (ImGui::Selectable(label.c_str(), m_selectedEntity == entity)) {
+                std::string label = "##Entity" + std::to_string(entity);
+                const ImVec2 row = ImGui::GetCursorScreenPos();
+                if (ImGui::Selectable(label.c_str(), m_selectedEntity == entity, ImGuiSelectableFlags_None, ImVec2(0, editor::kPanelRowHeight))) {
                     m_selectedEntity = entity;
                 }
+                const auto icon = m_world.hasComponent<ecs::Camera>(entity) ? editor::EditorCommandId::CreateCamera :
+                    m_world.hasComponent<scripting::ScriptComponent>(entity) ? editor::EditorCommandId::ScriptNew : editor::EditorCommandId::CreateRenderCube;
+                editor::EditorIcons::draw(icon, row.x + 4, row.y + 2, 16, resolveIcon);
+                ImGui::GetWindowDrawList()->AddText(ImVec2(row.x + 24, row.y + 1), ImGui::GetColorU32(ImGuiCol_Text), entityDisplayName(entity).c_str());
                 if (ImGui::BeginPopupContextItem()) {
                     renderEntityContextMenu(entity);
                     ImGui::EndPopup();
@@ -4113,11 +4277,13 @@ void GameplayState::renderHierarchyPanel() {
             }
         }
         ImGui::EndChild();
+        ImGui::PopStyleColor();
     }
     ImGui::End();
 }
 
-void GameplayState::renderProjectPanel() {
+void GameplayState::renderProjectPanel(renderer::Renderer* renderer) {
+    const auto resolveIcon = iconResolver(renderer);
     if (!m_showProjectPanel) {
         return;
     }
@@ -4126,8 +4292,9 @@ void GameplayState::renderProjectPanel() {
         refreshProjectAssets();
     }
 
+    FlatPanelStyle panelStyle;
     const EditorLayout layout =
-        computeEditorLayout(m_editorLeftWidth, m_editorRightWidth, m_editorLeftSplit, m_editorRightSplit);
+        computeEditorLayout(m_editorLeftWidth, m_editorRightWidth, m_editorLeftSplit, m_editorRightSplit, editor::EditorRibbon::preferredHeight(m_ribbonState), hasDockedPanel(EditorDockSlot::LeftTop), hasDockedPanel(EditorDockSlot::LeftBottom), hasDockedPanel(EditorDockSlot::RightTop), hasDockedPanel(EditorDockSlot::RightBottom), m_showAssistant, hasDockedPanel(EditorDockSlot::Top), hasDockedPanel(EditorDockSlot::Bottom));
     placeEditorPanel(layout, m_projectDockSlot, m_resetEditorLayout);
     if (ImGui::Begin(
             "Content Browser",
@@ -4135,17 +4302,10 @@ void GameplayState::renderProjectPanel() {
             editorPanelFlags(
                 m_editorLayoutLocked || !isFloatingSlot(m_projectDockSlot),
                 dockedPanelChromeFlags(m_projectDockSlot)))) {
-        ImGui::TextColored(ImVec4(0.76F, 0.82F, 0.91F, 1.0F), "Content Browser");
-        ImGui::SameLine();
-        ImGui::TextDisabled("%zu assets", m_projectAssets.size());
-        ImGui::SameLine();
-        renderPanelDockControls(EditorPanelId::Project, "Dock##ContentBrowser");
-        ImGui::SameLine();
-        if (ImGui::SmallButton("Refresh")) {
-            m_projectAssetsDirty = true;
-            refreshProjectAssets();
-        }
-        ImGui::Separator();
+        renderPanelHeader(EditorPanelId::Project, "Asset Manager");
+        PanelBody body;
+        ImGui::PushFont(editor::nativeFont(), editor::kEditorFontSize);
+        struct RestoreFont { ~RestoreFont() { ImGui::PopFont(); } } restoreFont;
 
         ImGui::SetNextItemWidth(-1.0F);
         ImGui::InputTextWithHint("##AssetFilter", "Search assets by name, type, or path", &m_assetFilter);
@@ -4184,18 +4344,24 @@ void GameplayState::renderProjectPanel() {
         const std::string loweredFilter = toLowerCopy(m_assetFilter);
         std::size_t visibleAssetCount = 0U;
 
-        if (ImGui::BeginChild(
-                "ProjectAssetTiles",
-                ImVec2(0.0F, -74.0F),
-                true,
-                ImGuiWindowFlags_AlwaysVerticalScrollbar)) {
-            constexpr float tileWidth = 94.0F;
-            constexpr float tileHeight = 112.0F;
-            constexpr float tileGap = 8.0F;
-            const float availableWidth = std::max(1.0F, ImGui::GetContentRegionAvail().x);
-            const int columns = std::max(1, static_cast<int>((availableWidth + tileGap) / (tileWidth + tileGap)));
-            int column = 0;
-
+        const bool showAssetPath = ImGui::GetContentRegionAvail().x >= 560.0F;
+        ImGui::PushStyleVar(ImGuiStyleVar_CellPadding, ImVec2(6.0F, 4.5F));
+        ImGui::PushStyleColor(ImGuiCol_TableHeaderBg, ImVec4(32.0F / 255.0F, 34.0F / 255.0F, 39.0F / 255.0F, 1.0F));
+        ImGui::PushStyleColor(ImGuiCol_TableBorderLight, ImVec4(48.0F / 255.0F, 51.0F / 255.0F, 59.0F / 255.0F, 1.0F));
+        ImGui::PushStyleColor(ImGuiCol_Header, ImVec4(0.0F, 55.0F / 255.0F, 214.0F / 255.0F, 1.0F));
+        ImGui::PushStyleColor(ImGuiCol_HeaderHovered, ImVec4(39.0F / 255.0F, 41.0F / 255.0F, 48.0F / 255.0F, 1.0F));
+        const auto assetTableFlags = ImGuiTableFlags_ScrollY | ImGuiTableFlags_BordersInnerH |
+            ImGuiTableFlags_SizingStretchProp | ImGuiTableFlags_NoSavedSettings;
+        if (ImGui::BeginTable("ProjectAssetTiles", showAssetPath ? 3 : 2, assetTableFlags, ImVec2(0.0F, -74.0F))) {
+            ImGui::TableSetupColumn("Name", ImGuiTableColumnFlags_WidthStretch, 1.4F);
+            ImGui::TableSetupColumn("Type", ImGuiTableColumnFlags_WidthFixed, 90.0F);
+            if (showAssetPath) ImGui::TableSetupColumn("Path", ImGuiTableColumnFlags_WidthStretch, 2.0F);
+            ImGui::TableSetupScrollFreeze(0, 1);
+            ImGui::TableNextRow(ImGuiTableRowFlags_Headers, 24.0F);
+            for (int column = 0; column < (showAssetPath ? 3 : 2); ++column) {
+                ImGui::TableSetColumnIndex(column);
+                ImGui::TableHeader(column == 0 ? "Name" : column == 1 ? "Type" : "Path");
+            }
             for (const AssetEntry& asset : m_projectAssets) {
                 if (!assetMatchesFilter(asset.path, asset.name, asset.kind, loweredFilter)) {
                     continue;
@@ -4204,9 +4370,12 @@ void GameplayState::renderProjectPanel() {
 
                 ImGui::PushID(asset.path.c_str());
                 const bool selected = m_selectedAssetPath == asset.path;
-                const ImVec2 tileMin = ImGui::GetCursorScreenPos();
-                const ImVec2 tileSize(tileWidth, tileHeight);
-                ImGui::InvisibleButton("##AssetTile", tileSize);
+                ImGui::TableNextRow(ImGuiTableRowFlags_None, 24.0F);
+                ImGui::TableSetColumnIndex(0);
+                const ImVec2 nameMin = ImGui::GetCursorScreenPos();
+                const float nameWidth = ImGui::GetContentRegionAvail().x;
+                ImGui::Selectable("##AssetTile", selected,
+                    ImGuiSelectableFlags_SpanAllColumns | ImGuiSelectableFlags_AllowDoubleClick, ImVec2(0.0F, 15.0F));
 
                 if (ImGui::IsItemClicked(ImGuiMouseButton_Left)) {
                     m_selectedAssetPath = asset.path;
@@ -4217,8 +4386,14 @@ void GameplayState::renderProjectPanel() {
                 }
                 if (ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) {
                     m_selectedAssetPath = asset.path;
-                    if (asset.kind == "Scene") {
-                        if (asset.path == kEditorScenePath) {
+                    if (asset.kind == "Script") {
+                        m_showScriptWorkspace = true;
+                        m_scriptWorkspace.openScript(asset.path);
+                    } else if (asset.kind == "Prefab" && canEditScene()) {
+                        recordSceneHistory("Spawn Prefab");
+                        m_selectedEntity = m_scripts.spawnPrefab(asset.path);
+                    } else if (asset.kind == "Scene") {
+                        if (asset.path == toAssetPath(editorScenePath())) {
                             loadSceneFromDisk();
                         } else {
                             m_editorStatusMessage = "Only editor_scene.json can be loaded for now.";
@@ -4228,116 +4403,32 @@ void GameplayState::renderProjectPanel() {
                     }
                 }
 
-                ImDrawList* drawList = ImGui::GetWindowDrawList();
-                const ImVec2 tileMax(tileMin.x + tileWidth, tileMin.y + tileHeight);
-                const ImVec4 accent = assetKindColor(asset.kind);
-                const ImU32 cardColor = ImGui::GetColorU32(
-                    selected ? ImVec4(0.18F, 0.27F, 0.38F, 1.0F) : ImVec4(0.105F, 0.125F, 0.155F, 1.0F));
-                const ImU32 borderColor = ImGui::GetColorU32(
-                    selected ? ImVec4(0.34F, 0.62F, 0.96F, 1.0F) : ImVec4(0.20F, 0.24F, 0.30F, 1.0F));
-                drawList->AddRectFilled(tileMin, tileMax, cardColor, 8.0F);
-                drawList->AddRect(tileMin, tileMax, borderColor, 8.0F, 0, selected ? 2.0F : 1.0F);
-
-                const ImVec2 iconMin(tileMin.x + 14.0F, tileMin.y + 10.0F);
-                const ImVec2 iconMax(tileMax.x - 14.0F, tileMin.y + 64.0F);
-                drawList->AddRectFilled(iconMin, iconMax, ImGui::GetColorU32(ImVec4(0.07F, 0.09F, 0.12F, 1.0F)), 7.0F);
-                if (asset.hasPixelPreview && asset.previewWidth > 0U && asset.previewHeight > 0U) {
-                    const float cellWidth = (iconMax.x - iconMin.x) / static_cast<float>(asset.previewWidth);
-                    const float cellHeight = (iconMax.y - iconMin.y) / static_cast<float>(asset.previewHeight);
-                    for (std::uint32_t y = 0; y < asset.previewHeight; ++y) {
-                        for (std::uint32_t x = 0; x < asset.previewWidth; ++x) {
-                            const ImVec2 cellMin(iconMin.x + static_cast<float>(x) * cellWidth, iconMin.y + static_cast<float>(y) * cellHeight);
-                            const ImVec2 cellMax(cellMin.x + cellWidth + 0.5F, cellMin.y + cellHeight + 0.5F);
-                            drawList->AddRectFilled(
-                                cellMin,
-                                cellMax,
-                                asset.previewPixels[static_cast<std::size_t>(y * asset.previewWidth + x)]);
-                        }
-                    }
-                } else if (asset.kind == "Texture") {
-                    const ImU32 a = ImGui::GetColorU32(ImVec4(0.22F, 0.26F, 0.32F, 1.0F));
-                    const ImU32 b = ImGui::GetColorU32(accent);
-                    const float cell = 12.0F;
-                    for (int y = 0; y < 5; ++y) {
-                        for (int x = 0; x < 5; ++x) {
-                            const ImVec2 cellMin(iconMin.x + static_cast<float>(x) * cell, iconMin.y + static_cast<float>(y) * cell);
-                            drawList->AddRectFilled(cellMin, ImVec2(cellMin.x + cell, cellMin.y + cell), ((x + y) % 2) == 0 ? a : b);
-                        }
-                    }
-                } else if (asset.kind == "Mesh") {
-                    const ImU32 line = ImGui::GetColorU32(accent);
-                    const ImVec2 frontMin(iconMin.x + 16.0F, iconMin.y + 20.0F);
-                    const ImVec2 frontMax(iconMax.x - 18.0F, iconMax.y - 10.0F);
-                    const ImVec2 offset(10.0F, -10.0F);
-                    const ImVec2 backMin(frontMin.x + offset.x, frontMin.y + offset.y);
-                    const ImVec2 backMax(frontMax.x + offset.x, frontMax.y + offset.y);
-                    drawList->AddQuadFilled(
-                        backMin,
-                        ImVec2(backMax.x, backMin.y),
-                        backMax,
-                        ImVec2(backMin.x, backMax.y),
-                        ImGui::GetColorU32(ImVec4(accent.x, accent.y, accent.z, 0.22F)));
-                    drawList->AddRectFilled(frontMin, frontMax, ImGui::GetColorU32(ImVec4(accent.x, accent.y, accent.z, 0.36F)), 3.0F);
-                    drawList->AddRect(frontMin, frontMax, line, 3.0F, 0, 2.0F);
-                    drawList->AddRect(backMin, backMax, line, 3.0F, 0, 2.0F);
-                    drawList->AddLine(frontMin, backMin, line, 1.5F);
-                    drawList->AddLine(ImVec2(frontMax.x, frontMin.y), ImVec2(backMax.x, backMin.y), line, 1.5F);
-                    drawList->AddLine(frontMax, backMax, line, 1.5F);
-                    drawList->AddLine(ImVec2(frontMin.x, frontMax.y), ImVec2(backMin.x, backMax.y), line, 1.5F);
-                } else if (asset.kind == "Shader" || asset.kind == "Shader Source") {
-                    const ImU32 line = ImGui::GetColorU32(accent);
-                    for (int i = 0; i < 5; ++i) {
-                        const float y = iconMin.y + 10.0F + static_cast<float>(i) * 8.0F;
-                        const float width = (i % 2 == 0) ? 42.0F : 30.0F;
-                        drawList->AddRectFilled(ImVec2(iconMin.x + 10.0F, y), ImVec2(iconMin.x + 10.0F + width, y + 3.0F), line, 1.5F);
-                    }
-                } else if (asset.kind == "Scene") {
-                    const ImU32 line = ImGui::GetColorU32(accent);
-                    drawList->AddRect(ImVec2(iconMin.x + 12.0F, iconMin.y + 10.0F), ImVec2(iconMin.x + 38.0F, iconMin.y + 28.0F), line, 3.0F, 0, 2.0F);
-                    drawList->AddRect(ImVec2(iconMax.x - 38.0F, iconMax.y - 28.0F), ImVec2(iconMax.x - 12.0F, iconMax.y - 10.0F), line, 3.0F, 0, 2.0F);
-                    drawList->AddLine(ImVec2(iconMin.x + 38.0F, iconMin.y + 20.0F), ImVec2(iconMax.x - 38.0F, iconMax.y - 20.0F), line, 2.0F);
-                } else {
-                    drawList->AddRectFilled(iconMin, iconMax, ImGui::GetColorU32(accent), 7.0F);
-                    const char* glyph = assetKindGlyph(asset.kind);
-                    const ImVec2 glyphSize = ImGui::CalcTextSize(glyph);
-                    drawList->AddText(
-                        ImVec2(
-                            iconMin.x + ((iconMax.x - iconMin.x) - glyphSize.x) * 0.5F,
-                            iconMin.y + ((iconMax.y - iconMin.y) - glyphSize.y) * 0.5F),
-                        ImGui::GetColorU32(ImVec4(0.06F, 0.08F, 0.10F, 1.0F)),
-                        glyph);
-                }
-                drawList->AddRect(
-                    ImVec2(iconMin.x + 2.0F, iconMin.y + 2.0F),
-                    ImVec2(iconMax.x - 2.0F, iconMax.y - 2.0F),
-                    ImGui::GetColorU32(ImVec4(1.0F, 1.0F, 1.0F, 0.18F)),
-                    5.0F);
-
-                const std::string title = ellipsizeText(asset.name, 14U);
-                const std::string kind = ellipsizeText(asset.kind, 13U);
-                drawList->AddText(
-                    ImVec2(tileMin.x + 8.0F, tileMin.y + 72.0F),
-                    ImGui::GetColorU32(ImVec4(0.86F, 0.90F, 0.96F, 1.0F)),
-                    title.c_str());
-                drawList->AddText(
-                    ImVec2(tileMin.x + 8.0F, tileMin.y + 92.0F),
-                    ImGui::GetColorU32(ImVec4(0.52F, 0.59F, 0.68F, 1.0F)),
-                    kind.c_str());
-
-                ++column;
-                if (column < columns) {
-                    ImGui::SameLine(0.0F, tileGap);
-                } else {
-                    column = 0;
+                auto* draw = ImGui::GetWindowDrawList();
+                const auto icon = asset.kind == "Script" || asset.kind == "Shader" || asset.kind == "Shader Source" ? editor::EditorCommandId::ScriptNew :
+                    asset.kind == "Scene" ? editor::EditorCommandId::ShowViewport : asset.kind == "Mesh" || asset.kind == "Prefab" ? editor::EditorCommandId::CreateRenderCube : editor::EditorCommandId::ShowContent;
+                editor::EditorIcons::draw(icon, nameMin.x, nameMin.y - 0.5F, 16.0F, resolveIcon);
+                draw->PushClipRect(ImVec2(nameMin.x + 22.0F, nameMin.y),
+                    ImVec2(nameMin.x + std::max(22.0F, nameWidth), nameMin.y + 15.0F), true);
+                draw->AddText(ImVec2(nameMin.x + 22.0F, nameMin.y), ImGui::GetColorU32(ImGuiCol_Text), asset.name.c_str());
+                draw->PopClipRect();
+                ImGui::TableSetColumnIndex(1);
+                ImGui::TextUnformatted(asset.kind.c_str());
+                if (showAssetPath) {
+                    ImGui::TableSetColumnIndex(2);
+                    ImGui::TextDisabled("%s", asset.path.c_str());
                 }
                 ImGui::PopID();
             }
 
             if (visibleAssetCount == 0U) {
+                ImGui::TableNextRow(ImGuiTableRowFlags_None, 24.0F);
+                ImGui::TableSetColumnIndex(0);
                 ImGui::TextDisabled("No matching assets.");
             }
+            ImGui::EndTable();
         }
-        ImGui::EndChild();
+        ImGui::PopStyleColor(4);
+        ImGui::PopStyleVar();
 
         const bool hasAsset = !m_selectedAssetPath.empty();
         const auto selectedAssetIt = std::find_if(m_projectAssets.begin(), m_projectAssets.end(), [this](const AssetEntry& asset) {
@@ -4371,7 +4462,7 @@ void GameplayState::renderProjectPanel() {
             ImGui::BeginDisabled();
         }
         if (ImGui::Button("Load Scene", ImVec2(96.0F, 0.0F))) {
-            if (m_selectedAssetPath == kEditorScenePath) {
+            if (m_selectedAssetPath == toAssetPath(editorScenePath())) {
                 loadSceneFromDisk();
             } else {
                 m_editorStatusMessage = "Only editor_scene.json can be loaded for now.";
@@ -4392,24 +4483,13 @@ void GameplayState::renderEntityComponentEditors(const ecs::EntityId entity) {
     auto drawVec3Editor = [this, &captureBeforeEdit](const char* label, glm::vec3& value, const float speed, const char* format) {
         const EntitySnapshot before = captureBeforeEdit();
         bool changed = false;
-        ImGui::PushID(label);
-        if (ImGui::BeginTable("##Vec3Table", 2, ImGuiTableFlags_SizingStretchSame)) {
-            ImGui::TableNextRow();
-            ImGui::TableSetColumnIndex(0);
-            ImGui::AlignTextToFramePadding();
-            ImGui::TextDisabled("%s", label);
-            ImGui::TableSetColumnIndex(1);
-            ImGui::SetNextItemWidth(-1.0F);
-            changed = ImGui::DragFloat3("##Value", glm::value_ptr(value), speed, 0.0F, 0.0F, format);
-            trackEditedItem(std::string("Edit ") + label, changed, before);
-            ImGui::EndTable();
-        }
-        ImGui::PopID();
+        changed = propertyDrag3(label, glm::value_ptr(value), speed, 0, 0, format);
+        trackEditedItem(std::string("Edit ") + label, changed, before);
         return changed;
     };
 
-    if (auto* transform = m_world.getComponent<ecs::Transform>(entity)) {
-        if (ImGui::CollapsingHeader("Transform", ImGuiTreeNodeFlags_DefaultOpen)) {
+    if (auto* transform = m_world.getComponent<ecs::Transform>(entity); transform && inspectorMatches("Transform Position Rotation Scale")) {
+        if (PropertySection properties{"Transform"}; properties) {
             if (drawVec3Editor("Position", transform->position, 0.05F, "%.2f")) {
                 wakeEntity(entity);
             }
@@ -4427,10 +4507,10 @@ void GameplayState::renderEntityComponentEditors(const ecs::EntityId entity) {
         }
     }
 
-    if (auto* meshRenderer = m_world.getComponent<ecs::MeshRenderer>(entity)) {
-        if (ImGui::CollapsingHeader("Mesh Renderer", ImGuiTreeNodeFlags_DefaultOpen)) {
+    if (auto* meshRenderer = m_world.getComponent<ecs::MeshRenderer>(entity); meshRenderer && inspectorMatches("Mesh Renderer Visible Tint UV Scale Primitive Mesh Texture Shader")) {
+        if (PropertySection properties{"Mesh Renderer"}; properties) {
             EntitySnapshot before = captureBeforeEdit();
-            const bool visibleChanged = ImGui::Checkbox("Visible", &meshRenderer->visible);
+            const bool visibleChanged = propertyCheckbox("Visible", &meshRenderer->visible);
             trackEditedItem("Edit Mesh Visibility", visibleChanged, before);
             if (visibleChanged) {
                 wakeEntity(entity);
@@ -4438,31 +4518,31 @@ void GameplayState::renderEntityComponentEditors(const ecs::EntityId entity) {
             before = captureBeforeEdit();
             trackEditedItem(
                 "Edit Mesh Tint",
-                ImGui::ColorEdit4("Tint", glm::value_ptr(meshRenderer->tint)),
+                propertyColor("Tint", glm::value_ptr(meshRenderer->tint)),
                 before);
             before = captureBeforeEdit();
             trackEditedItem(
                 "Edit UV Scale",
-                ImGui::DragFloat2("UV Scale", glm::value_ptr(meshRenderer->uvScale), 0.05F, 0.05F, 16.0F, "%.2f"),
+                propertyDrag2("UV Scale", glm::value_ptr(meshRenderer->uvScale), 0.05F, 0.05F, 16.0F, "%.2f"),
                 before);
 
             static constexpr const char* kPrimitiveLabels[] = {"Triangle"};
             int primitiveIndex = static_cast<int>(meshRenderer->primitiveType);
             before = captureBeforeEdit();
-            const bool primitiveChanged = ImGui::Combo("Primitive", &primitiveIndex, kPrimitiveLabels, IM_ARRAYSIZE(kPrimitiveLabels));
+            const bool primitiveChanged = propertyCombo("Primitive", &primitiveIndex, kPrimitiveLabels, IM_ARRAYSIZE(kPrimitiveLabels));
             if (primitiveChanged) {
                 meshRenderer->primitiveType = static_cast<ecs::PrimitiveType>(primitiveIndex);
             }
             trackEditedItem("Edit Primitive", primitiveChanged, before);
 
             before = captureBeforeEdit();
-            const bool meshChanged = ImGui::InputText("Mesh", &meshRenderer->meshId);
+            const bool meshChanged = propertyInput("Mesh", &meshRenderer->meshId);
             trackEditedItem("Edit Mesh Resource", meshChanged, before);
             before = captureBeforeEdit();
-            const bool textureChanged = ImGui::InputText("Texture", &meshRenderer->textureId);
+            const bool textureChanged = propertyInput("Texture", &meshRenderer->textureId);
             trackEditedItem("Edit Texture Resource", textureChanged, before);
             before = captureBeforeEdit();
-            const bool shaderChanged = ImGui::InputText("Shader", &meshRenderer->shaderId);
+            const bool shaderChanged = propertyInput("Shader", &meshRenderer->shaderId);
             trackEditedItem("Edit Shader Resource", shaderChanged, before);
             if (meshChanged) {
                 meshRenderer->mesh.reset();
@@ -4476,13 +4556,13 @@ void GameplayState::renderEntityComponentEditors(const ecs::EntityId entity) {
         }
     }
 
-    if (auto* camera = m_world.getComponent<ecs::Camera>(entity)) {
-        if (ImGui::CollapsingHeader("Camera", ImGuiTreeNodeFlags_DefaultOpen)) {
+    if (auto* camera = m_world.getComponent<ecs::Camera>(entity); camera && inspectorMatches("Camera Active Vertical FOV Near Plane Far Plane")) {
+        if (PropertySection properties{"Camera"}; properties) {
             EntitySnapshot before = captureBeforeEdit();
-            trackEditedItem("Edit Camera Active", ImGui::Checkbox("Active", &camera->active), before);
+            trackEditedItem("Edit Camera Active", propertyCheckbox("Active", &camera->active), before);
             float fovDegrees = glm::degrees(camera->verticalFovRadians);
             before = captureBeforeEdit();
-            const bool fovChanged = ImGui::SliderFloat("Vertical FOV", &fovDegrees, 20.0F, 110.0F, "%.1f deg");
+            const bool fovChanged = propertySlider("Vertical FOV", &fovDegrees, 20.0F, 110.0F, "%.1f deg");
             if (fovChanged) {
                 camera->verticalFovRadians = glm::radians(fovDegrees);
             }
@@ -4490,71 +4570,71 @@ void GameplayState::renderEntityComponentEditors(const ecs::EntityId entity) {
             before = captureBeforeEdit();
             trackEditedItem(
                 "Edit Near Plane",
-                ImGui::DragFloat("Near Plane", &camera->nearPlane, 0.01F, 0.01F, camera->farPlane - 0.1F, "%.2f"),
+                propertyDrag("Near Plane", &camera->nearPlane, 0.01F, 0.01F, camera->farPlane - 0.1F, "%.2f"),
                 before);
             before = captureBeforeEdit();
             trackEditedItem(
                 "Edit Far Plane",
-                ImGui::DragFloat("Far Plane", &camera->farPlane, 1.0F, camera->nearPlane + 0.1F, 1000.0F, "%.1f"),
+                propertyDrag("Far Plane", &camera->farPlane, 1.0F, camera->nearPlane + 0.1F, 1000.0F, "%.1f"),
                 before);
         }
     }
 
-    if (auto* rigidbody = m_world.getComponent<ecs::Rigidbody>(entity)) {
-        if (ImGui::CollapsingHeader("Rigidbody", ImGuiTreeNodeFlags_DefaultOpen)) {
+    if (auto* rigidbody = m_world.getComponent<ecs::Rigidbody>(entity); rigidbody && inspectorMatches("Rigidbody Use Gravity Static Kinematic Mass Restitution Friction Damping Velocity Angular")) {
+        if (PropertySection properties{"Rigidbody"}; properties) {
             bool massPropertiesDirty = false;
             bool changed = false;
             EntitySnapshot before = captureBeforeEdit();
-            bool fieldChanged = ImGui::Checkbox("Use Gravity", &rigidbody->useGravity);
+            bool fieldChanged = propertyCheckbox("Use Gravity", &rigidbody->useGravity);
             trackEditedItem("Edit Gravity", fieldChanged, before);
             changed |= fieldChanged;
 
             before = captureBeforeEdit();
-            fieldChanged = ImGui::Checkbox("Static", &rigidbody->isStatic);
+            fieldChanged = propertyCheckbox("Static", &rigidbody->isStatic);
             trackEditedItem("Edit Static Flag", fieldChanged, before);
             changed |= fieldChanged;
             massPropertiesDirty |= fieldChanged;
 
             before = captureBeforeEdit();
-            fieldChanged = ImGui::Checkbox("Kinematic", &rigidbody->isKinematic);
+            fieldChanged = propertyCheckbox("Kinematic", &rigidbody->isKinematic);
             trackEditedItem("Edit Kinematic Flag", fieldChanged, before);
             changed |= fieldChanged;
             massPropertiesDirty |= fieldChanged;
 
             before = captureBeforeEdit();
-            fieldChanged = ImGui::DragFloat("Mass", &rigidbody->mass, 0.05F, 0.0F, 100.0F, "%.2f");
+            fieldChanged = propertyDrag("Mass", &rigidbody->mass, 0.05F, 0.0F, 100.0F, "%.2f");
             trackEditedItem("Edit Mass", fieldChanged, before);
             changed |= fieldChanged;
             massPropertiesDirty |= fieldChanged;
 
             before = captureBeforeEdit();
-            fieldChanged = ImGui::DragFloat("Restitution", &rigidbody->restitution, 0.01F, 0.0F, 1.0F, "%.2f");
+            fieldChanged = propertyDrag("Restitution", &rigidbody->restitution, 0.01F, 0.0F, 1.0F, "%.2f");
             trackEditedItem("Edit Restitution", fieldChanged, before);
             changed |= fieldChanged;
 
             before = captureBeforeEdit();
-            fieldChanged = ImGui::DragFloat("Friction", &rigidbody->friction, 0.01F, 0.0F, 2.0F, "%.2f");
+            fieldChanged = propertyDrag("Friction", &rigidbody->friction, 0.01F, 0.0F, 2.0F, "%.2f");
             trackEditedItem("Edit Friction", fieldChanged, before);
             changed |= fieldChanged;
 
             before = captureBeforeEdit();
-            fieldChanged = ImGui::DragFloat("Linear Damping", &rigidbody->linearDamping, 0.01F, 0.0F, 3.0F, "%.2f");
+            fieldChanged = propertyDrag("Linear Damping", &rigidbody->linearDamping, 0.01F, 0.0F, 3.0F, "%.2f");
             trackEditedItem("Edit Linear Damping", fieldChanged, before);
             changed |= fieldChanged;
 
             before = captureBeforeEdit();
-            fieldChanged = ImGui::DragFloat("Angular Damping", &rigidbody->angularDamping, 0.01F, 0.0F, 3.0F, "%.2f");
+            fieldChanged = propertyDrag("Angular Damping", &rigidbody->angularDamping, 0.01F, 0.0F, 3.0F, "%.2f");
             trackEditedItem("Edit Angular Damping", fieldChanged, before);
             changed |= fieldChanged;
-            ImGui::TextDisabled("Runtime");
+
             before = captureBeforeEdit();
             fieldChanged =
-                ImGui::DragFloat3("Velocity", glm::value_ptr(rigidbody->velocity), 0.05F, -50.0F, 50.0F, "%.2f");
+                propertyDrag3("Velocity", glm::value_ptr(rigidbody->velocity), 0.05F, -50.0F, 50.0F, "%.2f");
             trackEditedItem("Edit Velocity", fieldChanged, before);
             changed |= fieldChanged;
 
             before = captureBeforeEdit();
-            fieldChanged = ImGui::DragFloat3(
+            fieldChanged = propertyDrag3(
                 "Angular Velocity",
                 glm::value_ptr(rigidbody->angularVelocity),
                 0.05F,
@@ -4572,16 +4652,16 @@ void GameplayState::renderEntityComponentEditors(const ecs::EntityId entity) {
         }
     }
 
-    if (auto* collider = m_world.getComponent<ecs::Collider>(entity)) {
-        if (ImGui::CollapsingHeader("Collider", ImGuiTreeNodeFlags_DefaultOpen)) {
+    if (auto* collider = m_world.getComponent<ecs::Collider>(entity); collider && inspectorMatches("Collider Enabled Offset Shape Half Extents Radius")) {
+        if (PropertySection properties{"Collider"}; properties) {
             EntitySnapshot before = captureBeforeEdit();
-            trackEditedItem("Edit Collider Enabled", ImGui::Checkbox("Enabled", &collider->enabled), before);
+            trackEditedItem("Edit Collider Enabled", propertyCheckbox("Enabled", &collider->enabled), before);
             drawVec3Editor("Offset", collider->offset, 0.02F, "%.2f");
 
             static constexpr const char* kColliderLabels[] = {"AABB", "Sphere"};
             int colliderIndex = static_cast<int>(collider->type);
             before = captureBeforeEdit();
-            const bool shapeChanged = ImGui::Combo("Shape", &colliderIndex, kColliderLabels, IM_ARRAYSIZE(kColliderLabels));
+            const bool shapeChanged = propertyCombo("Shape", &colliderIndex, kColliderLabels, IM_ARRAYSIZE(kColliderLabels));
             if (shapeChanged) {
                 collider->type = static_cast<ecs::ColliderType>(colliderIndex);
             }
@@ -4594,18 +4674,19 @@ void GameplayState::renderEntityComponentEditors(const ecs::EntityId entity) {
                 before = captureBeforeEdit();
                 trackEditedItem(
                     "Edit Sphere Radius",
-                    ImGui::DragFloat("Radius", &collider->sphere.radius, 0.02F, 0.05F, 50.0F, "%.2f"),
+                    propertyDrag("Radius", &collider->sphere.radius, 0.02F, 0.05F, 50.0F, "%.2f"),
                     before);
             }
         }
     }
 
-    if (auto* hierarchy = m_world.getComponent<ecs::Hierarchy>(entity)) {
-        if (ImGui::CollapsingHeader("Hierarchy")) {
+    if (auto* hierarchy = m_world.getComponent<ecs::Hierarchy>(entity); hierarchy && inspectorMatches("Hierarchy Parent")) {
+        if (PropertySection properties{"Hierarchy", false}; properties) {
             const ecs::EntityId currentParent = hierarchy->parent;
             const std::string preview =
                 currentParent == ecs::kInvalidEntity ? std::string("None") : entityDisplayName(currentParent);
-            if (ImGui::BeginCombo("Parent", preview.c_str())) {
+            PropertyCell parentCell("Parent");
+            if (ImGui::BeginCombo("##Value", preview.c_str())) {
                 const bool noParentSelected = hierarchy->parent == ecs::kInvalidEntity;
                 if (ImGui::Selectable("None", noParentSelected)) {
                     recordSceneHistory("Change Parent");
@@ -4630,14 +4711,75 @@ void GameplayState::renderEntityComponentEditors(const ecs::EntityId entity) {
     }
 }
 
+void GameplayState::renderScriptInspector(const ecs::EntityId entity) {
+    auto* component = m_world.getComponent<scripting::ScriptComponent>(entity);
+    if (!component || !inspectorMatches("Luau Behavior Script Fields Enabled Module")) return;
+    PropertySection properties("Luau Behavior");
+    if (!properties) return;
+    const bool editable = canEditScene();
+    ImGui::BeginDisabled(!editable);
+    auto before = editable ? captureEntitySnapshot(entity) : EntitySnapshot{};
+    bool changed = propertyCheckbox("Enabled", &component->enabled);
+    trackEditedItem("Enable Luau Behavior", changed, before);
+    before = editable ? captureEntitySnapshot(entity) : EntitySnapshot{};
+    changed = propertyInput("Module", &component->path);
+    trackEditedItem("Edit Luau Module", changed, before);
+    ImGui::EndDisabled();
+    PropertyCell actionCell("Actions");
+    if (ImGui::SmallButton("Open Script") && m_scriptWorkspace.openScript(component->path)) { m_showScriptWorkspace = true; }
+    ImGui::SameLine();
+    ImGui::BeginDisabled(m_scripts.reloadPending());
+    if (ImGui::SmallButton("Reload Module")) { m_scripts.requestReload(component->path); }
+    ImGui::EndDisabled();
+    ImGui::BeginDisabled(!editable);
+    if (ImGui::SmallButton("Load Field Defaults")) {
+        recordSceneHistory("Load Script Defaults");
+        m_scripts.populateDefaults(*component);
+    }
+    const auto schema = m_scripts.fields(component->path);
+    for (const auto& field : schema) {
+        ImGui::PushID(field.name.c_str());
+        before = editable ? captureEntitySnapshot(entity) : EntitySnapshot{};
+        auto value = component->fields.value(field.name, field.defaultValue);
+        bool edited = false;
+        if (field.type == "boolean") {
+            bool boolean = value.is_boolean() ? value.get<bool>() : false;
+            edited = propertyCheckbox(field.name.c_str(), &boolean);
+            if (edited) { value = boolean; }
+        } else if (field.type == "number") {
+            double number = value.is_number() ? value.get<double>() : 0.0;
+            const double minimum = field.minimum, maximum = field.maximum;
+            PropertyCell cell(field.name.c_str());
+            edited = ImGui::DragScalar("##Value", ImGuiDataType_Double, &number, 0.1F, &minimum, &maximum, field.integer ? "%.0f" : "%.3f");
+            if (edited && std::isfinite(number)) { value = field.integer ? std::round(number) : number; }
+            else { edited = false; }
+        } else if (field.type == "string") {
+            auto string = value.is_string() ? value.get<std::string>() : std::string{};
+            edited = propertyInput(field.name.c_str(), &string);
+            if (edited) { value = string; }
+        } else { ImGui::TextWrapped("%s: %s", field.name.c_str(), value.dump().c_str()); }
+        if (edited) { component->fields[field.name] = std::move(value); }
+        trackEditedItem("Edit Script Field " + field.name, edited, before);
+        ImGui::PopID();
+    }
+    ImGui::EndDisabled();
+    if (schema.empty()) { ImGui::TextDisabled("Set a module and load its declared fields."); }
+    if (!editable) { ImGui::TextDisabled("Fields are saved in Edit mode; Watch shows runtime values."); }
+}
+
+bool GameplayState::inspectorMatches(const std::string_view properties) const {
+    return m_inspectorFilter.empty() || toLowerCopy(std::string(properties)).find(toLowerCopy(m_inspectorFilter)) != std::string::npos;
+}
+
 void GameplayState::renderInspectorPanel() {
     ENGINE_PROFILE_ZONE("Inspector UI");
     if (!m_showInspectorPanel) {
         return;
     }
 
+    FlatPanelStyle panelStyle;
     const EditorLayout layout =
-        computeEditorLayout(m_editorLeftWidth, m_editorRightWidth, m_editorLeftSplit, m_editorRightSplit);
+        computeEditorLayout(m_editorLeftWidth, m_editorRightWidth, m_editorLeftSplit, m_editorRightSplit, editor::EditorRibbon::preferredHeight(m_ribbonState), hasDockedPanel(EditorDockSlot::LeftTop), hasDockedPanel(EditorDockSlot::LeftBottom), hasDockedPanel(EditorDockSlot::RightTop), hasDockedPanel(EditorDockSlot::RightBottom), m_showAssistant, hasDockedPanel(EditorDockSlot::Top), hasDockedPanel(EditorDockSlot::Bottom));
     placeEditorPanel(layout, m_inspectorDockSlot, m_resetEditorLayout);
     if (ImGui::Begin(
             "Inspector",
@@ -4645,67 +4787,28 @@ void GameplayState::renderInspectorPanel() {
             editorPanelFlags(
                 m_editorLayoutLocked || !isFloatingSlot(m_inspectorDockSlot),
                 dockedPanelChromeFlags(m_inspectorDockSlot)))) {
-        ImGui::TextColored(ImVec4(0.76F, 0.82F, 0.91F, 1.0F), "Inspector");
-        ImGui::SameLine();
-        ImGui::TextDisabled(
-            "%s",
-            m_selectedEntity == ecs::kInvalidEntity ? "No selection" : componentSubtitle(m_world, m_selectedEntity).c_str());
-        ImGui::SameLine();
-        renderPanelDockControls(EditorPanelId::Inspector, "Dock##Inspector");
-        ImGui::Separator();
+        renderPanelHeader(EditorPanelId::Inspector, "Properties");
+        PanelBody body(ImVec2(2, 0));
+        ImGui::PushFont(editor::nativeFont(), editor::kEditorFontSize);
+        struct RestoreFont { ~RestoreFont() { ImGui::PopFont(); } } restoreFont;
 
+        ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(2, 1));
+        ImGui::PushStyleColor(ImGuiCol_FrameBg, IM_COL32(25, 25, 33, 255));
+        ImGui::SetNextItemWidth(-1);
+        if (ImGui::InputTextWithHint("##PropertyFilter", "Filter Properties", &m_inspectorFilter)) commitSceneEdit();
+        ImGui::PopStyleColor();
+        ImGui::PopStyleVar();
+        ImGui::Separator();
+        ImGui::Dummy(ImVec2(0, 4));
         if (m_selectedEntity == ecs::kInvalidEntity || !m_world.isAlive(m_selectedEntity)) {
-            ImGui::TextDisabled("Select an entity in the hierarchy to inspect its components.");
-            ImGui::End();
-            return;
-        }
+            ImGui::TextDisabled("No object selected.");
+        } else {
 
-        if (ImGui::Button("Add Component", ImVec2(126.0F, 0.0F))) {
-            ImGui::OpenPopup("InspectorAddComponent");
-        }
-        if (ImGui::BeginPopup("InspectorAddComponent")) {
-            renderAddComponentMenu(m_selectedEntity);
-            ImGui::EndPopup();
-        }
-        ImGui::SameLine();
-        if (ImGui::Button("Remove", ImVec2(78.0F, 0.0F))) {
-            ImGui::OpenPopup("InspectorRemoveComponent");
-        }
-        if (ImGui::BeginPopup("InspectorRemoveComponent")) {
-            renderRemoveComponentMenu(m_selectedEntity);
-            ImGui::EndPopup();
-        }
-        if (ImGui::Button("Duplicate", ImVec2(102.0F, 0.0F))) {
-            duplicateEntity(m_selectedEntity);
-        }
-        ImGui::SameLine();
-        if (ImGui::Button("Delete", ImVec2(82.0F, 0.0F))) {
-            deleteEntity(m_selectedEntity);
-            ImGui::End();
-            return;
-        }
-        ImGui::Separator();
-
-        if (ImGui::Button("Reset Xform", ImVec2(102.0F, 0.0F))) {
-            resetSelectedTransform();
-        }
-        ImGui::SameLine();
-        if (ImGui::Button("Drop", ImVec2(58.0F, 0.0F))) {
-            dropSelectedToGround();
-        }
-        ImGui::SameLine();
-        if (ImGui::Button("Tint", ImVec2(56.0F, 0.0F))) {
-            randomizeSelectedTint();
-        }
-        ImGui::SameLine();
-        if (ImGui::Button("Zero Vel", ImVec2(74.0F, 0.0F))) {
-            zeroSelectedVelocity();
-        }
-        ImGui::Separator();
-
+        if (inspectorMatches("Data Name")) {
+        if (PropertySection data{"Data"}; data) {
         if (auto* tag = m_world.getComponent<ecs::Tag>(m_selectedEntity)) {
             const EntitySnapshot before = canEditScene() ? captureEntitySnapshot(m_selectedEntity) : EntitySnapshot{};
-            const bool changed = ImGui::InputText("Name", &tag->value);
+            const bool changed = propertyInput("Name", &tag->value);
             trackEditedItem("Rename Entity", changed, before);
         } else if (ImGui::Button("Add Tag")) {
             recordSceneHistory("Add Tag");
@@ -4713,6 +4816,8 @@ void GameplayState::renderInspectorPanel() {
             m_editorStatusMessage = "Added Tag";
         }
 
+        }
+        }
         if (m_editorMode == EditorMode::Play) {
             ImGui::Spacing();
             ImGui::TextColored(
@@ -4722,6 +4827,8 @@ void GameplayState::renderInspectorPanel() {
 
         ImGui::Spacing();
         renderEntityComponentEditors(m_selectedEntity);
+        renderScriptInspector(m_selectedEntity);
+        }
     }
     ImGui::End();
 }
@@ -4731,8 +4838,9 @@ void GameplayState::renderStatsPanel(const renderer::Renderer& renderer) {
         return;
     }
 
+    FlatPanelStyle panelStyle;
     const EditorLayout layout =
-        computeEditorLayout(m_editorLeftWidth, m_editorRightWidth, m_editorLeftSplit, m_editorRightSplit);
+        computeEditorLayout(m_editorLeftWidth, m_editorRightWidth, m_editorLeftSplit, m_editorRightSplit, editor::EditorRibbon::preferredHeight(m_ribbonState), hasDockedPanel(EditorDockSlot::LeftTop), hasDockedPanel(EditorDockSlot::LeftBottom), hasDockedPanel(EditorDockSlot::RightTop), hasDockedPanel(EditorDockSlot::RightBottom), m_showAssistant, hasDockedPanel(EditorDockSlot::Top), hasDockedPanel(EditorDockSlot::Bottom));
     placeEditorPanel(layout, m_statsDockSlot, m_resetEditorLayout);
     if (ImGui::Begin(
             "Statistics",
@@ -4740,12 +4848,10 @@ void GameplayState::renderStatsPanel(const renderer::Renderer& renderer) {
             editorPanelFlags(
                 m_editorLayoutLocked || !isFloatingSlot(m_statsDockSlot),
                 dockedPanelChromeFlags(m_statsDockSlot)))) {
-        ImGui::TextColored(ImVec4(0.76F, 0.82F, 0.91F, 1.0F), "Statistics");
-        ImGui::SameLine();
-        ImGui::TextDisabled("Runtime");
-        ImGui::SameLine();
-        renderPanelDockControls(EditorPanelId::Stats, "Dock##Stats");
-        ImGui::Separator();
+        renderPanelHeader(EditorPanelId::Stats, "Statistics");
+        PanelBody body;
+        ImGui::PushFont(editor::nativeFont(), editor::kEditorFontSize);
+        struct RestoreFont { ~RestoreFont() { ImGui::PopFont(); } } restoreFont;
 
         float fps = ImGui::GetIO().Framerate;
         if (fps < 0.001F) {
@@ -4770,9 +4876,14 @@ void GameplayState::renderStatsPanel(const renderer::Renderer& renderer) {
         });
 
         const rhi::Extent2D extent = renderer.frameExtent();
-        ImGui::Text("FPS: %.1f", fps);
-        ImGui::Text("Frame: %.2f ms", frameTimeMs);
-        ImGui::Text("Scene render CPU: %.3f ms", m_lastSceneRenderMs);
+        const auto metric = [](const char* label, const std::string& value) {
+            PropertyCell cell(label, 0); ImGui::TextUnformatted(value.c_str());
+        };
+        if (PropertySection metrics("Performance"); metrics) {
+            metric("FPS", std::to_string(static_cast<int>(fps)));
+            metric("Frame", std::to_string(frameTimeMs).substr(0, 5) + " ms");
+            metric("Scene render CPU", std::to_string(m_lastSceneRenderMs).substr(0, 5) + " ms");
+        }
         ImGui::PlotLines(
             "Frame ms",
             m_frameTimeHistory.data(),
@@ -4791,55 +4902,27 @@ void GameplayState::renderStatsPanel(const renderer::Renderer& renderer) {
             0.0F,
             12.0F,
             ImVec2(0.0F, 42.0F));
-        ImGui::Separator();
-        ImGui::Text("Entities: %zu", m_world.aliveCount());
-        ImGui::Text("Renderable: %zu", renderableCount);
-        ImGui::Text("Cameras: %zu", cameraCount);
-        ImGui::Text("Dynamic bodies: %zu", dynamicBodyCount);
-        ImGui::Text("Physics bodies: %zu", m_physicsSystem.bodyCount());
-        ImGui::Text("Sleeping bodies: %zu", m_physicsSystem.sleepingBodyCount());
-        ImGui::Text("Contacts: %zu", m_physicsSystem.activeCollisionCount());
-        ImGui::Text("Undo / Redo: %zu / %zu", m_undoStack.size(), m_redoStack.size());
-        ImGui::Text("Viewport: %.0f x %.0f", m_viewportSize.x, m_viewportSize.y);
-        ImGui::Text("Backbuffer: %u x %u", extent.width, extent.height);
-        ImGui::Text("Queued spawns: %zu", m_pendingSpawnJobs.size());
-        ImGui::Separator();
+        if (PropertySection metrics("Runtime"); metrics) {
+            metric("Entities", std::to_string(m_world.aliveCount()));
+            metric("Renderable", std::to_string(renderableCount));
+            metric("Cameras", std::to_string(cameraCount));
+            metric("Dynamic bodies", std::to_string(dynamicBodyCount));
+            metric("Physics bodies", std::to_string(m_physicsSystem.bodyCount()));
+            metric("Sleeping bodies", std::to_string(m_physicsSystem.sleepingBodyCount()));
+            metric("Contacts", std::to_string(m_physicsSystem.activeCollisionCount()));
+            metric("Undo / Redo", std::to_string(m_undoStack.size()) + " / " + std::to_string(m_redoStack.size()));
+            metric("Viewport", std::to_string(int(m_viewportSize.x)) + " x " + std::to_string(int(m_viewportSize.y)));
+            metric("Backbuffer", std::to_string(extent.width) + " x " + std::to_string(extent.height));
+            metric("Queued spawns", std::to_string(m_pendingSpawnJobs.size()));
+        }
         ImGui::TextWrapped("%s", m_lastCollisionMessage.c_str());
     }
     ImGui::End();
 }
 
-void GameplayState::renderViewportOverlay(const CameraFrame& cameraFrame) const {
-    ImDrawList* drawList = ImGui::GetWindowDrawList();
-    const ImVec2 overlayMin(m_viewportPosition.x + 12.0F, m_viewportPosition.y + 12.0F);
-    const ImVec2 overlayMax(overlayMin.x + 312.0F, overlayMin.y + 74.0F);
-    const std::string aspectText = "AR " + std::to_string(cameraFrame.aspectRatio).substr(0, 4);
-    const std::string hoverText = m_hoveredEntity == ecs::kInvalidEntity
-                                      ? std::string("RMB + WASDQE camera | W/E/R gizmos | Space play")
-                                      : "Hover: " + entityDisplayName(m_hoveredEntity);
-
-    drawList->AddRectFilled(overlayMin, overlayMax, IM_COL32(10, 14, 18, 180), 8.0F);
-    drawList->AddRect(overlayMin, overlayMax, IM_COL32(58, 73, 95, 220), 8.0F);
-    drawList->AddText(ImVec2(overlayMin.x + 12.0F, overlayMin.y + 10.0F), IM_COL32(226, 232, 240, 255), "Scene View");
-    drawList->AddText(
-        ImVec2(overlayMin.x + 12.0F, overlayMin.y + 30.0F),
-        IM_COL32(142, 163, 186, 255),
-        m_editorMode == EditorMode::Play ? "Mode: Play" : "Mode: Edit");
-    drawList->AddText(
-        ImVec2(overlayMin.x + 132.0F, overlayMin.y + 30.0F),
-        IM_COL32(142, 163, 186, 255),
-        m_useLocalGizmoSpace ? "Space: Local" : "Space: World");
-    drawList->AddText(
-        ImVec2(overlayMin.x + 12.0F, overlayMin.y + 50.0F),
-        IM_COL32(123, 145, 170, 255),
-        hoverText.c_str());
-    drawList->AddText(
-        ImVec2(overlayMin.x + 236.0F, overlayMin.y + 30.0F),
-        IM_COL32(123, 145, 170, 255),
-        aspectText.c_str());
-}
 
 void GameplayState::renderViewportGizmo(const CameraFrame& cameraFrame) {
+    if (m_selectionToolActive) return;
     if (m_selectedEntity == ecs::kInvalidEntity || !m_world.isAlive(m_selectedEntity)) {
         return;
     }
@@ -4878,13 +4961,13 @@ void GameplayState::renderViewportGizmo(const CameraFrame& cameraFrame) {
         localMatrix = glm::inverse(parentWorld) * worldMatrix;
     }
 
-    float snapValues[3]{0.5F, 0.5F, 0.5F};
+    float snapValues[3]{m_ribbonState.moveSnap, m_ribbonState.moveSnap, m_ribbonState.moveSnap};
     if (m_gizmoOperation == GizmoOperation::Rotate) {
-        snapValues[0] = 15.0F;
+        snapValues[0] = m_ribbonState.rotateSnap;
     } else if (m_gizmoOperation == GizmoOperation::Scale) {
-        snapValues[0] = 0.1F;
-        snapValues[1] = 0.1F;
-        snapValues[2] = 0.1F;
+        snapValues[0] = m_ribbonState.scaleSnap;
+        snapValues[1] = m_ribbonState.scaleSnap;
+        snapValues[2] = m_ribbonState.scaleSnap;
     }
 
     glm::mat4 deltaMatrix(1.0F);
@@ -4952,7 +5035,7 @@ void GameplayState::renderViewportPanel(renderer::Renderer& renderer) {
     }
 
     const EditorLayout layout =
-        computeEditorLayout(m_editorLeftWidth, m_editorRightWidth, m_editorLeftSplit, m_editorRightSplit);
+        computeEditorLayout(m_editorLeftWidth, m_editorRightWidth, m_editorLeftSplit, m_editorRightSplit, editor::EditorRibbon::preferredHeight(m_ribbonState), hasDockedPanel(EditorDockSlot::LeftTop), hasDockedPanel(EditorDockSlot::LeftBottom), hasDockedPanel(EditorDockSlot::RightTop), hasDockedPanel(EditorDockSlot::RightBottom), m_showAssistant, hasDockedPanel(EditorDockSlot::Top), hasDockedPanel(EditorDockSlot::Bottom));
     placeEditorPanel(layout, m_viewportDockSlot, m_resetEditorLayout);
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0F, 0.0F));
     if (ImGui::Begin(
@@ -4965,25 +5048,42 @@ void GameplayState::renderViewportPanel(renderer::Renderer& renderer) {
         ImDrawList* drawList = ImGui::GetWindowDrawList();
         const ImVec2 windowPos = ImGui::GetCursorScreenPos();
         const ImVec2 windowSize = ImGui::GetContentRegionAvail();
-        const std::string selectionLabel =
-            m_selectedEntity == ecs::kInvalidEntity ? std::string("No Selection") : entityDisplayName(m_selectedEntity);
-
-        drawList->AddRectFilled(windowPos, windowPos + windowSize, IM_COL32(7, 10, 13, 38), 8.0F);
-        drawList->AddRectFilled(
-            windowPos,
-            ImVec2(windowPos.x + windowSize.x, windowPos.y + kViewportHeaderHeight),
-            IM_COL32(11, 16, 22, 205),
-            8.0F,
-            ImDrawFlags_RoundCornersTop);
-        drawList->AddRect(windowPos, windowPos + windowSize, IM_COL32(58, 73, 95, 215), 8.0F);
-        drawList->AddText(
-            ImVec2(windowPos.x + 12.0F, windowPos.y + 10.0F),
-            IM_COL32(226, 232, 240, 255),
-            "Viewport");
-        drawList->AddText(
-            ImVec2(windowPos.x + windowSize.x - 160.0F, windowPos.y + 10.0F),
-            IM_COL32(142, 163, 186, 255),
-            selectionLabel.c_str());
+        // Studio-style scene tab and device strip. The world remains unobscured.
+        const float tabHeight = 26.0F;
+        drawList->AddRectFilled(windowPos, ImVec2(windowPos.x + windowSize.x, windowPos.y + tabHeight), IM_COL32(25, 26, 31, 255));
+        drawList->AddRectFilled(ImVec2(windowPos.x, windowPos.y + tabHeight),
+            ImVec2(windowPos.x + windowSize.x, windowPos.y + kViewportHeaderHeight), IM_COL32(18, 18, 21, 255));
+        drawList->AddRectFilled(ImVec2(windowPos.x + 1, windowPos.y + 1),
+            ImVec2(windowPos.x + 120, windowPos.y + tabHeight), IM_COL32(39, 41, 48, 255));
+        const std::string sceneName = m_project ? m_project->name : "Scene";
+        drawList->AddText(ImVec2(windowPos.x + 12, windowPos.y + 6), IM_COL32(197, 200, 207, 255), sceneName.c_str());
+        drawList->AddLine(ImVec2(windowPos.x, windowPos.y + tabHeight),
+            ImVec2(windowPos.x + windowSize.x, windowPos.y + tabHeight), IM_COL32(48, 51, 59, 255));
+        const ImVec2 phone(windowPos.x + 17, windowPos.y + tabHeight + 14);
+        drawList->AddRect(phone, ImVec2(phone.x + 7, phone.y + 12), IM_COL32(143, 147, 156, 255), 1);
+        drawList->AddLine(ImVec2(phone.x + 2, phone.y + 10), ImVec2(phone.x + 5, phone.y + 10), IM_COL32(143, 147, 156, 255));
+        ImGui::SetCursorScreenPos(ImVec2(windowPos.x + 36, windowPos.y + tabHeight + 8));
+        ImGui::PushFont(editor::semiboldFont(), 18.0F);
+        ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 14.0F);
+        ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 0.0F);
+        if (ImGui::Button("   Current device   ", ImVec2(172, 28))) ImGui::OpenPopup("ViewportDevice");
+        const ImVec2 deviceMin = ImGui::GetItemRectMin();
+        drawList->AddRect(ImVec2(deviceMin.x + 12, deviceMin.y + 8), ImVec2(deviceMin.x + 24, deviceMin.y + 17), IM_COL32(197, 200, 207, 255), 1.0F);
+        drawList->AddLine(ImVec2(deviceMin.x + 18, deviceMin.y + 17), ImVec2(deviceMin.x + 18, deviceMin.y + 20), IM_COL32(197, 200, 207, 255));
+        drawList->AddLine(ImVec2(deviceMin.x + 151, deviceMin.y + 12), ImVec2(deviceMin.x + 156, deviceMin.y + 17), IM_COL32(197, 200, 207, 255));
+        drawList->AddLine(ImVec2(deviceMin.x + 156, deviceMin.y + 17), ImVec2(deviceMin.x + 161, deviceMin.y + 12), IM_COL32(197, 200, 207, 255));
+        ImGui::PopStyleVar(2);
+        if (ImGui::BeginPopup("ViewportDevice")) {
+            ImGui::TextUnformatted("Desktop viewport");
+            ImGui::Text("%.0f x %.0f", m_viewportSize.x, m_viewportSize.y);
+            ImGui::TextDisabled("RMB + WASDQE: camera | Q/W/E/R: tools | F: focus");
+            ImGui::EndPopup();
+        }
+        ImGui::PopFont();
+        ImGui::SameLine();
+        ImGui::TextDisabled("%s", m_editorMode == EditorMode::Play ? "Playing" : "");
+        drawList->AddLine(ImVec2(windowPos.x, windowPos.y + kViewportHeaderHeight - 1),
+            ImVec2(windowPos.x + windowSize.x, windowPos.y + kViewportHeaderHeight - 1), IM_COL32(48, 51, 59, 255));
 
         m_viewportPosition = glm::vec2(windowPos.x, windowPos.y + kViewportHeaderHeight);
         m_viewportSize = glm::vec2(windowSize.x, std::max(1.0F, windowSize.y - kViewportHeaderHeight));
@@ -4992,7 +5092,6 @@ void GameplayState::renderViewportPanel(renderer::Renderer& renderer) {
 
         const CameraFrame cameraFrame = buildActiveCameraFrame(renderer);
         updateHoveredEntity(cameraFrame);
-        renderViewportOverlay(cameraFrame);
         renderViewportGizmo(cameraFrame);
         handleViewportPicking(cameraFrame);
     }
@@ -5006,9 +5105,9 @@ void GameplayState::renderStatusBar() {
     }
 
     const EditorLayout layout =
-        computeEditorLayout(m_editorLeftWidth, m_editorRightWidth, m_editorLeftSplit, m_editorRightSplit);
+        computeEditorLayout(m_editorLeftWidth, m_editorRightWidth, m_editorLeftSplit, m_editorRightSplit, editor::EditorRibbon::preferredHeight(m_ribbonState), hasDockedPanel(EditorDockSlot::LeftTop), hasDockedPanel(EditorDockSlot::LeftBottom), hasDockedPanel(EditorDockSlot::RightTop), hasDockedPanel(EditorDockSlot::RightBottom), m_showAssistant, hasDockedPanel(EditorDockSlot::Top), hasDockedPanel(EditorDockSlot::Bottom));
     placeEditorPanel(layout, m_statusDockSlot, m_resetEditorLayout);
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(12.0F, 6.0F));
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(6.0F, 7.0F));
     if (ImGui::Begin(
             "Status Bar",
             &m_showStatusPanel,
@@ -5016,48 +5115,74 @@ void GameplayState::renderStatusBar() {
                 m_editorLayoutLocked || !isFloatingSlot(m_statusDockSlot),
                 ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse |
                     dockedPanelChromeFlags(m_statusDockSlot)))) {
-        ImGui::TextDisabled("%s", m_editorMode == EditorMode::Play ? "PLAY MODE" : "EDIT MODE");
-        ImGui::SameLine(0.0F, 18.0F);
-        renderPanelDockControls(EditorPanelId::Status, "Dock##Status");
-        ImGui::SameLine(0.0F, 18.0F);
-        ImGui::TextDisabled("Selection");
-        ImGui::SameLine();
-        ImGui::TextUnformatted(
-            m_selectedEntity == ecs::kInvalidEntity ? "None" : entityDisplayName(m_selectedEntity).c_str());
-        ImGui::SameLine(0.0F, 18.0F);
-        ImGui::TextDisabled("Camera Speed");
-        ImGui::SameLine();
-        ImGui::Text("%.1f", m_cameraController.settings().moveSpeed);
-        ImGui::SameLine(0.0F, 18.0F);
-        ImGui::TextDisabled("History");
-        ImGui::SameLine();
-        ImGui::Text("%zu/%zu", m_undoStack.size(), m_redoStack.size());
-        ImGui::SameLine(0.0F, 18.0F);
-        ImGui::TextDisabled("Status");
-        ImGui::SameLine();
-        ImGui::TextUnformatted(m_editorStatusMessage.c_str());
-        ImGui::SameLine(0.0F, 18.0F);
-        ImGui::TextDisabled("Hint");
-        ImGui::SameLine();
-        ImGui::TextUnformatted("Click scene select | F focus | Ctrl+S save");
+        ImGui::PushFont(editor::codeFont(), editor::kCodeFontSize);
+        const float statusWidth = ImGui::GetContentRegionAvail().x;
+        const ImVec2 commandOrigin = ImGui::GetCursorScreenPos();
+        ImGui::GetWindowDrawList()->AddRectFilled(commandOrigin,
+            ImVec2(commandOrigin.x + statusWidth, commandOrigin.y + 20), IM_COL32(33, 34, 39, 255));
+        if (ImGui::Selectable("Execute a command...", false, 0, ImVec2(std::max(100.0F, statusWidth), 20.0F))) {
+            m_editorCommands.execute(editor::EditorCommandId::ScriptCommand);
+        }
+        if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", m_editorStatusMessage.c_str());
+        ImGui::PopFont();
+        ImGui::Separator();
+        ImGui::SetCursorPosY(39);
+        ImGui::TextDisabled("%s   History %zu / %zu", m_editorMode == EditorMode::Play ? "PLAY" : "EDIT", m_undoStack.size(), m_redoStack.size());
     }
     ImGui::End();
     ImGui::PopStyleVar();
 }
 
 void GameplayState::renderEditorUi(renderer::Renderer& renderer) {
+    if (m_gizmoWasUsing && !ImGui::IsMouseDown(ImGuiMouseButton_Left)) finishGizmoEdit();
+    if (m_showScriptWorkspace && !m_scriptWorkspaceWasVisible) {
+        m_ribbonState.tab = editor::EditorRibbonTab::Script;
+        markEditorLayoutDirty();
+    }
+    m_scriptWorkspaceWasVisible = m_showScriptWorkspace;
     processEditorShortcuts();
     updateFrameHistory();
     renderMainMenuBar();
-    renderToolbar();
-    renderViewportPanel(renderer);
-    renderHierarchyPanel();
-    renderProjectPanel();
+    renderToolbar(&renderer);
+    if (m_showScriptWorkspace) {
+        m_viewportHovered = m_viewportFocused = false;
+        const auto layout = computeEditorLayout(m_editorLeftWidth, m_editorRightWidth, m_editorLeftSplit, m_editorRightSplit, editor::EditorRibbon::preferredHeight(m_ribbonState), hasDockedPanel(EditorDockSlot::LeftTop), hasDockedPanel(EditorDockSlot::LeftBottom), hasDockedPanel(EditorDockSlot::RightTop), hasDockedPanel(EditorDockSlot::RightBottom), m_showAssistant, hasDockedPanel(EditorDockSlot::Top), hasDockedPanel(EditorDockSlot::Bottom));
+        ImGui::SetNextWindowPos(layout.viewportPos, ImGuiCond_Always);
+        ImGui::SetNextWindowSize(layout.viewportSize, ImGuiCond_Always);
+        m_scriptWorkspace.render(&m_showScriptWorkspace, m_selectedEntity, m_editorMode == EditorMode::Play, m_simulationRunning);
+    } else { renderViewportPanel(renderer); }
+    renderHierarchyPanel(&renderer);
+    renderProjectPanel(&renderer);
     renderInspectorPanel();
+    // One stable popup scope for commands invoked from ribbon, menu or Inspector.
+    if (m_addComponentRequested) {
+        ImGui::OpenPopup("Add Entity Component");
+        m_addComponentRequested = false;
+    }
+    if (ImGui::BeginPopup("Add Entity Component")) {
+        if (m_world.isAlive(m_componentMenuEntity)) renderAddComponentMenu(m_componentMenuEntity);
+        else ImGui::CloseCurrentPopup();
+        ImGui::EndPopup();
+    }
     renderStatsPanel(renderer);
     renderStatusBar();
     renderDockResizeHandles();
     renderDockDropOverlay();
+    if (m_showAssistant) {
+        const auto layout = computeEditorLayout(m_editorLeftWidth, m_editorRightWidth, m_editorLeftSplit, m_editorRightSplit, editor::EditorRibbon::preferredHeight(m_ribbonState), hasDockedPanel(EditorDockSlot::LeftTop), hasDockedPanel(EditorDockSlot::LeftBottom), hasDockedPanel(EditorDockSlot::RightTop), hasDockedPanel(EditorDockSlot::RightBottom), m_showAssistant, hasDockedPanel(EditorDockSlot::Top), hasDockedPanel(EditorDockSlot::Bottom));
+        ImGui::SetNextWindowPos(layout.assistantPos, ImGuiCond_Always);
+        ImGui::SetNextWindowSize(layout.assistantSize, ImGuiCond_Always);
+        m_codexAssistant.render(&m_showAssistant);
+    }
+    if (m_editorMode == EditorMode::Play) {
+        scripting::ReactUI::draw(m_scripts, false, [&renderer](const std::string_view id) {
+            const auto image = renderer.resolveUiImage(id);
+            return scripting::ReactUI::Image{image.textureId, image.width, image.height};
+        }, [&renderer](const void* key, const ImDrawList& list, float x, float y, float width, float height) {
+            const auto image = renderer.resolveUiCanvas(key, list, x, y, width, height);
+            return scripting::ReactUI::Image{image.textureId, image.width, image.height};
+        });
+    }
     applyViewportHotkeys();
 
     if (m_showControlsPopup) {
@@ -5099,12 +5224,27 @@ void GameplayState::renderEditorUi(renderer::Renderer& renderer) {
     m_resetEditorLayout = false;
 }
 
+void GameplayState::renderStandaloneUi(renderer::Renderer& renderer) {
+    m_viewportPosition = glm::vec2(0.0F);
+    m_viewportSize = glm::vec2(ImGui::GetIO().DisplaySize.x, ImGui::GetIO().DisplaySize.y);
+    m_viewportHovered = m_viewportFocused = true;
+    scripting::ReactUI::draw(m_scripts, true, [&renderer](const std::string_view id) {
+        const auto image = renderer.resolveUiImage(id);
+        return scripting::ReactUI::Image{image.textureId, image.width, image.height};
+    }, [&renderer](const void* key, const ImDrawList& list, float x, float y, float width, float height) {
+        const auto image = renderer.resolveUiCanvas(key, list, x, y, width, height);
+        return scripting::ReactUI::Image{image.textureId, image.width, image.height};
+    });
+}
+
 void GameplayState::renderUi(renderer::Renderer& rendererInstance) {
     if (!rendererInstance.isImGuiEnabled()) {
         return;
     }
 
-    if (labActive()) {
+    if (stack().standalone()) {
+        renderStandaloneUi(rendererInstance);
+    } else if (labActive()) {
         renderLabUi(rendererInstance);
     } else {
         renderEditorUi(rendererInstance);

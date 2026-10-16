@@ -1,0 +1,43 @@
+Test project C:/tge/clion-vs2022b-rel
+      Start  1: engine_physics_tests
+ 1/19 Test  #1: engine_physics_tests ....................   Passed    0.64 sec
+      Start  2: engine_job_system_tests
+ 2/19 Test  #2: engine_job_system_tests .................   Passed    0.48 sec
+      Start  3: engine_async_load_tests
+ 3/19 Test  #3: engine_async_load_tests .................   Passed    3.30 sec
+      Start  4: engine_world_tests
+ 4/19 Test  #4: engine_world_tests ......................   Passed    0.47 sec
+      Start  5: engine_transform_batch_tests
+ 5/19 Test  #5: engine_transform_batch_tests ............   Passed    1.72 sec
+      Start  6: engine_texture_loader_tests
+ 6/19 Test  #6: engine_texture_loader_tests .............   Passed    0.49 sec
+      Start  7: engine_gameplay_state_tests
+ 7/19 Test  #7: engine_gameplay_state_tests .............   Passed   20.78 sec
+      Start  8: engine_editor_command_tests
+ 8/19 Test  #8: engine_editor_command_tests .............   Passed    0.27 sec
+      Start  9: engine_script_workspace_command_tests
+ 9/19 Test  #9: engine_script_workspace_command_tests ...   Passed    0.50 sec
+      Start 10: engine_live_file_watcher_tests
+10/19 Test #10: engine_live_file_watcher_tests ..........   Passed    0.48 sec
+      Start 11: engine_scripting_tests
+11/19 Test #11: engine_scripting_tests ..................   Passed    5.25 sec
+      Start 12: engine_react_runtime_tests
+12/19 Test #12: engine_react_runtime_tests ..............   Passed    1.23 sec
+      Start 13: engine_codex_assistant_tests
+13/19 Test #13: engine_codex_assistant_tests ............   Passed    0.21 sec
+      Start 14: engine_script_formatter_tests
+14/19 Test #14: engine_script_formatter_tests ...........   Passed    0.26 sec
+      Start 15: engine_script_editor_tests
+15/19 Test #15: engine_script_editor_tests ..............   Passed    0.32 sec
+      Start 16: engine_project_manager_tests
+16/19 Test #16: engine_project_manager_tests ............   Passed    0.46 sec
+      Start 17: engine_atomic_file_tests
+17/19 Test #17: engine_atomic_file_tests ................   Passed    0.14 sec
+      Start 18: engine_project_asset_tests
+18/19 Test #18: engine_project_asset_tests ..............   Passed    1.05 sec
+      Start 19: engine_project_launcher_tests
+19/19 Test #19: engine_project_launcher_tests ...........   Passed    0.15 sec
+
+100% tests passed, 0 tests failed out of 19
+
+Total Test time (real) =  38.26 sec

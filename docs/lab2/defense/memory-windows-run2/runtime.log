@@ -1,0 +1,1190 @@
+[2026-10-16 15:37:22.668] [info] [engine] Logger initialized
+[2026-10-16 15:37:22.668] [info] [engine] Application init started
+[2026-10-16 15:37:22.668] [info] [engine] Config file 'config.json' not found, using defaults
+[2026-10-16 15:37:22.713] [info] [engine] Initializing Diligent backend with device 'd3d12'
+[2026-10-16 15:37:24.632] [info] [engine] GPU_UPLOAD_QUEUE enabled backend=d3d12 graphics_context=0 transfer_context=1
+[2026-10-16 15:37:24.632] [info] [engine] Renderer initialized with backend Diligent
+[2026-10-16 15:37:24.654] [info] [engine] Placeholder mesh ready: vertices=4, indices=6
+[2026-10-16 15:37:24.664] [info] [engine] Fallback white texture ready: 1x1
+[2026-10-16 15:37:24.679] [info] [engine] Shader program loaded '__fallback_shader__': vert='C:/Users/rocco/CLionProjects/TurboGameEngine/assets/shaders_hlsl/textured.vert.hlsl' frag='C:/Users/rocco/CLionProjects/TurboGameEngine/assets/shaders_hlsl/textured.frag.hlsl'
+[2026-10-16 15:37:24.680] [info] [engine] Resource subsystem initialized
+[2026-10-16 15:37:24.710] [info] [engine] ImGui layer initialized
+[2026-10-16 15:37:24.711] [info] [engine] StateStack push
+[2026-10-16 15:37:24.711] [info] [engine] Entered GameplayState editor scene
+[2026-10-16 15:37:24.711] [info] [engine] Loaded editor scene from 'C:\Users\rocco\CLionProjects\TurboGameEngine\docs\lab2\defense\memory-windows-run2\fixture\scene.json'
+[2026-10-16 15:37:24.796] [info] [engine] Luau live: Reloaded scripts/SoakDriver.luau (runtime state preserved)
+[2026-10-16 15:37:24.799] [info] [engine] Scene ready: mode=Play entities=5 stress=false
+[2026-10-16 15:37:24.808] [info] [engine] Application init complete, backend=Diligent
+[2026-10-16 15:37:24.808] [info] [engine] LAB_RUN_START scene= parallel_ecs=true async_loading=true entities=4096 workers=4 asset_in_flight=8
+[2026-10-16 15:37:24.809] [info] [engine] ResourceManager cache miss [class engine::resources::Mesh] '__diligent_cube__'
+[2026-10-16 15:37:24.810] [info] [engine] ResourceManager cache miss [class engine::resources::ShaderProgram] 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/shaders_hlsl/textured.shader.json'
+[2026-10-16 15:37:24.810] [info] [engine] Game scene: entities=5 draws=1 culled=0 Luau=3.14 MiB scene=1.23 ms
+[2026-10-16 15:37:24.831] [info] [engine] Shader program loaded 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/shaders_hlsl/textured.shader.json': vert='C:/Users/rocco/CLionProjects/TurboGameEngine/assets/shaders_hlsl/textured.vert.hlsl' frag='C:/Users/rocco/CLionProjects/TurboGameEngine/assets/shaders_hlsl/textured.frag.hlsl'
+[2026-10-16 15:37:24.849] [info] [engine] ResourceManager cache miss [class engine::resources::Texture] 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm'
+[2026-10-16 15:37:24.866] [info] [engine] ResourceManager cache miss [class engine::resources::Mesh] '__diligent_sphere__'
+[2026-10-16 15:37:24.878] [info] [engine] Texture loaded 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm' via GPU transfer: 8x8
+[2026-10-16 15:37:25.811] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=5.35 MiB scene=0.07 ms
+[2026-10-16 15:37:25.826] [info] [engine] Frame dt stats: avg=16.433ms min=0.380ms max=32.992ms samples=61
+[2026-10-16 15:37:25.826] [info] [engine] Frame CPU: input=0.60 update=1.03 render=0.80 ui=0.15 present=14.12 ms, steps/frame=0.98, discarded=0.00 ms/frame
+[2026-10-16 15:37:26.812] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=5.67 MiB scene=0.06 ms
+[2026-10-16 15:37:26.827] [info] [engine] Frame dt stats: avg=16.672ms min=15.643ms max=17.613ms samples=60
+[2026-10-16 15:37:26.827] [info] [engine] Frame CPU: input=0.42 update=0.96 render=0.15 ui=0.15 present=15.00 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:37:27.813] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.17 MiB scene=0.08 ms
+[2026-10-16 15:37:27.828] [info] [engine] Frame dt stats: avg=16.685ms min=16.063ms max=17.388ms samples=60
+[2026-10-16 15:37:27.828] [info] [engine] Frame CPU: input=0.44 update=1.04 render=0.16 ui=0.17 present=14.87 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:37:27.853] [info] [engine] ResourceManager cache miss [class engine::resources::Texture] 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm'
+[2026-10-16 15:37:27.877] [info] [engine] Texture loaded 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm' via GPU transfer: 8x8
+[2026-10-16 15:37:28.813] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.23 MiB scene=0.05 ms
+[2026-10-16 15:37:28.829] [info] [engine] Frame dt stats: avg=16.677ms min=6.264ms max=27.598ms samples=60
+[2026-10-16 15:37:28.829] [info] [engine] Frame CPU: input=0.43 update=1.10 render=0.46 ui=0.14 present=14.54 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:37:29.814] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=7.02 MiB scene=0.03 ms
+[2026-10-16 15:37:29.830] [info] [engine] Frame dt stats: avg=16.675ms min=16.057ms max=17.258ms samples=60
+[2026-10-16 15:37:29.830] [info] [engine] Frame CPU: input=0.42 update=0.88 render=0.13 ui=0.14 present=15.12 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:37:30.815] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.48 MiB scene=0.09 ms
+[2026-10-16 15:37:30.830] [info] [engine] Frame dt stats: avg=16.690ms min=15.769ms max=17.598ms samples=60
+[2026-10-16 15:37:30.830] [info] [engine] Frame CPU: input=0.41 update=0.93 render=0.15 ui=0.15 present=15.04 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:37:30.873] [info] [engine] ResourceManager cache miss [class engine::resources::Texture] 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm'
+[2026-10-16 15:37:30.904] [info] [engine] Texture loaded 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm' via GPU transfer: 8x8
+[2026-10-16 15:37:31.815] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.34 MiB scene=0.06 ms
+[2026-10-16 15:37:31.831] [info] [engine] Frame dt stats: avg=16.673ms min=7.591ms max=34.388ms samples=60
+[2026-10-16 15:37:31.831] [info] [engine] Frame CPU: input=0.48 update=1.26 render=0.57 ui=0.17 present=14.19 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:37:32.684] [info] [engine] Luau live: Reloaded scripts/SoakDriver.luau (runtime state preserved)
+[2026-10-16 15:37:32.817] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.09 MiB scene=0.07 ms
+[2026-10-16 15:37:32.832] [info] [engine] Frame dt stats: avg=16.691ms min=15.870ms max=17.440ms samples=60
+[2026-10-16 15:37:32.832] [info] [engine] Frame CPU: input=0.47 update=1.17 render=0.17 ui=0.17 present=14.69 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:37:33.817] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.97 MiB scene=0.07 ms
+[2026-10-16 15:37:33.832] [info] [engine] Frame dt stats: avg=16.672ms min=16.044ms max=17.263ms samples=60
+[2026-10-16 15:37:33.832] [info] [engine] Frame CPU: input=0.42 update=0.97 render=0.15 ui=0.16 present=14.97 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:37:33.891] [info] [engine] ResourceManager cache miss [class engine::resources::Texture] 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm'
+[2026-10-16 15:37:33.921] [info] [engine] Texture loaded 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm' via GPU transfer: 8x8
+[2026-10-16 15:37:34.818] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.40 MiB scene=0.08 ms
+[2026-10-16 15:37:34.833] [info] [engine] Frame dt stats: avg=16.678ms min=7.793ms max=31.888ms samples=60
+[2026-10-16 15:37:34.833] [info] [engine] Frame CPU: input=0.41 update=1.11 render=0.53 ui=0.16 present=14.47 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:37:35.818] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.17 MiB scene=0.03 ms
+[2026-10-16 15:37:35.834] [info] [engine] Frame dt stats: avg=16.676ms min=15.986ms max=17.429ms samples=60
+[2026-10-16 15:37:35.834] [info] [engine] Frame CPU: input=0.36 update=0.92 render=0.13 ui=0.15 present=15.12 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:37:36.820] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.44 MiB scene=0.06 ms
+[2026-10-16 15:37:36.835] [info] [engine] Frame dt stats: avg=16.682ms min=16.121ms max=17.328ms samples=60
+[2026-10-16 15:37:36.835] [info] [engine] Frame CPU: input=0.39 update=0.90 render=0.14 ui=0.13 present=15.11 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:37:36.911] [info] [engine] ResourceManager cache miss [class engine::resources::Texture] 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm'
+[2026-10-16 15:37:36.944] [info] [engine] Texture loaded 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm' via GPU transfer: 8x8
+[2026-10-16 15:37:37.821] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.79 MiB scene=0.07 ms
+[2026-10-16 15:37:37.835] [info] [engine] Frame dt stats: avg=16.681ms min=6.124ms max=36.755ms samples=60
+[2026-10-16 15:37:37.835] [info] [engine] Frame CPU: input=0.44 update=1.19 render=0.59 ui=0.17 present=14.28 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:37:38.821] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.32 MiB scene=0.14 ms
+[2026-10-16 15:37:38.836] [info] [engine] Frame dt stats: avg=16.679ms min=15.879ms max=17.621ms samples=60
+[2026-10-16 15:37:38.836] [info] [engine] Frame CPU: input=0.45 update=1.08 render=0.17 ui=0.18 present=14.80 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:37:39.822] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.31 MiB scene=0.08 ms
+[2026-10-16 15:37:39.837] [info] [engine] Frame dt stats: avg=16.678ms min=15.579ms max=17.432ms samples=60
+[2026-10-16 15:37:39.837] [info] [engine] Frame CPU: input=0.42 update=1.01 render=0.14 ui=0.15 present=14.95 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:37:39.930] [info] [engine] ResourceManager cache miss [class engine::resources::Texture] 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm'
+[2026-10-16 15:37:39.961] [info] [engine] Texture loaded 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm' via GPU transfer: 8x8
+[2026-10-16 15:37:40.823] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.05 MiB scene=0.11 ms
+[2026-10-16 15:37:40.838] [info] [engine] Frame dt stats: avg=16.683ms min=6.935ms max=34.214ms samples=60
+[2026-10-16 15:37:40.838] [info] [engine] Frame CPU: input=0.41 update=1.17 render=0.57 ui=0.16 present=14.36 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:37:41.824] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.75 MiB scene=0.05 ms
+[2026-10-16 15:37:41.838] [info] [engine] Frame dt stats: avg=16.682ms min=15.768ms max=17.377ms samples=60
+[2026-10-16 15:37:41.839] [info] [engine] Frame CPU: input=0.41 update=0.95 render=0.15 ui=0.15 present=15.02 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:37:42.708] [info] [engine] Luau live: Reloaded scripts/SoakDriver.luau (runtime state preserved)
+[2026-10-16 15:37:42.839] [info] [engine] Frame dt stats: avg=16.671ms min=16.176ms max=17.405ms samples=60
+[2026-10-16 15:37:42.839] [info] [engine] Frame CPU: input=0.41 update=1.05 render=0.16 ui=0.16 present=14.89 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:37:42.840] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.49 MiB scene=0.03 ms
+[2026-10-16 15:37:42.948] [info] [engine] ResourceManager cache miss [class engine::resources::Texture] 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm'
+[2026-10-16 15:37:42.974] [info] [engine] Texture loaded 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm' via GPU transfer: 8x8
+[2026-10-16 15:37:43.840] [info] [engine] Frame dt stats: avg=16.682ms min=6.589ms max=29.352ms samples=60
+[2026-10-16 15:37:43.840] [info] [engine] Frame CPU: input=0.42 update=1.21 render=0.51 ui=0.16 present=14.38 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:37:43.841] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.03 MiB scene=0.03 ms
+[2026-10-16 15:37:44.841] [info] [engine] Frame dt stats: avg=16.677ms min=16.101ms max=17.298ms samples=60
+[2026-10-16 15:37:44.841] [info] [engine] Frame CPU: input=0.38 update=0.86 render=0.13 ui=0.14 present=15.17 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:37:44.843] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=7.47 MiB scene=0.07 ms
+[2026-10-16 15:37:45.842] [info] [engine] Frame dt stats: avg=16.690ms min=15.977ms max=17.575ms samples=60
+[2026-10-16 15:37:45.842] [info] [engine] Frame CPU: input=0.40 update=0.89 render=0.13 ui=0.14 present=15.13 ms, steps/frame=1.02, discarded=0.00 ms/frame
+[2026-10-16 15:37:45.844] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.85 MiB scene=0.06 ms
+[2026-10-16 15:37:45.950] [info] [engine] ResourceManager cache miss [class engine::resources::Texture] 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm'
+[2026-10-16 15:37:45.974] [info] [engine] Texture loaded 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm' via GPU transfer: 8x8
+[2026-10-16 15:37:46.842] [info] [engine] Frame dt stats: avg=16.669ms min=5.271ms max=28.115ms samples=60
+[2026-10-16 15:37:46.842] [info] [engine] Frame CPU: input=0.40 update=1.09 render=0.47 ui=0.16 present=14.55 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:37:46.861] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.56 MiB scene=0.07 ms
+[2026-10-16 15:37:47.843] [info] [engine] Frame dt stats: avg=16.690ms min=16.213ms max=17.462ms samples=60
+[2026-10-16 15:37:47.843] [info] [engine] Frame CPU: input=0.40 update=0.99 render=0.15 ui=0.16 present=14.98 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:37:47.861] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.41 MiB scene=0.03 ms
+[2026-10-16 15:37:48.844] [info] [engine] Frame dt stats: avg=16.679ms min=16.261ms max=17.171ms samples=60
+[2026-10-16 15:37:48.844] [info] [engine] Frame CPU: input=0.41 update=0.98 render=0.15 ui=0.16 present=14.97 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:37:48.862] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=7.13 MiB scene=0.08 ms
+[2026-10-16 15:37:48.972] [info] [engine] ResourceManager cache miss [class engine::resources::Texture] 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm'
+[2026-10-16 15:37:49.004] [info] [engine] Texture loaded 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm' via GPU transfer: 8x8
+[2026-10-16 15:37:49.845] [info] [engine] Frame dt stats: avg=16.672ms min=6.391ms max=37.209ms samples=60
+[2026-10-16 15:37:49.845] [info] [engine] Frame CPU: input=0.39 update=1.08 render=0.57 ui=0.16 present=14.48 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:37:49.862] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.44 MiB scene=0.06 ms
+[2026-10-16 15:37:50.845] [info] [engine] Frame dt stats: avg=16.678ms min=16.018ms max=17.277ms samples=60
+[2026-10-16 15:37:50.845] [info] [engine] Frame CPU: input=0.40 update=0.97 render=0.14 ui=0.16 present=15.00 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:37:50.863] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.49 MiB scene=0.04 ms
+[2026-10-16 15:37:51.846] [info] [engine] Frame dt stats: avg=16.681ms min=16.114ms max=17.392ms samples=60
+[2026-10-16 15:37:51.846] [info] [engine] Frame CPU: input=0.43 update=1.05 render=0.17 ui=0.17 present=14.86 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:37:51.864] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.20 MiB scene=0.05 ms
+[2026-10-16 15:37:51.988] [info] [engine] ResourceManager cache miss [class engine::resources::Texture] 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm'
+[2026-10-16 15:37:52.019] [info] [engine] Texture loaded 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm' via GPU transfer: 8x8
+[2026-10-16 15:37:52.666] [info] [engine] Luau live: Reloaded scripts/SoakDriver.luau (runtime state preserved)
+[2026-10-16 15:37:52.847] [info] [engine] Frame dt stats: avg=16.682ms min=5.807ms max=34.517ms samples=60
+[2026-10-16 15:37:52.847] [info] [engine] Frame CPU: input=0.41 update=1.09 render=0.56 ui=0.15 present=14.48 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:37:52.865] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=7.09 MiB scene=0.08 ms
+[2026-10-16 15:37:53.848] [info] [engine] Frame dt stats: avg=16.676ms min=15.726ms max=17.609ms samples=60
+[2026-10-16 15:37:53.848] [info] [engine] Frame CPU: input=0.41 update=0.90 render=0.13 ui=0.14 present=15.09 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:37:53.865] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.43 MiB scene=0.03 ms
+[2026-10-16 15:37:54.849] [info] [engine] Frame dt stats: avg=16.681ms min=16.053ms max=17.362ms samples=60
+[2026-10-16 15:37:54.849] [info] [engine] Frame CPU: input=0.40 update=0.95 render=0.13 ui=0.14 present=15.06 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:37:54.866] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.07 MiB scene=0.03 ms
+[2026-10-16 15:37:55.009] [info] [engine] ResourceManager cache miss [class engine::resources::Texture] 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm'
+[2026-10-16 15:37:55.039] [info] [engine] Texture loaded 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm' via GPU transfer: 8x8
+[2026-10-16 15:37:55.850] [info] [engine] Frame dt stats: avg=16.683ms min=5.912ms max=35.386ms samples=60
+[2026-10-16 15:37:55.850] [info] [engine] Frame CPU: input=0.40 update=1.14 render=0.54 ui=0.15 present=14.45 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:37:55.867] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.36 MiB scene=0.04 ms
+[2026-10-16 15:37:56.850] [info] [engine] Frame dt stats: avg=16.682ms min=15.947ms max=17.421ms samples=60
+[2026-10-16 15:37:56.850] [info] [engine] Frame CPU: input=0.40 update=0.93 render=0.15 ui=0.16 present=15.03 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:37:56.869] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.92 MiB scene=0.07 ms
+[2026-10-16 15:37:57.851] [info] [engine] Frame dt stats: avg=16.673ms min=15.816ms max=17.514ms samples=60
+[2026-10-16 15:37:57.851] [info] [engine] Frame CPU: input=0.41 update=0.94 render=0.15 ui=0.15 present=15.01 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:37:57.869] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.35 MiB scene=0.07 ms
+[2026-10-16 15:37:58.028] [info] [engine] ResourceManager cache miss [class engine::resources::Texture] 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm'
+[2026-10-16 15:37:58.056] [info] [engine] Texture loaded 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm' via GPU transfer: 8x8
+[2026-10-16 15:37:58.852] [info] [engine] Frame dt stats: avg=16.689ms min=8.038ms max=31.321ms samples=60
+[2026-10-16 15:37:58.852] [info] [engine] Frame CPU: input=0.42 update=1.19 render=0.49 ui=0.15 present=14.44 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:37:58.871] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.26 MiB scene=0.07 ms
+[2026-10-16 15:37:59.853] [info] [engine] Frame dt stats: avg=16.685ms min=16.019ms max=17.446ms samples=60
+[2026-10-16 15:37:59.853] [info] [engine] Frame CPU: input=0.41 update=1.03 render=0.16 ui=0.16 present=14.91 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:37:59.871] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.18 MiB scene=0.07 ms
+[2026-10-16 15:38:00.853] [info] [engine] Frame dt stats: avg=16.672ms min=15.806ms max=17.617ms samples=60
+[2026-10-16 15:38:00.853] [info] [engine] Frame CPU: input=0.41 update=0.92 render=0.15 ui=0.16 present=15.03 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:38:00.871] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.83 MiB scene=0.09 ms
+[2026-10-16 15:38:01.045] [info] [engine] ResourceManager cache miss [class engine::resources::Texture] 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm'
+[2026-10-16 15:38:01.071] [info] [engine] Texture loaded 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm' via GPU transfer: 8x8
+[2026-10-16 15:38:01.854] [info] [engine] Frame dt stats: avg=16.683ms min=8.252ms max=27.250ms samples=60
+[2026-10-16 15:38:01.854] [info] [engine] Frame CPU: input=0.39 update=1.11 render=0.45 ui=0.14 present=14.57 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:38:01.872] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.56 MiB scene=0.03 ms
+[2026-10-16 15:38:02.724] [info] [engine] Luau live: Reloaded scripts/SoakDriver.luau (runtime state preserved)
+[2026-10-16 15:38:02.855] [info] [engine] Frame dt stats: avg=16.670ms min=15.856ms max=17.251ms samples=60
+[2026-10-16 15:38:02.855] [info] [engine] Frame CPU: input=0.39 update=1.03 render=0.15 ui=0.14 present=14.97 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:38:02.873] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.18 MiB scene=0.04 ms
+[2026-10-16 15:38:03.856] [info] [engine] Frame dt stats: avg=16.681ms min=15.885ms max=17.440ms samples=60
+[2026-10-16 15:38:03.856] [info] [engine] Frame CPU: input=0.43 update=1.06 render=0.17 ui=0.17 present=14.85 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:38:03.875] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.48 MiB scene=0.07 ms
+[2026-10-16 15:38:04.067] [info] [engine] ResourceManager cache miss [class engine::resources::Texture] 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm'
+[2026-10-16 15:38:04.099] [info] [engine] Texture loaded 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm' via GPU transfer: 8x8
+[2026-10-16 15:38:04.857] [info] [engine] Frame dt stats: avg=16.686ms min=6.259ms max=35.922ms samples=60
+[2026-10-16 15:38:04.857] [info] [engine] Frame CPU: input=0.39 update=1.16 render=0.54 ui=0.15 present=14.43 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:38:04.891] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.94 MiB scene=0.03 ms
+[2026-10-16 15:38:05.857] [info] [engine] Frame dt stats: avg=16.675ms min=16.063ms max=17.417ms samples=60
+[2026-10-16 15:38:05.858] [info] [engine] Frame CPU: input=0.40 update=0.96 render=0.15 ui=0.16 present=15.01 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:38:05.893] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.36 MiB scene=0.07 ms
+[2026-10-16 15:38:06.858] [info] [engine] Frame dt stats: avg=16.673ms min=16.129ms max=17.326ms samples=60
+[2026-10-16 15:38:06.858] [info] [engine] Frame CPU: input=0.45 update=1.04 render=0.15 ui=0.15 present=14.88 ms, steps/frame=1.02, discarded=0.00 ms/frame
+[2026-10-16 15:38:06.909] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.18 MiB scene=0.05 ms
+[2026-10-16 15:38:07.068] [info] [engine] ResourceManager cache miss [class engine::resources::Texture] 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm'
+[2026-10-16 15:38:07.103] [info] [engine] Texture loaded 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm' via GPU transfer: 8x8
+[2026-10-16 15:38:07.859] [info] [engine] Frame dt stats: avg=16.694ms min=4.508ms max=38.122ms samples=60
+[2026-10-16 15:38:07.859] [info] [engine] Frame CPU: input=0.47 update=1.23 render=0.62 ui=0.16 present=14.19 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:38:07.911] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.18 MiB scene=0.06 ms
+[2026-10-16 15:38:08.859] [info] [engine] Frame dt stats: avg=16.667ms min=15.904ms max=17.223ms samples=60
+[2026-10-16 15:38:08.859] [info] [engine] Frame CPU: input=0.44 update=0.93 render=0.15 ui=0.15 present=15.02 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:38:08.912] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.86 MiB scene=0.08 ms
+[2026-10-16 15:38:09.861] [info] [engine] Frame dt stats: avg=16.685ms min=16.216ms max=17.282ms samples=60
+[2026-10-16 15:38:09.861] [info] [engine] Frame CPU: input=0.40 update=0.93 render=0.14 ui=0.16 present=15.05 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:38:09.912] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.43 MiB scene=0.06 ms
+[2026-10-16 15:38:10.087] [info] [engine] ResourceManager cache miss [class engine::resources::Texture] 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm'
+[2026-10-16 15:38:10.116] [info] [engine] Texture loaded 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm' via GPU transfer: 8x8
+[2026-10-16 15:38:10.861] [info] [engine] Frame dt stats: avg=16.680ms min=6.500ms max=32.862ms samples=60
+[2026-10-16 15:38:10.861] [info] [engine] Frame CPU: input=0.40 update=1.12 render=0.51 ui=0.14 present=14.50 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:38:10.913] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.11 MiB scene=0.09 ms
+[2026-10-16 15:38:11.862] [info] [engine] Frame dt stats: avg=16.677ms min=16.162ms max=17.298ms samples=60
+[2026-10-16 15:38:11.862] [info] [engine] Frame CPU: input=0.43 update=0.93 render=0.15 ui=0.15 present=15.02 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:38:11.914] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=7.57 MiB scene=0.07 ms
+[2026-10-16 15:38:12.614] [info] [engine] Luau live: Reloaded scripts/SoakDriver.luau (runtime state preserved)
+[2026-10-16 15:38:12.863] [info] [engine] Frame dt stats: avg=16.678ms min=15.965ms max=17.506ms samples=60
+[2026-10-16 15:38:12.863] [info] [engine] Frame CPU: input=0.44 update=1.00 render=0.16 ui=0.16 present=14.92 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:38:12.914] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.61 MiB scene=0.05 ms
+[2026-10-16 15:38:13.106] [info] [engine] ResourceManager cache miss [class engine::resources::Texture] 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm'
+[2026-10-16 15:38:13.132] [info] [engine] Texture loaded 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm' via GPU transfer: 8x8
+[2026-10-16 15:38:13.864] [info] [engine] Frame dt stats: avg=16.686ms min=6.356ms max=30.293ms samples=60
+[2026-10-16 15:38:13.864] [info] [engine] Frame CPU: input=0.40 update=1.12 render=0.47 ui=0.15 present=14.53 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:38:13.915] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.36 MiB scene=0.08 ms
+[2026-10-16 15:38:14.865] [info] [engine] Frame dt stats: avg=16.675ms min=16.121ms max=17.618ms samples=60
+[2026-10-16 15:38:14.865] [info] [engine] Frame CPU: input=0.42 update=0.97 render=0.15 ui=0.15 present=15.00 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:38:14.916] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.38 MiB scene=0.06 ms
+[2026-10-16 15:38:15.865] [info] [engine] Frame dt stats: avg=16.684ms min=15.783ms max=17.470ms samples=60
+[2026-10-16 15:38:15.872] [info] [engine] Frame CPU: input=0.49 update=1.06 render=0.17 ui=0.18 present=14.78 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:38:15.917] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=7.00 MiB scene=0.08 ms
+[2026-10-16 15:38:16.128] [info] [engine] ResourceManager cache miss [class engine::resources::Texture] 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm'
+[2026-10-16 15:38:16.163] [info] [engine] Texture loaded 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm' via GPU transfer: 8x8
+[2026-10-16 15:38:16.866] [info] [engine] Frame dt stats: avg=16.676ms min=1.851ms max=40.092ms samples=60
+[2026-10-16 15:38:16.866] [info] [engine] Frame CPU: input=0.46 update=1.34 render=0.63 ui=0.18 present=13.95 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:38:16.918] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.38 MiB scene=0.07 ms
+[2026-10-16 15:38:17.867] [info] [engine] Frame dt stats: avg=16.680ms min=16.124ms max=17.403ms samples=60
+[2026-10-16 15:38:17.867] [info] [engine] Frame CPU: input=0.41 update=0.97 render=0.16 ui=0.16 present=14.97 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:38:17.919] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.38 MiB scene=0.06 ms
+[2026-10-16 15:38:18.867] [info] [engine] Frame dt stats: avg=16.682ms min=16.078ms max=17.319ms samples=60
+[2026-10-16 15:38:18.867] [info] [engine] Frame CPU: input=0.38 update=0.92 render=0.14 ui=0.15 present=15.08 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:38:18.936] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.07 MiB scene=0.08 ms
+[2026-10-16 15:38:19.143] [info] [engine] ResourceManager cache miss [class engine::resources::Texture] 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm'
+[2026-10-16 15:38:19.173] [info] [engine] Texture loaded 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm' via GPU transfer: 8x8
+[2026-10-16 15:38:19.868] [info] [engine] Frame dt stats: avg=16.683ms min=7.536ms max=31.676ms samples=60
+[2026-10-16 15:38:19.868] [info] [engine] Frame CPU: input=0.41 update=1.10 render=0.52 ui=0.15 present=14.50 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:38:19.937] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.92 MiB scene=0.07 ms
+[2026-10-16 15:38:20.869] [info] [engine] Frame dt stats: avg=16.671ms min=15.964ms max=17.315ms samples=60
+[2026-10-16 15:38:20.869] [info] [engine] Frame CPU: input=0.42 update=0.96 render=0.14 ui=0.15 present=15.01 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:38:20.938] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.55 MiB scene=0.09 ms
+[2026-10-16 15:38:21.870] [info] [engine] Frame dt stats: avg=16.682ms min=15.307ms max=18.355ms samples=60
+[2026-10-16 15:38:21.870] [info] [engine] Frame CPU: input=0.42 update=0.97 render=0.14 ui=0.15 present=14.99 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:38:21.955] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.17 MiB scene=0.07 ms
+[2026-10-16 15:38:22.161] [info] [engine] ResourceManager cache miss [class engine::resources::Texture] 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm'
+[2026-10-16 15:38:22.191] [info] [engine] Texture loaded 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm' via GPU transfer: 8x8
+[2026-10-16 15:38:22.655] [info] [engine] Luau live: Reloaded scripts/SoakDriver.luau (runtime state preserved)
+[2026-10-16 15:38:22.870] [info] [engine] Frame dt stats: avg=16.687ms min=7.470ms max=31.952ms samples=60
+[2026-10-16 15:38:22.870] [info] [engine] Frame CPU: input=0.41 update=1.16 render=0.52 ui=0.15 present=14.43 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:38:22.972] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.23 MiB scene=0.09 ms
+[2026-10-16 15:38:23.871] [info] [engine] Frame dt stats: avg=16.675ms min=15.985ms max=17.376ms samples=60
+[2026-10-16 15:38:23.871] [info] [engine] Frame CPU: input=0.42 update=0.90 render=0.14 ui=0.15 present=15.07 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:38:23.973] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=7.11 MiB scene=0.08 ms
+[2026-10-16 15:38:24.872] [info] [engine] Frame dt stats: avg=16.683ms min=16.166ms max=17.348ms samples=60
+[2026-10-16 15:38:24.872] [info] [engine] Frame CPU: input=0.42 update=0.92 render=0.15 ui=0.16 present=15.03 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:38:24.991] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.53 MiB scene=0.09 ms
+[2026-10-16 15:38:25.180] [info] [engine] ResourceManager cache miss [class engine::resources::Texture] 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm'
+[2026-10-16 15:38:25.206] [info] [engine] Texture loaded 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm' via GPU transfer: 8x8
+[2026-10-16 15:38:25.873] [info] [engine] Frame dt stats: avg=16.674ms min=6.081ms max=28.398ms samples=60
+[2026-10-16 15:38:25.873] [info] [engine] Frame CPU: input=0.41 update=1.11 render=0.48 ui=0.14 present=14.53 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:38:25.991] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.48 MiB scene=0.07 ms
+[2026-10-16 15:38:26.874] [info] [engine] Frame dt stats: avg=16.684ms min=16.090ms max=17.371ms samples=60
+[2026-10-16 15:38:26.874] [info] [engine] Frame CPU: input=0.44 update=1.09 render=0.17 ui=0.18 present=14.79 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:38:26.994] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.46 MiB scene=0.09 ms
+[2026-10-16 15:38:27.874] [info] [engine] Frame dt stats: avg=16.674ms min=15.446ms max=17.726ms samples=60
+[2026-10-16 15:38:27.874] [info] [engine] Frame CPU: input=0.44 update=1.02 render=0.15 ui=0.16 present=14.91 ms, steps/frame=1.02, discarded=0.00 ms/frame
+[2026-10-16 15:38:28.010] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.97 MiB scene=0.07 ms
+[2026-10-16 15:38:28.183] [info] [engine] ResourceManager cache miss [class engine::resources::Texture] 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm'
+[2026-10-16 15:38:28.209] [info] [engine] Texture loaded 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm' via GPU transfer: 8x8
+[2026-10-16 15:38:28.875] [info] [engine] Frame dt stats: avg=16.680ms min=5.987ms max=29.525ms samples=60
+[2026-10-16 15:38:28.875] [info] [engine] Frame CPU: input=0.44 update=1.12 render=0.48 ui=0.14 present=14.50 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:38:29.010] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.33 MiB scene=0.09 ms
+[2026-10-16 15:38:29.876] [info] [engine] Frame dt stats: avg=16.683ms min=15.981ms max=17.256ms samples=60
+[2026-10-16 15:38:29.876] [info] [engine] Frame CPU: input=0.40 update=0.92 render=0.13 ui=0.14 present=15.08 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:38:30.011] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.10 MiB scene=0.08 ms
+[2026-10-16 15:38:30.877] [info] [engine] Frame dt stats: avg=16.682ms min=16.210ms max=17.394ms samples=60
+[2026-10-16 15:38:30.877] [info] [engine] Frame CPU: input=0.38 update=0.82 render=0.12 ui=0.13 present=15.22 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:38:31.012] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=7.60 MiB scene=0.07 ms
+[2026-10-16 15:38:31.201] [info] [engine] ResourceManager cache miss [class engine::resources::Texture] 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm'
+[2026-10-16 15:38:31.225] [info] [engine] Texture loaded 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm' via GPU transfer: 8x8
+[2026-10-16 15:38:31.877] [info] [engine] Frame dt stats: avg=16.681ms min=6.253ms max=27.320ms samples=60
+[2026-10-16 15:38:31.877] [info] [engine] Frame CPU: input=0.42 update=1.06 render=0.46 ui=0.15 present=14.60 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:38:32.014] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.80 MiB scene=0.08 ms
+[2026-10-16 15:38:32.613] [info] [engine] Luau live: Reloaded scripts/SoakDriver.luau (runtime state preserved)
+[2026-10-16 15:38:32.878] [info] [engine] Frame dt stats: avg=16.680ms min=16.099ms max=17.363ms samples=60
+[2026-10-16 15:38:32.878] [info] [engine] Frame CPU: input=0.41 update=0.97 render=0.14 ui=0.14 present=15.02 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:38:33.030] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.37 MiB scene=0.07 ms
+[2026-10-16 15:38:33.879] [info] [engine] Frame dt stats: avg=16.672ms min=16.205ms max=17.203ms samples=60
+[2026-10-16 15:38:33.879] [info] [engine] Frame CPU: input=0.41 update=0.93 render=0.14 ui=0.14 present=15.06 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:38:34.047] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.28 MiB scene=0.04 ms
+[2026-10-16 15:38:34.222] [info] [engine] ResourceManager cache miss [class engine::resources::Texture] 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm'
+[2026-10-16 15:38:34.250] [info] [engine] Texture loaded 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm' via GPU transfer: 8x8
+[2026-10-16 15:38:34.880] [info] [engine] Frame dt stats: avg=16.691ms min=6.038ms max=32.587ms samples=60
+[2026-10-16 15:38:34.880] [info] [engine] Frame CPU: input=0.40 update=1.08 render=0.52 ui=0.15 present=14.52 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:38:35.048] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=7.11 MiB scene=0.08 ms
+[2026-10-16 15:38:35.880] [info] [engine] Frame dt stats: avg=16.669ms min=15.877ms max=17.315ms samples=60
+[2026-10-16 15:38:35.880] [info] [engine] Frame CPU: input=0.38 update=0.87 render=0.12 ui=0.14 present=15.16 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:38:36.066] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.68 MiB scene=0.08 ms
+[2026-10-16 15:38:36.881] [info] [engine] Frame dt stats: avg=16.682ms min=16.111ms max=17.199ms samples=60
+[2026-10-16 15:38:36.882] [info] [engine] Frame CPU: input=0.45 update=0.99 render=0.15 ui=0.15 present=14.94 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:38:37.067] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.47 MiB scene=0.08 ms
+[2026-10-16 15:38:37.240] [info] [engine] ResourceManager cache miss [class engine::resources::Texture] 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm'
+[2026-10-16 15:38:37.266] [info] [engine] Texture loaded 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm' via GPU transfer: 8x8
+[2026-10-16 15:38:37.882] [info] [engine] Frame dt stats: avg=16.682ms min=8.288ms max=27.365ms samples=60
+[2026-10-16 15:38:37.882] [info] [engine] Frame CPU: input=0.44 update=1.17 render=0.46 ui=0.16 present=14.44 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:38:38.067] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.23 MiB scene=0.07 ms
+[2026-10-16 15:38:38.883] [info] [engine] Frame dt stats: avg=16.674ms min=15.671ms max=17.704ms samples=60
+[2026-10-16 15:38:38.883] [info] [engine] Frame CPU: input=0.45 update=1.05 render=0.16 ui=0.17 present=14.84 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:38:39.068] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=7.38 MiB scene=0.06 ms
+[2026-10-16 15:38:39.884] [info] [engine] Frame dt stats: avg=16.689ms min=15.833ms max=17.403ms samples=60
+[2026-10-16 15:38:39.884] [info] [engine] Frame CPU: input=0.47 update=1.07 render=0.16 ui=0.18 present=14.80 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:38:40.069] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.64 MiB scene=0.08 ms
+[2026-10-16 15:38:40.259] [info] [engine] ResourceManager cache miss [class engine::resources::Texture] 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm'
+[2026-10-16 15:38:40.291] [info] [engine] Texture loaded 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm' via GPU transfer: 8x8
+[2026-10-16 15:38:40.885] [info] [engine] Frame dt stats: avg=16.667ms min=7.535ms max=34.484ms samples=60
+[2026-10-16 15:38:40.885] [info] [engine] Frame CPU: input=0.52 update=1.28 render=0.59 ui=0.18 present=14.10 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:38:41.070] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.50 MiB scene=0.08 ms
+[2026-10-16 15:38:41.885] [info] [engine] Frame dt stats: avg=16.686ms min=16.039ms max=17.290ms samples=60
+[2026-10-16 15:38:41.885] [info] [engine] Frame CPU: input=0.46 update=1.04 render=0.16 ui=0.17 present=14.85 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:38:42.070] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.42 MiB scene=0.06 ms
+[2026-10-16 15:38:42.655] [info] [engine] Luau live: Reloaded scripts/SoakDriver.luau (runtime state preserved)
+[2026-10-16 15:38:42.886] [info] [engine] Frame dt stats: avg=16.674ms min=15.984ms max=17.380ms samples=60
+[2026-10-16 15:38:42.886] [info] [engine] Frame CPU: input=0.42 update=1.02 render=0.14 ui=0.15 present=14.94 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:38:43.071] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=7.06 MiB scene=0.08 ms
+[2026-10-16 15:38:43.280] [info] [engine] ResourceManager cache miss [class engine::resources::Texture] 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm'
+[2026-10-16 15:38:43.312] [info] [engine] Texture loaded 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm' via GPU transfer: 8x8
+[2026-10-16 15:38:43.888] [info] [engine] Frame dt stats: avg=16.700ms min=6.621ms max=35.908ms samples=60
+[2026-10-16 15:38:43.888] [info] [engine] Frame CPU: input=0.46 update=1.27 render=0.59 ui=0.17 present=14.21 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:38:44.073] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.53 MiB scene=0.09 ms
+[2026-10-16 15:38:44.888] [info] [engine] Frame dt stats: avg=16.667ms min=15.109ms max=18.193ms samples=60
+[2026-10-16 15:38:44.888] [info] [engine] Frame CPU: input=0.64 update=1.22 render=0.20 ui=0.22 present=14.38 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:38:45.073] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.29 MiB scene=0.07 ms
+[2026-10-16 15:38:45.888] [info] [engine] Frame dt stats: avg=16.684ms min=15.923ms max=17.738ms samples=60
+[2026-10-16 15:38:45.889] [info] [engine] Frame CPU: input=0.56 update=1.06 render=0.18 ui=0.19 present=14.69 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:38:46.074] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=5.98 MiB scene=0.08 ms
+[2026-10-16 15:38:46.298] [info] [engine] ResourceManager cache miss [class engine::resources::Texture] 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm'
+[2026-10-16 15:38:46.326] [info] [engine] Texture loaded 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm' via GPU transfer: 8x8
+[2026-10-16 15:38:46.889] [info] [engine] Frame dt stats: avg=16.674ms min=6.719ms max=31.416ms samples=60
+[2026-10-16 15:38:46.889] [info] [engine] Frame CPU: input=0.50 update=1.26 render=0.54 ui=0.18 present=14.19 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:38:47.075] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=7.04 MiB scene=0.04 ms
+[2026-10-16 15:38:47.890] [info] [engine] Frame dt stats: avg=16.682ms min=15.718ms max=17.425ms samples=60
+[2026-10-16 15:38:47.890] [info] [engine] Frame CPU: input=0.55 update=1.23 render=0.20 ui=0.20 present=14.50 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:38:48.075] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.52 MiB scene=0.05 ms
+[2026-10-16 15:38:48.891] [info] [engine] Frame dt stats: avg=16.670ms min=15.989ms max=17.955ms samples=60
+[2026-10-16 15:38:48.891] [info] [engine] Frame CPU: input=0.47 update=1.08 render=0.15 ui=0.17 present=14.80 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:38:49.075] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.19 MiB scene=0.03 ms
+[2026-10-16 15:38:49.301] [info] [engine] ResourceManager cache miss [class engine::resources::Texture] 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm'
+[2026-10-16 15:38:49.338] [info] [engine] Texture loaded 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm' via GPU transfer: 8x8
+[2026-10-16 15:38:49.892] [info] [engine] Frame dt stats: avg=16.685ms min=4.227ms max=40.837ms samples=60
+[2026-10-16 15:38:49.892] [info] [engine] Frame CPU: input=0.46 update=1.23 render=0.64 ui=0.16 present=14.19 ms, steps/frame=1.02, discarded=0.00 ms/frame
+[2026-10-16 15:38:50.077] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.29 MiB scene=0.07 ms
+[2026-10-16 15:38:50.892] [info] [engine] Frame dt stats: avg=16.687ms min=15.873ms max=17.514ms samples=60
+[2026-10-16 15:38:50.892] [info] [engine] Frame CPU: input=0.46 update=1.09 render=0.17 ui=0.19 present=14.76 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:38:51.078] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.92 MiB scene=0.08 ms
+[2026-10-16 15:38:51.893] [info] [engine] Frame dt stats: avg=16.676ms min=15.463ms max=17.662ms samples=60
+[2026-10-16 15:38:51.893] [info] [engine] Frame CPU: input=0.47 update=1.10 render=0.17 ui=0.17 present=14.77 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:38:52.079] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.43 MiB scene=0.08 ms
+[2026-10-16 15:38:52.319] [info] [engine] ResourceManager cache miss [class engine::resources::Texture] 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm'
+[2026-10-16 15:38:52.350] [info] [engine] Texture loaded 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm' via GPU transfer: 8x8
+[2026-10-16 15:38:52.746] [info] [engine] Luau live: Reloaded scripts/SoakDriver.luau (runtime state preserved)
+[2026-10-16 15:38:52.894] [info] [engine] Frame dt stats: avg=16.672ms min=7.150ms max=34.193ms samples=60
+[2026-10-16 15:38:52.894] [info] [engine] Frame CPU: input=0.43 update=1.24 render=0.55 ui=0.15 present=14.30 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:38:53.079] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.42 MiB scene=0.08 ms
+[2026-10-16 15:38:53.895] [info] [engine] Frame dt stats: avg=16.679ms min=15.848ms max=17.390ms samples=60
+[2026-10-16 15:38:53.895] [info] [engine] Frame CPU: input=0.43 update=0.95 render=0.15 ui=0.15 present=15.00 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:38:54.081] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.96 MiB scene=0.09 ms
+[2026-10-16 15:38:54.895] [info] [engine] Frame dt stats: avg=16.687ms min=16.060ms max=17.351ms samples=60
+[2026-10-16 15:38:54.895] [info] [engine] Frame CPU: input=0.42 update=0.96 render=0.15 ui=0.15 present=14.99 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:38:55.081] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.77 MiB scene=0.09 ms
+[2026-10-16 15:38:55.337] [info] [engine] ResourceManager cache miss [class engine::resources::Texture] 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm'
+[2026-10-16 15:38:55.363] [info] [engine] Texture loaded 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm' via GPU transfer: 8x8
+[2026-10-16 15:38:55.896] [info] [engine] Frame dt stats: avg=16.681ms min=7.278ms max=27.587ms samples=60
+[2026-10-16 15:38:55.896] [info] [engine] Frame CPU: input=0.41 update=1.21 render=0.48 ui=0.17 present=14.40 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:38:56.098] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.37 MiB scene=0.08 ms
+[2026-10-16 15:38:56.897] [info] [engine] Frame dt stats: avg=16.671ms min=15.961ms max=17.448ms samples=60
+[2026-10-16 15:38:56.897] [info] [engine] Frame CPU: input=0.43 update=1.00 render=0.15 ui=0.16 present=14.93 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:38:57.099] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.16 MiB scene=0.08 ms
+[2026-10-16 15:38:57.898] [info] [engine] Frame dt stats: avg=16.689ms min=16.145ms max=17.192ms samples=60
+[2026-10-16 15:38:57.898] [info] [engine] Frame CPU: input=0.44 update=0.94 render=0.15 ui=0.15 present=14.99 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:38:58.100] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=7.26 MiB scene=0.06 ms
+[2026-10-16 15:38:58.356] [info] [engine] ResourceManager cache miss [class engine::resources::Texture] 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm'
+[2026-10-16 15:38:58.383] [info] [engine] Texture loaded 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm' via GPU transfer: 8x8
+[2026-10-16 15:38:58.898] [info] [engine] Frame dt stats: avg=16.678ms min=6.865ms max=28.477ms samples=60
+[2026-10-16 15:38:58.898] [info] [engine] Frame CPU: input=0.47 update=1.18 render=0.48 ui=0.16 present=14.39 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:38:59.101] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.58 MiB scene=0.06 ms
+[2026-10-16 15:38:59.899] [info] [engine] Frame dt stats: avg=16.673ms min=15.880ms max=17.614ms samples=60
+[2026-10-16 15:38:59.899] [info] [engine] Frame CPU: input=0.45 update=1.00 render=0.14 ui=0.16 present=14.93 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:39:00.101] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.19 MiB scene=0.14 ms
+[2026-10-16 15:39:00.900] [info] [engine] Frame dt stats: avg=16.681ms min=15.912ms max=17.506ms samples=60
+[2026-10-16 15:39:00.900] [info] [engine] Frame CPU: input=0.42 update=0.93 render=0.14 ui=0.16 present=15.03 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:39:01.102] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.21 MiB scene=0.08 ms
+[2026-10-16 15:39:01.376] [info] [engine] ResourceManager cache miss [class engine::resources::Texture] 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm'
+[2026-10-16 15:39:01.401] [info] [engine] Texture loaded 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm' via GPU transfer: 8x8
+[2026-10-16 15:39:01.901] [info] [engine] Frame dt stats: avg=16.677ms min=6.525ms max=28.145ms samples=60
+[2026-10-16 15:39:01.901] [info] [engine] Frame CPU: input=0.38 update=1.06 render=0.45 ui=0.14 present=14.64 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:39:02.103] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.99 MiB scene=0.05 ms
+[2026-10-16 15:39:02.686] [info] [engine] Luau live: Reloaded scripts/SoakDriver.luau (runtime state preserved)
+[2026-10-16 15:39:02.902] [info] [engine] Frame dt stats: avg=16.690ms min=16.001ms max=17.462ms samples=60
+[2026-10-16 15:39:02.902] [info] [engine] Frame CPU: input=0.39 update=0.92 render=0.12 ui=0.13 present=15.10 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:39:03.105] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.41 MiB scene=0.08 ms
+[2026-10-16 15:39:03.903] [info] [engine] Frame dt stats: avg=16.679ms min=15.925ms max=17.467ms samples=60
+[2026-10-16 15:39:03.903] [info] [engine] Frame CPU: input=0.44 update=1.03 render=0.16 ui=0.16 present=14.90 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:39:04.121] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.34 MiB scene=0.06 ms
+[2026-10-16 15:39:04.394] [info] [engine] ResourceManager cache miss [class engine::resources::Texture] 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm'
+[2026-10-16 15:39:04.419] [info] [engine] Texture loaded 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm' via GPU transfer: 8x8
+[2026-10-16 15:39:04.903] [info] [engine] Frame dt stats: avg=16.668ms min=6.022ms max=28.461ms samples=60
+[2026-10-16 15:39:04.903] [info] [engine] Frame CPU: input=0.40 update=1.05 render=0.46 ui=0.14 present=14.62 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:39:05.122] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.28 MiB scene=0.06 ms
+[2026-10-16 15:39:05.904] [info] [engine] Frame dt stats: avg=16.686ms min=16.298ms max=17.278ms samples=60
+[2026-10-16 15:39:05.904] [info] [engine] Frame CPU: input=0.40 update=0.92 render=0.14 ui=0.15 present=15.07 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:39:06.138] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=7.05 MiB scene=0.03 ms
+[2026-10-16 15:39:06.905] [info] [engine] Frame dt stats: avg=16.679ms min=16.070ms max=17.437ms samples=60
+[2026-10-16 15:39:06.905] [info] [engine] Frame CPU: input=0.41 update=0.88 render=0.13 ui=0.14 present=15.12 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:39:07.140] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.28 MiB scene=0.07 ms
+[2026-10-16 15:39:07.415] [info] [engine] ResourceManager cache miss [class engine::resources::Texture] 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm'
+[2026-10-16 15:39:07.442] [info] [engine] Texture loaded 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm' via GPU transfer: 8x8
+[2026-10-16 15:39:07.906] [info] [engine] Frame dt stats: avg=16.685ms min=7.806ms max=30.860ms samples=60
+[2026-10-16 15:39:07.906] [info] [engine] Frame CPU: input=0.41 update=1.21 render=0.49 ui=0.16 present=14.41 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:39:08.157] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.36 MiB scene=0.04 ms
+[2026-10-16 15:39:08.906] [info] [engine] Frame dt stats: avg=16.680ms min=16.121ms max=17.334ms samples=60
+[2026-10-16 15:39:08.906] [info] [engine] Frame CPU: input=0.49 update=1.03 render=0.16 ui=0.17 present=14.83 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:39:09.159] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.36 MiB scene=0.08 ms
+[2026-10-16 15:39:09.907] [info] [engine] Frame dt stats: avg=16.670ms min=15.976ms max=17.441ms samples=60
+[2026-10-16 15:39:09.907] [info] [engine] Frame CPU: input=0.53 update=1.06 render=0.16 ui=0.17 present=14.75 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:39:10.176] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=7.00 MiB scene=0.08 ms
+[2026-10-16 15:39:10.417] [info] [engine] ResourceManager cache miss [class engine::resources::Texture] 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm'
+[2026-10-16 15:39:10.442] [info] [engine] Texture loaded 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm' via GPU transfer: 8x8
+[2026-10-16 15:39:10.908] [info] [engine] Frame dt stats: avg=16.680ms min=6.341ms max=30.289ms samples=60
+[2026-10-16 15:39:10.908] [info] [engine] Frame CPU: input=0.43 update=1.13 render=0.47 ui=0.14 present=14.51 ms, steps/frame=1.02, discarded=0.00 ms/frame
+[2026-10-16 15:39:11.177] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.43 MiB scene=0.08 ms
+[2026-10-16 15:39:11.909] [info] [engine] Frame dt stats: avg=16.685ms min=15.985ms max=17.342ms samples=60
+[2026-10-16 15:39:11.909] [info] [engine] Frame CPU: input=0.43 update=0.98 render=0.15 ui=0.15 present=14.97 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:39:12.177] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.43 MiB scene=0.07 ms
+[2026-10-16 15:39:12.711] [info] [engine] Luau live: Reloaded scripts/SoakDriver.luau (runtime state preserved)
+[2026-10-16 15:39:12.910] [info] [engine] Frame dt stats: avg=16.673ms min=16.076ms max=17.296ms samples=60
+[2026-10-16 15:39:12.910] [info] [engine] Frame CPU: input=0.42 update=0.97 render=0.13 ui=0.15 present=15.00 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:39:13.178] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.07 MiB scene=0.08 ms
+[2026-10-16 15:39:13.436] [info] [engine] ResourceManager cache miss [class engine::resources::Texture] 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm'
+[2026-10-16 15:39:13.466] [info] [engine] Texture loaded 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm' via GPU transfer: 8x8
+[2026-10-16 15:39:13.910] [info] [engine] Frame dt stats: avg=16.690ms min=6.554ms max=34.359ms samples=60
+[2026-10-16 15:39:13.910] [info] [engine] Frame CPU: input=0.39 update=1.11 render=0.53 ui=0.15 present=14.48 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:39:14.179] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.89 MiB scene=0.13 ms
+[2026-10-16 15:39:14.911] [info] [engine] Frame dt stats: avg=16.668ms min=15.958ms max=17.438ms samples=60
+[2026-10-16 15:39:14.911] [info] [engine] Frame CPU: input=0.38 update=0.91 render=0.13 ui=0.14 present=15.11 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:39:15.180] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.45 MiB scene=0.06 ms
+[2026-10-16 15:39:15.912] [info] [engine] Frame dt stats: avg=16.683ms min=16.090ms max=17.519ms samples=60
+[2026-10-16 15:39:15.912] [info] [engine] Frame CPU: input=0.45 update=1.03 render=0.15 ui=0.16 present=14.89 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:39:16.181] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.11 MiB scene=0.06 ms
+[2026-10-16 15:39:16.455] [info] [engine] ResourceManager cache miss [class engine::resources::Texture] 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm'
+[2026-10-16 15:39:16.490] [info] [engine] Texture loaded 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm' via GPU transfer: 8x8
+[2026-10-16 15:39:16.913] [info] [engine] Frame dt stats: avg=16.693ms min=4.358ms max=37.523ms samples=60
+[2026-10-16 15:39:16.913] [info] [engine] Frame CPU: input=0.41 update=1.14 render=0.61 ui=0.17 present=14.34 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:39:17.182] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=7.45 MiB scene=0.09 ms
+[2026-10-16 15:39:17.913] [info] [engine] Frame dt stats: avg=16.670ms min=16.032ms max=17.313ms samples=60
+[2026-10-16 15:39:17.913] [info] [engine] Frame CPU: input=0.43 update=1.02 render=0.16 ui=0.18 present=14.88 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:39:18.198] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.74 MiB scene=0.06 ms
+[2026-10-16 15:39:18.914] [info] [engine] Frame dt stats: avg=16.679ms min=16.136ms max=17.339ms samples=60
+[2026-10-16 15:39:18.914] [info] [engine] Frame CPU: input=0.40 update=0.89 render=0.13 ui=0.14 present=15.12 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:39:19.199] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.23 MiB scene=0.03 ms
+[2026-10-16 15:39:19.474] [info] [engine] ResourceManager cache miss [class engine::resources::Texture] 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm'
+[2026-10-16 15:39:19.500] [info] [engine] Texture loaded 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm' via GPU transfer: 8x8
+[2026-10-16 15:39:19.915] [info] [engine] Frame dt stats: avg=16.684ms min=6.535ms max=29.643ms samples=60
+[2026-10-16 15:39:19.915] [info] [engine] Frame CPU: input=0.44 update=1.19 render=0.49 ui=0.15 present=14.41 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:39:20.202] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.34 MiB scene=0.13 ms
+[2026-10-16 15:39:20.916] [info] [engine] Frame dt stats: avg=16.704ms min=15.195ms max=18.353ms samples=60
+[2026-10-16 15:39:20.916] [info] [engine] Frame CPU: input=0.47 update=1.05 render=0.17 ui=0.17 present=14.81 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:39:21.217] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.91 MiB scene=0.07 ms
+[2026-10-16 15:39:21.933] [info] [engine] Frame dt stats: avg=16.659ms min=15.369ms max=17.327ms samples=61
+[2026-10-16 15:39:21.933] [info] [engine] Frame CPU: input=0.41 update=0.94 render=0.14 ui=0.14 present=15.04 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:39:22.218] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.76 MiB scene=0.07 ms
+[2026-10-16 15:39:22.491] [info] [engine] ResourceManager cache miss [class engine::resources::Texture] 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm'
+[2026-10-16 15:39:22.516] [info] [engine] Texture loaded 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm' via GPU transfer: 8x8
+[2026-10-16 15:39:22.670] [info] [engine] Luau live: Reloaded scripts/SoakDriver.luau (runtime state preserved)
+[2026-10-16 15:39:22.934] [info] [engine] Frame dt stats: avg=16.678ms min=5.772ms max=27.561ms samples=60
+[2026-10-16 15:39:22.934] [info] [engine] Frame CPU: input=0.39 update=1.15 render=0.46 ui=0.14 present=14.53 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:39:23.219] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.39 MiB scene=0.06 ms
+[2026-10-16 15:39:23.935] [info] [engine] Frame dt stats: avg=16.684ms min=16.174ms max=17.567ms samples=60
+[2026-10-16 15:39:23.935] [info] [engine] Frame CPU: input=0.45 update=0.94 render=0.14 ui=0.15 present=14.99 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:39:24.219] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.27 MiB scene=0.05 ms
+[2026-10-16 15:39:24.936] [info] [engine] Frame dt stats: avg=16.671ms min=15.949ms max=17.252ms samples=60
+[2026-10-16 15:39:24.936] [info] [engine] Frame CPU: input=0.43 update=0.91 render=0.14 ui=0.14 present=15.05 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:39:25.221] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=7.18 MiB scene=0.08 ms
+[2026-10-16 15:39:25.511] [info] [engine] ResourceManager cache miss [class engine::resources::Texture] 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm'
+[2026-10-16 15:39:25.536] [info] [engine] Texture loaded 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm' via GPU transfer: 8x8
+[2026-10-16 15:39:25.936] [info] [engine] Frame dt stats: avg=16.675ms min=6.342ms max=29.030ms samples=60
+[2026-10-16 15:39:25.936] [info] [engine] Frame CPU: input=0.40 update=1.11 render=0.47 ui=0.15 present=14.53 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:39:26.238] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.44 MiB scene=0.03 ms
+[2026-10-16 15:39:26.937] [info] [engine] Frame dt stats: avg=16.686ms min=16.198ms max=17.359ms samples=60
+[2026-10-16 15:39:26.937] [info] [engine] Frame CPU: input=0.41 update=0.93 render=0.14 ui=0.16 present=15.05 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:39:27.239] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.25 MiB scene=0.07 ms
+[2026-10-16 15:39:27.938] [info] [engine] Frame dt stats: avg=16.688ms min=15.834ms max=17.490ms samples=60
+[2026-10-16 15:39:27.938] [info] [engine] Frame CPU: input=0.44 update=0.95 render=0.16 ui=0.17 present=14.96 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:39:28.256] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.60 MiB scene=0.13 ms
+[2026-10-16 15:39:28.530] [info] [engine] ResourceManager cache miss [class engine::resources::Texture] 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm'
+[2026-10-16 15:39:28.556] [info] [engine] Texture loaded 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm' via GPU transfer: 8x8
+[2026-10-16 15:39:28.938] [info] [engine] Frame dt stats: avg=16.673ms min=6.354ms max=29.024ms samples=60
+[2026-10-16 15:39:28.939] [info] [engine] Frame CPU: input=0.38 update=1.04 render=0.46 ui=0.14 present=14.64 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:39:29.257] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=7.03 MiB scene=0.07 ms
+[2026-10-16 15:39:29.939] [info] [engine] Frame dt stats: avg=16.676ms min=16.175ms max=17.360ms samples=60
+[2026-10-16 15:39:29.939] [info] [engine] Frame CPU: input=0.40 update=0.96 render=0.14 ui=0.15 present=15.02 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:39:30.258] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.36 MiB scene=0.12 ms
+[2026-10-16 15:39:30.940] [info] [engine] Frame dt stats: avg=16.680ms min=15.914ms max=17.488ms samples=60
+[2026-10-16 15:39:30.940] [info] [engine] Frame CPU: input=0.41 update=0.89 render=0.13 ui=0.14 present=15.10 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:39:31.259] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.30 MiB scene=0.07 ms
+[2026-10-16 15:39:31.550] [info] [engine] ResourceManager cache miss [class engine::resources::Texture] 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm'
+[2026-10-16 15:39:31.581] [info] [engine] Texture loaded 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm' via GPU transfer: 8x8
+[2026-10-16 15:39:31.941] [info] [engine] Frame dt stats: avg=16.686ms min=6.793ms max=34.881ms samples=60
+[2026-10-16 15:39:31.941] [info] [engine] Frame CPU: input=0.38 update=1.04 render=0.53 ui=0.14 present=14.59 ms, steps/frame=1.02, discarded=0.00 ms/frame
+[2026-10-16 15:39:32.277] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.21 MiB scene=0.08 ms
+[2026-10-16 15:39:32.710] [info] [engine] Luau live: Reloaded scripts/SoakDriver.luau (runtime state preserved)
+[2026-10-16 15:39:32.942] [info] [engine] Frame dt stats: avg=16.679ms min=16.045ms max=17.281ms samples=60
+[2026-10-16 15:39:32.942] [info] [engine] Frame CPU: input=0.44 update=1.02 render=0.16 ui=0.17 present=14.88 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:39:33.294] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.97 MiB scene=0.07 ms
+[2026-10-16 15:39:33.942] [info] [engine] Frame dt stats: avg=16.674ms min=16.152ms max=17.669ms samples=60
+[2026-10-16 15:39:33.942] [info] [engine] Frame CPU: input=0.42 update=0.95 render=0.14 ui=0.15 present=15.02 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:39:34.311] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.35 MiB scene=0.08 ms
+[2026-10-16 15:39:34.551] [info] [engine] ResourceManager cache miss [class engine::resources::Texture] 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm'
+[2026-10-16 15:39:34.577] [info] [engine] Texture loaded 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm' via GPU transfer: 8x8
+[2026-10-16 15:39:34.943] [info] [engine] Frame dt stats: avg=16.676ms min=7.115ms max=28.736ms samples=60
+[2026-10-16 15:39:34.943] [info] [engine] Frame CPU: input=0.42 update=1.16 render=0.48 ui=0.15 present=14.46 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:39:35.311] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.46 MiB scene=0.06 ms
+[2026-10-16 15:39:35.944] [info] [engine] Frame dt stats: avg=16.689ms min=15.831ms max=17.554ms samples=60
+[2026-10-16 15:39:35.944] [info] [engine] Frame CPU: input=0.39 update=0.84 render=0.13 ui=0.14 present=15.18 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:39:36.312] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.44 MiB scene=0.07 ms
+[2026-10-16 15:39:36.945] [info] [engine] Frame dt stats: avg=16.678ms min=16.060ms max=17.460ms samples=60
+[2026-10-16 15:39:36.945] [info] [engine] Frame CPU: input=0.41 update=0.94 render=0.14 ui=0.15 present=15.04 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:39:37.313] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.95 MiB scene=0.03 ms
+[2026-10-16 15:39:37.570] [info] [engine] ResourceManager cache miss [class engine::resources::Texture] 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm'
+[2026-10-16 15:39:37.599] [info] [engine] Texture loaded 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm' via GPU transfer: 8x8
+[2026-10-16 15:39:37.946] [info] [engine] Frame dt stats: avg=16.677ms min=8.075ms max=30.298ms samples=60
+[2026-10-16 15:39:37.946] [info] [engine] Frame CPU: input=0.42 update=1.13 render=0.50 ui=0.15 present=14.45 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:39:38.315] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.30 MiB scene=0.07 ms
+[2026-10-16 15:39:38.946] [info] [engine] Frame dt stats: avg=16.687ms min=15.998ms max=17.853ms samples=60
+[2026-10-16 15:39:38.946] [info] [engine] Frame CPU: input=0.43 update=0.97 render=0.16 ui=0.17 present=14.95 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:39:39.332] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.50 MiB scene=0.07 ms
+[2026-10-16 15:39:39.947] [info] [engine] Frame dt stats: avg=16.671ms min=15.648ms max=17.965ms samples=60
+[2026-10-16 15:39:39.947] [info] [engine] Frame CPU: input=0.39 update=0.89 render=0.14 ui=0.14 present=15.12 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:39:40.333] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.32 MiB scene=0.08 ms
+[2026-10-16 15:39:40.589] [info] [engine] ResourceManager cache miss [class engine::resources::Texture] 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm'
+[2026-10-16 15:39:40.614] [info] [engine] Texture loaded 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm' via GPU transfer: 8x8
+[2026-10-16 15:39:40.948] [info] [engine] Frame dt stats: avg=16.677ms min=6.283ms max=27.959ms samples=60
+[2026-10-16 15:39:40.948] [info] [engine] Frame CPU: input=0.43 update=1.08 render=0.47 ui=0.14 present=14.56 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:39:41.333] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.68 MiB scene=0.09 ms
+[2026-10-16 15:39:41.949] [info] [engine] Frame dt stats: avg=16.676ms min=15.995ms max=17.349ms samples=60
+[2026-10-16 15:39:41.949] [info] [engine] Frame CPU: input=0.43 update=0.98 render=0.14 ui=0.15 present=14.99 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:39:42.350] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.49 MiB scene=0.04 ms
+[2026-10-16 15:39:42.784] [info] [engine] Luau live: Reloaded scripts/SoakDriver.luau (runtime state preserved)
+[2026-10-16 15:39:42.950] [info] [engine] Frame dt stats: avg=16.681ms min=16.013ms max=17.394ms samples=60
+[2026-10-16 15:39:42.950] [info] [engine] Frame CPU: input=0.38 update=0.89 render=0.12 ui=0.14 present=15.16 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:39:43.351] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.06 MiB scene=0.03 ms
+[2026-10-16 15:39:43.609] [info] [engine] ResourceManager cache miss [class engine::resources::Texture] 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm'
+[2026-10-16 15:39:43.640] [info] [engine] Texture loaded 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm' via GPU transfer: 8x8
+[2026-10-16 15:39:43.950] [info] [engine] Frame dt stats: avg=16.676ms min=7.871ms max=33.659ms samples=60
+[2026-10-16 15:39:43.950] [info] [engine] Frame CPU: input=0.43 update=1.15 render=0.57 ui=0.16 present=14.36 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:39:44.352] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=7.49 MiB scene=0.08 ms
+[2026-10-16 15:39:44.951] [info] [engine] Frame dt stats: avg=16.690ms min=15.468ms max=17.307ms samples=60
+[2026-10-16 15:39:44.951] [info] [engine] Frame CPU: input=0.46 update=0.99 render=0.15 ui=0.16 present=14.93 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:39:45.353] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.47 MiB scene=0.08 ms
+[2026-10-16 15:39:45.952] [info] [engine] Frame dt stats: avg=16.674ms min=16.054ms max=17.570ms samples=60
+[2026-10-16 15:39:45.952] [info] [engine] Frame CPU: input=0.44 update=1.00 render=0.15 ui=0.16 present=14.92 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:39:46.354] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.30 MiB scene=0.07 ms
+[2026-10-16 15:39:46.627] [info] [engine] ResourceManager cache miss [class engine::resources::Texture] 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm'
+[2026-10-16 15:39:46.652] [info] [engine] Texture loaded 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm' via GPU transfer: 8x8
+[2026-10-16 15:39:46.953] [info] [engine] Frame dt stats: avg=16.679ms min=5.743ms max=28.385ms samples=60
+[2026-10-16 15:39:46.953] [info] [engine] Frame CPU: input=0.44 update=1.04 render=0.47 ui=0.14 present=14.58 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:39:47.354] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.27 MiB scene=0.06 ms
+[2026-10-16 15:39:47.953] [info] [engine] Frame dt stats: avg=16.682ms min=16.071ms max=17.253ms samples=60
+[2026-10-16 15:39:47.953] [info] [engine] Frame CPU: input=0.44 update=0.97 render=0.15 ui=0.15 present=14.96 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:39:48.355] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=7.26 MiB scene=0.08 ms
+[2026-10-16 15:39:48.955] [info] [engine] Frame dt stats: avg=16.681ms min=16.109ms max=17.307ms samples=60
+[2026-10-16 15:39:48.955] [info] [engine] Frame CPU: input=0.43 update=0.96 render=0.14 ui=0.16 present=15.00 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:39:49.356] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.56 MiB scene=0.07 ms
+[2026-10-16 15:39:49.648] [info] [engine] ResourceManager cache miss [class engine::resources::Texture] 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm'
+[2026-10-16 15:39:49.680] [info] [engine] Texture loaded 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm' via GPU transfer: 8x8
+[2026-10-16 15:39:49.955] [info] [engine] Frame dt stats: avg=16.682ms min=7.037ms max=35.099ms samples=60
+[2026-10-16 15:39:49.955] [info] [engine] Frame CPU: input=0.45 update=1.18 render=0.55 ui=0.15 present=14.33 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:39:50.356] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.49 MiB scene=0.04 ms
+[2026-10-16 15:39:50.956] [info] [engine] Frame dt stats: avg=16.676ms min=16.187ms max=17.308ms samples=60
+[2026-10-16 15:39:50.956] [info] [engine] Frame CPU: input=0.41 update=0.86 render=0.13 ui=0.14 present=15.15 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:39:51.358] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.20 MiB scene=0.06 ms
+[2026-10-16 15:39:51.956] [info] [engine] Frame dt stats: avg=16.690ms min=15.175ms max=17.933ms samples=60
+[2026-10-16 15:39:51.957] [info] [engine] Frame CPU: input=0.40 update=0.96 render=0.15 ui=0.16 present=15.01 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:39:52.359] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=7.12 MiB scene=0.08 ms
+[2026-10-16 15:39:52.666] [info] [engine] ResourceManager cache miss [class engine::resources::Texture] 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm'
+[2026-10-16 15:39:52.692] [info] [engine] Texture loaded 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm' via GPU transfer: 8x8
+[2026-10-16 15:39:52.776] [info] [engine] Luau live: Reloaded scripts/SoakDriver.luau (runtime state preserved)
+[2026-10-16 15:39:52.974] [info] [engine] Frame dt stats: avg=16.673ms min=7.058ms max=28.989ms samples=61
+[2026-10-16 15:39:52.974] [info] [engine] Frame CPU: input=0.44 update=1.21 render=0.47 ui=0.16 present=14.40 ms, steps/frame=1.02, discarded=0.00 ms/frame
+[2026-10-16 15:39:53.359] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.58 MiB scene=0.06 ms
+[2026-10-16 15:39:53.975] [info] [engine] Frame dt stats: avg=16.675ms min=16.060ms max=17.288ms samples=60
+[2026-10-16 15:39:53.975] [info] [engine] Frame CPU: input=0.39 update=0.87 render=0.12 ui=0.13 present=15.16 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:39:54.360] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.17 MiB scene=0.07 ms
+[2026-10-16 15:39:54.975] [info] [engine] Frame dt stats: avg=16.681ms min=15.776ms max=17.573ms samples=60
+[2026-10-16 15:39:54.975] [info] [engine] Frame CPU: input=0.40 update=0.89 render=0.14 ui=0.15 present=15.09 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:39:55.360] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.38 MiB scene=0.05 ms
+[2026-10-16 15:39:55.669] [info] [engine] ResourceManager cache miss [class engine::resources::Texture] 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm'
+[2026-10-16 15:39:55.697] [info] [engine] Texture loaded 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm' via GPU transfer: 8x8
+[2026-10-16 15:39:55.976] [info] [engine] Frame dt stats: avg=16.677ms min=7.078ms max=31.574ms samples=60
+[2026-10-16 15:39:55.976] [info] [engine] Frame CPU: input=0.39 update=1.07 render=0.49 ui=0.14 present=14.59 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:39:56.361] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.95 MiB scene=0.03 ms
+[2026-10-16 15:39:56.977] [info] [engine] Frame dt stats: avg=16.685ms min=15.989ms max=17.300ms samples=60
+[2026-10-16 15:39:56.977] [info] [engine] Frame CPU: input=0.38 update=0.93 render=0.14 ui=0.15 present=15.09 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:39:57.361] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.32 MiB scene=0.03 ms
+[2026-10-16 15:39:57.978] [info] [engine] Frame dt stats: avg=16.677ms min=16.187ms max=17.230ms samples=60
+[2026-10-16 15:39:57.978] [info] [engine] Frame CPU: input=0.38 update=0.87 render=0.13 ui=0.14 present=15.15 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:39:58.362] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.24 MiB scene=0.04 ms
+[2026-10-16 15:39:58.686] [info] [engine] ResourceManager cache miss [class engine::resources::Texture] 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm'
+[2026-10-16 15:39:58.710] [info] [engine] Texture loaded 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm' via GPU transfer: 8x8
+[2026-10-16 15:39:58.979] [info] [engine] Frame dt stats: avg=16.679ms min=5.895ms max=27.512ms samples=60
+[2026-10-16 15:39:58.979] [info] [engine] Frame CPU: input=0.37 update=1.02 render=0.45 ui=0.14 present=14.70 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:39:59.363] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.10 MiB scene=0.06 ms
+[2026-10-16 15:39:59.979] [info] [engine] Frame dt stats: avg=16.690ms min=16.038ms max=17.499ms samples=60
+[2026-10-16 15:39:59.979] [info] [engine] Frame CPU: input=0.37 update=0.84 render=0.12 ui=0.13 present=15.21 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:40:00.365] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.89 MiB scene=0.07 ms
+[2026-10-16 15:40:00.980] [info] [engine] Frame dt stats: avg=16.675ms min=16.012ms max=17.442ms samples=60
+[2026-10-16 15:40:00.980] [info] [engine] Frame CPU: input=0.43 update=1.02 render=0.15 ui=0.16 present=14.91 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:40:01.365] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.50 MiB scene=0.06 ms
+[2026-10-16 15:40:01.706] [info] [engine] ResourceManager cache miss [class engine::resources::Texture] 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm'
+[2026-10-16 15:40:01.730] [info] [engine] Texture loaded 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm' via GPU transfer: 8x8
+[2026-10-16 15:40:01.981] [info] [engine] Frame dt stats: avg=16.679ms min=5.800ms max=27.699ms samples=60
+[2026-10-16 15:40:01.981] [info] [engine] Frame CPU: input=0.40 update=1.05 render=0.45 ui=0.14 present=14.64 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:40:02.366] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.44 MiB scene=0.06 ms
+[2026-10-16 15:40:02.717] [info] [engine] Luau live: Reloaded scripts/SoakDriver.luau (runtime state preserved)
+[2026-10-16 15:40:02.982] [info] [engine] Frame dt stats: avg=16.681ms min=12.473ms max=20.328ms samples=60
+[2026-10-16 15:40:02.982] [info] [engine] Frame CPU: input=0.42 update=0.93 render=0.13 ui=0.14 present=15.05 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:40:03.368] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.52 MiB scene=0.06 ms
+[2026-10-16 15:40:03.982] [info] [engine] Frame dt stats: avg=16.682ms min=16.082ms max=17.557ms samples=60
+[2026-10-16 15:40:03.982] [info] [engine] Frame CPU: input=0.43 update=0.98 render=0.15 ui=0.16 present=14.95 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:40:04.385] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.82 MiB scene=0.06 ms
+[2026-10-16 15:40:04.725] [info] [engine] ResourceManager cache miss [class engine::resources::Texture] 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm'
+[2026-10-16 15:40:04.751] [info] [engine] Texture loaded 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm' via GPU transfer: 8x8
+[2026-10-16 15:40:04.983] [info] [engine] Frame dt stats: avg=16.674ms min=5.986ms max=29.456ms samples=60
+[2026-10-16 15:40:04.983] [info] [engine] Frame CPU: input=0.43 update=1.09 render=0.49 ui=0.15 present=14.52 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:40:05.402] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.33 MiB scene=0.09 ms
+[2026-10-16 15:40:05.984] [info] [engine] Frame dt stats: avg=16.674ms min=16.078ms max=17.364ms samples=60
+[2026-10-16 15:40:05.984] [info] [engine] Frame CPU: input=0.42 update=0.90 render=0.14 ui=0.15 present=15.07 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:40:06.402] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.42 MiB scene=0.04 ms
+[2026-10-16 15:40:06.985] [info] [engine] Frame dt stats: avg=16.690ms min=15.981ms max=17.570ms samples=60
+[2026-10-16 15:40:06.985] [info] [engine] Frame CPU: input=0.46 update=1.02 render=0.15 ui=0.16 present=14.89 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:40:07.404] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=7.35 MiB scene=0.07 ms
+[2026-10-16 15:40:07.745] [info] [engine] ResourceManager cache miss [class engine::resources::Texture] 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm'
+[2026-10-16 15:40:07.773] [info] [engine] Texture loaded 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm' via GPU transfer: 8x8
+[2026-10-16 15:40:07.986] [info] [engine] Frame dt stats: avg=16.677ms min=7.022ms max=31.597ms samples=60
+[2026-10-16 15:40:07.986] [info] [engine] Frame CPU: input=0.47 update=1.28 render=0.51 ui=0.17 present=14.25 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:40:08.405] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.72 MiB scene=0.09 ms
+[2026-10-16 15:40:08.986] [info] [engine] Frame dt stats: avg=16.673ms min=16.213ms max=17.192ms samples=60
+[2026-10-16 15:40:08.986] [info] [engine] Frame CPU: input=0.43 update=1.02 render=0.16 ui=0.17 present=14.90 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:40:09.405] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.30 MiB scene=0.06 ms
+[2026-10-16 15:40:09.987] [info] [engine] Frame dt stats: avg=16.680ms min=16.176ms max=17.290ms samples=60
+[2026-10-16 15:40:09.988] [info] [engine] Frame CPU: input=0.41 update=0.89 render=0.13 ui=0.14 present=15.11 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:40:10.406] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.09 MiB scene=0.08 ms
+[2026-10-16 15:40:10.762] [info] [engine] ResourceManager cache miss [class engine::resources::Texture] 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm'
+[2026-10-16 15:40:10.788] [info] [engine] Texture loaded 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm' via GPU transfer: 8x8
+[2026-10-16 15:40:10.988] [info] [engine] Frame dt stats: avg=16.688ms min=6.947ms max=28.049ms samples=60
+[2026-10-16 15:40:10.988] [info] [engine] Frame CPU: input=0.50 update=1.19 render=0.50 ui=0.15 present=14.33 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:40:11.407] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=7.28 MiB scene=0.08 ms
+[2026-10-16 15:40:11.989] [info] [engine] Frame dt stats: avg=16.672ms min=16.112ms max=17.215ms samples=60
+[2026-10-16 15:40:11.989] [info] [engine] Frame CPU: input=0.41 update=0.97 render=0.14 ui=0.15 present=14.99 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:40:12.407] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.39 MiB scene=0.14 ms
+[2026-10-16 15:40:12.691] [info] [engine] Luau live: Reloaded scripts/SoakDriver.luau (runtime state preserved)
+[2026-10-16 15:40:12.990] [info] [engine] Frame dt stats: avg=16.679ms min=15.653ms max=17.556ms samples=60
+[2026-10-16 15:40:12.990] [info] [engine] Frame CPU: input=0.53 update=1.21 render=0.18 ui=0.17 present=14.57 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:40:13.408] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.25 MiB scene=0.06 ms
+[2026-10-16 15:40:13.783] [info] [engine] ResourceManager cache miss [class engine::resources::Texture] 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm'
+[2026-10-16 15:40:13.810] [info] [engine] Texture loaded 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm' via GPU transfer: 8x8
+[2026-10-16 15:40:13.991] [info] [engine] Frame dt stats: avg=16.682ms min=8.403ms max=29.187ms samples=60
+[2026-10-16 15:40:13.991] [info] [engine] Frame CPU: input=0.42 update=1.11 render=0.45 ui=0.14 present=14.55 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:40:14.409] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.41 MiB scene=0.08 ms
+[2026-10-16 15:40:14.992] [info] [engine] Frame dt stats: avg=16.686ms min=15.946ms max=17.400ms samples=60
+[2026-10-16 15:40:14.992] [info] [engine] Frame CPU: input=0.40 update=0.93 render=0.13 ui=0.14 present=15.08 ms, steps/frame=1.02, discarded=0.00 ms/frame
+[2026-10-16 15:40:15.426] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=7.39 MiB scene=0.06 ms
+[2026-10-16 15:40:15.992] [info] [engine] Frame dt stats: avg=16.679ms min=16.026ms max=17.356ms samples=60
+[2026-10-16 15:40:15.992] [info] [engine] Frame CPU: input=0.39 update=0.91 render=0.12 ui=0.14 present=15.11 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:40:16.427] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.61 MiB scene=0.06 ms
+[2026-10-16 15:40:16.784] [info] [engine] ResourceManager cache miss [class engine::resources::Texture] 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm'
+[2026-10-16 15:40:16.807] [info] [engine] Texture loaded 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm' via GPU transfer: 8x8
+[2026-10-16 15:40:16.993] [info] [engine] Frame dt stats: avg=16.674ms min=6.018ms max=27.270ms samples=60
+[2026-10-16 15:40:16.993] [info] [engine] Frame CPU: input=0.46 update=1.17 render=0.45 ui=0.16 present=14.44 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:40:17.428] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.60 MiB scene=0.05 ms
+[2026-10-16 15:40:17.993] [info] [engine] Frame dt stats: avg=16.686ms min=16.235ms max=17.425ms samples=60
+[2026-10-16 15:40:17.994] [info] [engine] Frame CPU: input=0.44 update=1.02 render=0.17 ui=0.17 present=14.88 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:40:18.429] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.26 MiB scene=0.08 ms
+[2026-10-16 15:40:18.994] [info] [engine] Frame dt stats: avg=16.668ms min=15.922ms max=17.530ms samples=60
+[2026-10-16 15:40:18.995] [info] [engine] Frame CPU: input=0.41 update=0.94 render=0.14 ui=0.15 present=15.03 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:40:19.429] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.99 MiB scene=0.08 ms
+[2026-10-16 15:40:19.803] [info] [engine] ResourceManager cache miss [class engine::resources::Texture] 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm'
+[2026-10-16 15:40:19.829] [info] [engine] Texture loaded 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm' via GPU transfer: 8x8
+[2026-10-16 15:40:19.995] [info] [engine] Frame dt stats: avg=16.679ms min=6.795ms max=27.653ms samples=60
+[2026-10-16 15:40:19.995] [info] [engine] Frame CPU: input=0.40 update=1.05 render=0.44 ui=0.13 present=14.66 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:40:20.430] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.45 MiB scene=0.07 ms
+[2026-10-16 15:40:20.996] [info] [engine] Frame dt stats: avg=16.691ms min=16.152ms max=17.614ms samples=60
+[2026-10-16 15:40:20.996] [info] [engine] Frame CPU: input=0.41 update=0.91 render=0.13 ui=0.14 present=15.08 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:40:21.430] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.08 MiB scene=0.06 ms
+[2026-10-16 15:40:21.997] [info] [engine] Frame dt stats: avg=16.678ms min=15.909ms max=17.335ms samples=60
+[2026-10-16 15:40:21.997] [info] [engine] Frame CPU: input=0.47 update=0.99 render=0.15 ui=0.15 present=14.92 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:40:22.432] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=7.17 MiB scene=0.08 ms
+[2026-10-16 15:40:22.733] [info] [engine] Luau live: Reloaded scripts/SoakDriver.luau (runtime state preserved)
+[2026-10-16 15:40:22.823] [info] [engine] ResourceManager cache miss [class engine::resources::Texture] 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm'
+[2026-10-16 15:40:22.848] [info] [engine] Texture loaded 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm' via GPU transfer: 8x8
+[2026-10-16 15:40:22.997] [info] [engine] Frame dt stats: avg=16.679ms min=6.490ms max=28.372ms samples=60
+[2026-10-16 15:40:22.998] [info] [engine] Frame CPU: input=0.45 update=1.20 render=0.47 ui=0.17 present=14.39 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:40:23.433] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.90 MiB scene=0.09 ms
+[2026-10-16 15:40:23.998] [info] [engine] Frame dt stats: avg=16.682ms min=15.910ms max=17.724ms samples=60
+[2026-10-16 15:40:23.999] [info] [engine] Frame CPU: input=0.48 update=1.10 render=0.17 ui=0.17 present=14.76 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:40:24.434] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.30 MiB scene=0.08 ms
+[2026-10-16 15:40:24.999] [info] [engine] Frame dt stats: avg=16.670ms min=16.052ms max=17.251ms samples=60
+[2026-10-16 15:40:24.999] [info] [engine] Frame CPU: input=0.41 update=0.91 render=0.14 ui=0.15 present=15.06 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:40:25.451] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.21 MiB scene=0.06 ms
+[2026-10-16 15:40:25.841] [info] [engine] ResourceManager cache miss [class engine::resources::Texture] 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm'
+[2026-10-16 15:40:25.864] [info] [engine] Texture loaded 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm' via GPU transfer: 8x8
+[2026-10-16 15:40:26.000] [info] [engine] Frame dt stats: avg=16.684ms min=6.988ms max=26.451ms samples=60
+[2026-10-16 15:40:26.000] [info] [engine] Frame CPU: input=0.41 update=1.08 render=0.44 ui=0.14 present=14.61 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:40:26.452] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.15 MiB scene=0.08 ms
+[2026-10-16 15:40:27.001] [info] [engine] Frame dt stats: avg=16.684ms min=15.966ms max=17.346ms samples=60
+[2026-10-16 15:40:27.001] [info] [engine] Frame CPU: input=0.41 update=0.93 render=0.13 ui=0.14 present=15.06 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:40:27.453] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.79 MiB scene=0.07 ms
+[2026-10-16 15:40:28.001] [info] [engine] Frame dt stats: avg=16.678ms min=16.173ms max=17.358ms samples=60
+[2026-10-16 15:40:28.001] [info] [engine] Frame CPU: input=0.42 update=0.96 render=0.14 ui=0.14 present=15.01 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:40:28.469] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.31 MiB scene=0.03 ms
+[2026-10-16 15:40:28.859] [info] [engine] ResourceManager cache miss [class engine::resources::Texture] 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm'
+[2026-10-16 15:40:28.884] [info] [engine] Texture loaded 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm' via GPU transfer: 8x8
+[2026-10-16 15:40:29.002] [info] [engine] Frame dt stats: avg=16.678ms min=5.942ms max=27.399ms samples=60
+[2026-10-16 15:40:29.002] [info] [engine] Frame CPU: input=0.40 update=1.03 render=0.46 ui=0.14 present=14.65 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:40:29.470] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.30 MiB scene=0.04 ms
+[2026-10-16 15:40:30.003] [info] [engine] Frame dt stats: avg=16.682ms min=15.893ms max=17.273ms samples=60
+[2026-10-16 15:40:30.003] [info] [engine] Frame CPU: input=0.41 update=0.86 render=0.13 ui=0.14 present=15.14 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:40:30.471] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=7.65 MiB scene=0.06 ms
+[2026-10-16 15:40:31.003] [info] [engine] Frame dt stats: avg=16.673ms min=16.187ms max=17.305ms samples=60
+[2026-10-16 15:40:31.004] [info] [engine] Frame CPU: input=0.39 update=0.89 render=0.12 ui=0.14 present=15.13 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:40:31.472] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.56 MiB scene=0.07 ms
+[2026-10-16 15:40:31.879] [info] [engine] ResourceManager cache miss [class engine::resources::Texture] 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm'
+[2026-10-16 15:40:31.906] [info] [engine] Texture loaded 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm' via GPU transfer: 8x8
+[2026-10-16 15:40:32.004] [info] [engine] Frame dt stats: avg=16.678ms min=8.653ms max=27.941ms samples=60
+[2026-10-16 15:40:32.004] [info] [engine] Frame CPU: input=0.39 update=1.06 render=0.43 ui=0.13 present=14.67 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:40:32.473] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.00 MiB scene=0.07 ms
+[2026-10-16 15:40:32.723] [info] [engine] Luau live: Reloaded scripts/SoakDriver.luau (runtime state preserved)
+[2026-10-16 15:40:33.005] [info] [engine] Frame dt stats: avg=16.679ms min=16.089ms max=17.287ms samples=60
+[2026-10-16 15:40:33.005] [info] [engine] Frame CPU: input=0.39 update=0.89 render=0.13 ui=0.14 present=15.11 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:40:33.474] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.47 MiB scene=0.07 ms
+[2026-10-16 15:40:34.006] [info] [engine] Frame dt stats: avg=16.687ms min=16.073ms max=17.489ms samples=60
+[2026-10-16 15:40:34.006] [info] [engine] Frame CPU: input=0.36 update=0.83 render=0.12 ui=0.13 present=15.23 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:40:34.474] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=7.08 MiB scene=0.03 ms
+[2026-10-16 15:40:34.900] [info] [engine] ResourceManager cache miss [class engine::resources::Texture] 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm'
+[2026-10-16 15:40:34.928] [info] [engine] Texture loaded 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm' via GPU transfer: 8x8
+[2026-10-16 15:40:35.007] [info] [engine] Frame dt stats: avg=16.684ms min=7.633ms max=32.063ms samples=60
+[2026-10-16 15:40:35.007] [info] [engine] Frame CPU: input=0.41 update=1.13 render=0.50 ui=0.14 present=14.50 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:40:35.474] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.43 MiB scene=0.05 ms
+[2026-10-16 15:40:36.007] [info] [engine] Frame dt stats: avg=16.674ms min=16.032ms max=17.373ms samples=60
+[2026-10-16 15:40:36.007] [info] [engine] Frame CPU: input=0.41 update=0.92 render=0.13 ui=0.14 present=15.08 ms, steps/frame=1.02, discarded=0.00 ms/frame
+[2026-10-16 15:40:36.476] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.26 MiB scene=0.05 ms
+[2026-10-16 15:40:37.008] [info] [engine] Frame dt stats: avg=16.675ms min=16.078ms max=17.325ms samples=60
+[2026-10-16 15:40:37.008] [info] [engine] Frame CPU: input=0.40 update=0.89 render=0.14 ui=0.15 present=15.10 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:40:37.476] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.17 MiB scene=0.11 ms
+[2026-10-16 15:40:37.902] [info] [engine] ResourceManager cache miss [class engine::resources::Texture] 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm'
+[2026-10-16 15:40:37.929] [info] [engine] Texture loaded 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm' via GPU transfer: 8x8
+[2026-10-16 15:40:38.009] [info] [engine] Frame dt stats: avg=16.691ms min=5.695ms max=32.426ms samples=60
+[2026-10-16 15:40:38.009] [info] [engine] Frame CPU: input=0.42 update=1.12 render=0.52 ui=0.15 present=14.47 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:40:38.477] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=7.07 MiB scene=0.11 ms
+[2026-10-16 15:40:39.010] [info] [engine] Frame dt stats: avg=16.676ms min=16.051ms max=17.306ms samples=60
+[2026-10-16 15:40:39.010] [info] [engine] Frame CPU: input=0.40 update=0.92 render=0.15 ui=0.15 present=15.06 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:40:39.479] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.56 MiB scene=0.08 ms
+[2026-10-16 15:40:40.010] [info] [engine] Frame dt stats: avg=16.671ms min=15.886ms max=17.479ms samples=60
+[2026-10-16 15:40:40.011] [info] [engine] Frame CPU: input=0.37 update=0.86 render=0.12 ui=0.14 present=15.18 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:40:40.479] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.12 MiB scene=0.07 ms
+[2026-10-16 15:40:40.920] [info] [engine] ResourceManager cache miss [class engine::resources::Texture] 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm'
+[2026-10-16 15:40:40.953] [info] [engine] Texture loaded 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm' via GPU transfer: 8x8
+[2026-10-16 15:40:41.011] [info] [engine] Frame dt stats: avg=16.678ms min=7.211ms max=34.874ms samples=60
+[2026-10-16 15:40:41.012] [info] [engine] Frame CPU: input=0.43 update=1.13 render=0.56 ui=0.14 present=14.42 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:40:41.480] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.33 MiB scene=0.06 ms
+[2026-10-16 15:40:42.012] [info] [engine] Frame dt stats: avg=16.686ms min=15.954ms max=17.429ms samples=60
+[2026-10-16 15:40:42.012] [info] [engine] Frame CPU: input=0.40 update=0.89 render=0.13 ui=0.13 present=15.12 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:40:42.481] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=7.10 MiB scene=0.07 ms
+[2026-10-16 15:40:42.832] [info] [engine] Luau live: Reloaded scripts/SoakDriver.luau (runtime state preserved)
+[2026-10-16 15:40:43.013] [info] [engine] Frame dt stats: avg=16.678ms min=15.824ms max=17.389ms samples=60
+[2026-10-16 15:40:43.013] [info] [engine] Frame CPU: input=0.40 update=0.98 render=0.14 ui=0.14 present=15.03 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:40:43.482] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.54 MiB scene=0.05 ms
+[2026-10-16 15:40:43.939] [info] [engine] ResourceManager cache miss [class engine::resources::Texture] 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm'
+[2026-10-16 15:40:43.967] [info] [engine] Texture loaded 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm' via GPU transfer: 8x8
+[2026-10-16 15:40:44.014] [info] [engine] Frame dt stats: avg=16.684ms min=5.809ms max=31.859ms samples=60
+[2026-10-16 15:40:44.014] [info] [engine] Frame CPU: input=0.40 update=1.03 render=0.51 ui=0.14 present=14.59 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:40:44.499] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.44 MiB scene=0.07 ms
+[2026-10-16 15:40:45.015] [info] [engine] Frame dt stats: avg=16.680ms min=16.254ms max=17.230ms samples=60
+[2026-10-16 15:40:45.015] [info] [engine] Frame CPU: input=0.41 update=0.91 render=0.13 ui=0.13 present=15.09 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:40:45.500] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.21 MiB scene=0.05 ms
+[2026-10-16 15:40:46.016] [info] [engine] Frame dt stats: avg=16.674ms min=15.966ms max=17.344ms samples=60
+[2026-10-16 15:40:46.016] [info] [engine] Frame CPU: input=0.39 update=0.89 render=0.13 ui=0.13 present=15.15 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:40:46.501] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.84 MiB scene=0.04 ms
+[2026-10-16 15:40:46.960] [info] [engine] ResourceManager cache miss [class engine::resources::Texture] 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm'
+[2026-10-16 15:40:46.988] [info] [engine] Texture loaded 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm' via GPU transfer: 8x8
+[2026-10-16 15:40:47.016] [info] [engine] Frame dt stats: avg=16.689ms min=7.244ms max=33.285ms samples=60
+[2026-10-16 15:40:47.016] [info] [engine] Frame CPU: input=0.41 update=1.14 render=0.51 ui=0.15 present=14.46 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:40:47.517] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.28 MiB scene=0.05 ms
+[2026-10-16 15:40:48.017] [info] [engine] Frame dt stats: avg=16.680ms min=15.938ms max=17.449ms samples=60
+[2026-10-16 15:40:48.017] [info] [engine] Frame CPU: input=0.41 update=0.93 render=0.14 ui=0.16 present=15.03 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:40:48.519] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.08 MiB scene=0.06 ms
+[2026-10-16 15:40:49.017] [info] [engine] Frame dt stats: avg=16.677ms min=16.191ms max=17.302ms samples=60
+[2026-10-16 15:40:49.018] [info] [engine] Frame CPU: input=0.41 update=0.90 render=0.14 ui=0.15 present=15.06 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:40:49.520] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=7.52 MiB scene=0.07 ms
+[2026-10-16 15:40:49.977] [info] [engine] ResourceManager cache miss [class engine::resources::Texture] 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm'
+[2026-10-16 15:40:50.004] [info] [engine] Texture loaded 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm' via GPU transfer: 8x8
+[2026-10-16 15:40:50.018] [info] [engine] Frame dt stats: avg=16.722ms min=6.572ms max=29.273ms samples=60
+[2026-10-16 15:40:50.018] [info] [engine] Frame CPU: input=0.42 update=1.12 render=0.48 ui=0.15 present=14.51 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:40:50.521] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.69 MiB scene=0.06 ms
+[2026-10-16 15:40:51.036] [info] [engine] Frame dt stats: avg=16.637ms min=13.583ms max=17.541ms samples=61
+[2026-10-16 15:40:51.036] [info] [engine] Frame CPU: input=0.43 update=0.97 render=0.13 ui=0.14 present=15.00 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:40:51.521] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.21 MiB scene=0.11 ms
+[2026-10-16 15:40:52.037] [info] [engine] Frame dt stats: avg=16.675ms min=15.818ms max=17.647ms samples=60
+[2026-10-16 15:40:52.037] [info] [engine] Frame CPU: input=0.38 update=0.83 render=0.12 ui=0.13 present=15.22 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:40:52.521] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.27 MiB scene=0.03 ms
+[2026-10-16 15:40:52.806] [info] [engine] Luau live: Reloaded scripts/SoakDriver.luau (runtime state preserved)
+[2026-10-16 15:40:52.996] [info] [engine] ResourceManager cache miss [class engine::resources::Texture] 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm'
+[2026-10-16 15:40:53.030] [info] [engine] Texture loaded 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm' via GPU transfer: 8x8
+[2026-10-16 15:40:53.031] [info] [engine] Frame dt stats: avg=17.012ms min=16.124ms max=36.609ms samples=59
+[2026-10-16 15:40:53.031] [info] [engine] Frame CPU: input=0.38 update=1.14 render=0.58 ui=0.14 present=14.61 ms, steps/frame=1.02, discarded=0.00 ms/frame
+[2026-10-16 15:40:53.522] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=7.39 MiB scene=0.03 ms
+[2026-10-16 15:40:54.055] [info] [engine] Frame dt stats: avg=16.366ms min=6.883ms max=17.501ms samples=62
+[2026-10-16 15:40:54.055] [info] [engine] Frame CPU: input=0.42 update=0.98 render=0.15 ui=0.16 present=14.81 ms, steps/frame=0.98, discarded=0.00 ms/frame
+[2026-10-16 15:40:54.524] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.60 MiB scene=0.09 ms
+[2026-10-16 15:40:55.056] [info] [engine] Frame dt stats: avg=16.749ms min=5.165ms max=31.737ms samples=60
+[2026-10-16 15:40:55.056] [info] [engine] Frame CPU: input=0.82 update=1.18 render=0.19 ui=0.18 present=14.31 ms, steps/frame=1.02, discarded=0.00 ms/frame
+[2026-10-16 15:40:55.525] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.49 MiB scene=0.09 ms
+[2026-10-16 15:40:56.018] [info] [engine] ResourceManager cache miss [class engine::resources::Texture] 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm'
+[2026-10-16 15:40:56.052] [info] [engine] Texture loaded 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm' via GPU transfer: 8x8
+[2026-10-16 15:40:56.054] [info] [engine] Frame dt stats: avg=16.970ms min=13.742ms max=37.305ms samples=59
+[2026-10-16 15:40:56.054] [info] [engine] Frame CPU: input=0.58 update=1.37 render=0.63 ui=0.19 present=14.14 ms, steps/frame=1.02, discarded=0.00 ms/frame
+[2026-10-16 15:40:56.526] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.38 MiB scene=0.09 ms
+[2026-10-16 15:40:57.074] [info] [engine] Frame dt stats: avg=16.333ms min=3.178ms max=17.670ms samples=62
+[2026-10-16 15:40:57.074] [info] [engine] Frame CPU: input=0.49 update=1.12 render=0.18 ui=0.19 present=14.47 ms, steps/frame=0.97, discarded=0.00 ms/frame
+[2026-10-16 15:40:57.527] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=7.45 MiB scene=0.09 ms
+[2026-10-16 15:40:58.075] [info] [engine] Frame dt stats: avg=16.683ms min=15.845ms max=17.652ms samples=60
+[2026-10-16 15:40:58.075] [info] [engine] Frame CPU: input=0.50 update=1.23 render=0.20 ui=0.19 present=14.56 ms, steps/frame=1.02, discarded=0.00 ms/frame
+[2026-10-16 15:40:58.527] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.65 MiB scene=0.07 ms
+[2026-10-16 15:40:59.020] [info] [engine] ResourceManager cache miss [class engine::resources::Texture] 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm'
+[2026-10-16 15:40:59.055] [info] [engine] Texture loaded 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm' via GPU transfer: 8x8
+[2026-10-16 15:40:59.076] [info] [engine] Frame dt stats: avg=16.674ms min=2.663ms max=38.047ms samples=60
+[2026-10-16 15:40:59.076] [info] [engine] Frame CPU: input=0.47 update=1.30 render=0.61 ui=0.17 present=14.12 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:40:59.528] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.13 MiB scene=0.11 ms
+[2026-10-16 15:41:00.076] [info] [engine] Frame dt stats: avg=16.693ms min=8.780ms max=31.005ms samples=60
+[2026-10-16 15:41:00.076] [info] [engine] Frame CPU: input=0.80 update=1.44 render=0.30 ui=0.27 present=13.85 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:41:00.545] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.43 MiB scene=0.08 ms
+[2026-10-16 15:41:01.077] [info] [engine] Frame dt stats: avg=16.669ms min=15.987ms max=17.475ms samples=60
+[2026-10-16 15:41:01.077] [info] [engine] Frame CPU: input=0.44 update=1.05 render=0.16 ui=0.17 present=14.85 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:41:01.546] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.86 MiB scene=0.08 ms
+[2026-10-16 15:41:02.037] [info] [engine] ResourceManager cache miss [class engine::resources::Texture] 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm'
+[2026-10-16 15:41:02.065] [info] [engine] Texture loaded 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm' via GPU transfer: 8x8
+[2026-10-16 15:41:02.078] [info] [engine] Frame dt stats: avg=16.758ms min=7.995ms max=30.205ms samples=60
+[2026-10-16 15:41:02.078] [info] [engine] Frame CPU: input=0.42 update=1.17 render=0.47 ui=0.15 present=14.47 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:41:02.547] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.44 MiB scene=0.07 ms
+[2026-10-16 15:41:02.730] [info] [engine] Luau live: Reloaded scripts/SoakDriver.luau (runtime state preserved)
+[2026-10-16 15:41:03.095] [info] [engine] Frame dt stats: avg=16.613ms min=12.424ms max=17.325ms samples=61
+[2026-10-16 15:41:03.095] [info] [engine] Frame CPU: input=0.44 update=1.00 render=0.15 ui=0.16 present=14.92 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:41:03.547] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.21 MiB scene=0.04 ms
+[2026-10-16 15:41:04.113] [info] [engine] Frame dt stats: avg=16.674ms min=15.863ms max=17.363ms samples=61
+[2026-10-16 15:41:04.113] [info] [engine] Frame CPU: input=0.43 update=0.96 render=0.14 ui=0.15 present=15.00 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:41:04.547] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.04 MiB scene=0.05 ms
+[2026-10-16 15:41:05.057] [info] [engine] ResourceManager cache miss [class engine::resources::Texture] 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm'
+[2026-10-16 15:41:05.091] [info] [engine] Texture loaded 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm' via GPU transfer: 8x8
+[2026-10-16 15:41:05.114] [info] [engine] Frame dt stats: avg=16.680ms min=4.151ms max=37.777ms samples=60
+[2026-10-16 15:41:05.114] [info] [engine] Frame CPU: input=0.42 update=1.15 render=0.61 ui=0.15 present=14.34 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:41:05.549] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.79 MiB scene=0.07 ms
+[2026-10-16 15:41:06.114] [info] [engine] Frame dt stats: avg=16.696ms min=15.906ms max=17.375ms samples=60
+[2026-10-16 15:41:06.114] [info] [engine] Frame CPU: input=0.42 update=0.99 render=0.16 ui=0.16 present=14.95 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:41:06.550] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.43 MiB scene=0.07 ms
+[2026-10-16 15:41:07.115] [info] [engine] Frame dt stats: avg=16.668ms min=15.354ms max=17.544ms samples=60
+[2026-10-16 15:41:07.115] [info] [engine] Frame CPU: input=0.44 update=1.02 render=0.16 ui=0.18 present=14.88 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:41:07.566] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.11 MiB scene=0.03 ms
+[2026-10-16 15:41:08.075] [info] [engine] ResourceManager cache miss [class engine::resources::Texture] 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm'
+[2026-10-16 15:41:08.108] [info] [engine] Texture loaded 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm' via GPU transfer: 8x8
+[2026-10-16 15:41:08.110] [info] [engine] Frame dt stats: avg=16.994ms min=16.013ms max=35.960ms samples=59
+[2026-10-16 15:41:08.110] [info] [engine] Frame CPU: input=0.42 update=1.21 render=0.60 ui=0.16 present=14.47 ms, steps/frame=1.02, discarded=0.00 ms/frame
+[2026-10-16 15:41:08.568] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.36 MiB scene=0.08 ms
+[2026-10-16 15:41:09.133] [info] [engine] Frame dt stats: avg=16.371ms min=5.795ms max=17.277ms samples=62
+[2026-10-16 15:41:09.133] [info] [engine] Frame CPU: input=0.41 update=0.92 render=0.15 ui=0.16 present=14.86 ms, steps/frame=0.98, discarded=0.00 ms/frame
+[2026-10-16 15:41:09.569] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.79 MiB scene=0.09 ms
+[2026-10-16 15:41:10.135] [info] [engine] Frame dt stats: avg=16.694ms min=15.855ms max=18.179ms samples=60
+[2026-10-16 15:41:10.135] [info] [engine] Frame CPU: input=0.56 update=1.14 render=0.18 ui=0.18 present=14.64 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:41:10.570] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.41 MiB scene=0.07 ms
+[2026-10-16 15:41:11.101] [info] [engine] ResourceManager cache miss [class engine::resources::Texture] 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm'
+[2026-10-16 15:41:11.156] [info] [engine] Texture loaded 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm' via GPU transfer: 8x8
+[2026-10-16 15:41:11.157] [info] [engine] Frame dt stats: avg=17.442ms min=15.727ms max=61.294ms samples=59
+[2026-10-16 15:41:11.157] [info] [engine] Frame CPU: input=0.63 update=1.58 render=0.99 ui=0.21 present=13.92 ms, steps/frame=1.02, discarded=0.56 ms/frame
+[2026-10-16 15:41:11.570] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.26 MiB scene=0.07 ms
+[2026-10-16 15:41:12.170] [info] [engine] Frame dt stats: avg=16.221ms min=2.055ms max=17.708ms samples=62
+[2026-10-16 15:41:12.170] [info] [engine] Frame CPU: input=0.64 update=1.28 render=0.22 ui=0.21 present=13.98 ms, steps/frame=0.97, discarded=0.00 ms/frame
+[2026-10-16 15:41:12.573] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.83 MiB scene=0.07 ms
+[2026-10-16 15:41:12.788] [info] [engine] Luau live: Reloaded scripts/SoakDriver.luau (runtime state preserved)
+[2026-10-16 15:41:13.170] [info] [engine] Frame dt stats: avg=16.698ms min=15.413ms max=18.767ms samples=60
+[2026-10-16 15:41:13.170] [info] [engine] Frame CPU: input=0.66 update=1.30 render=0.22 ui=0.22 present=14.28 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:41:13.588] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.71 MiB scene=0.07 ms
+[2026-10-16 15:41:14.145] [info] [engine] ResourceManager cache miss [class engine::resources::Texture] 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm'
+[2026-10-16 15:41:14.170] [info] [engine] Texture loaded 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm' via GPU transfer: 8x8
+[2026-10-16 15:41:14.171] [info] [engine] Frame dt stats: avg=16.832ms min=15.500ms max=27.823ms samples=60
+[2026-10-16 15:41:14.171] [info] [engine] Frame CPU: input=0.42 update=1.26 render=0.50 ui=0.18 present=14.31 ms, steps/frame=1.02, discarded=0.00 ms/frame
+[2026-10-16 15:41:14.589] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.52 MiB scene=0.07 ms
+[2026-10-16 15:41:15.188] [info] [engine] Frame dt stats: avg=16.499ms min=5.933ms max=17.570ms samples=61
+[2026-10-16 15:41:15.188] [info] [engine] Frame CPU: input=0.41 update=0.93 render=0.16 ui=0.18 present=15.00 ms, steps/frame=0.98, discarded=0.00 ms/frame
+[2026-10-16 15:41:15.589] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.17 MiB scene=0.05 ms
+[2026-10-16 15:41:16.189] [info] [engine] Frame dt stats: avg=16.689ms min=16.008ms max=17.386ms samples=60
+[2026-10-16 15:41:16.189] [info] [engine] Frame CPU: input=0.43 update=1.01 render=0.16 ui=0.17 present=14.90 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:41:16.591] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=7.04 MiB scene=0.07 ms
+[2026-10-16 15:41:17.171] [info] [engine] ResourceManager cache miss [class engine::resources::Texture] 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm'
+[2026-10-16 15:41:17.195] [info] [engine] Texture loaded 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm' via GPU transfer: 8x8
+[2026-10-16 15:41:17.196] [info] [engine] Frame dt stats: avg=17.018ms min=15.801ms max=35.659ms samples=60
+[2026-10-16 15:41:17.196] [info] [engine] Frame CPU: input=0.51 update=1.37 render=0.53 ui=0.18 present=14.20 ms, steps/frame=1.03, discarded=0.00 ms/frame
+[2026-10-16 15:41:17.592] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.69 MiB scene=0.08 ms
+[2026-10-16 15:41:18.225] [info] [engine] Frame dt stats: avg=16.379ms min=2.891ms max=18.310ms samples=62
+[2026-10-16 15:41:18.225] [info] [engine] Frame CPU: input=0.55 update=1.18 render=0.18 ui=0.19 present=14.49 ms, steps/frame=0.98, discarded=0.00 ms/frame
+[2026-10-16 15:41:18.595] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.42 MiB scene=0.58 ms
+[2026-10-16 15:41:19.225] [info] [engine] Frame dt stats: avg=16.679ms min=13.331ms max=19.899ms samples=60
+[2026-10-16 15:41:19.225] [info] [engine] Frame CPU: input=0.93 update=1.67 render=0.33 ui=0.27 present=13.46 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:41:19.609] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.35 MiB scene=0.07 ms
+[2026-10-16 15:41:20.182] [info] [engine] ResourceManager cache miss [class engine::resources::Texture] 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm'
+[2026-10-16 15:41:20.230] [info] [engine] Texture loaded 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm' via GPU transfer: 8x8
+[2026-10-16 15:41:20.231] [info] [engine] Frame dt stats: avg=17.424ms min=13.050ms max=60.798ms samples=58
+[2026-10-16 15:41:20.231] [info] [engine] Frame CPU: input=0.91 update=1.94 render=1.00 ui=0.26 present=13.24 ms, steps/frame=1.00, discarded=0.57 ms/frame
+[2026-10-16 15:41:20.613] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=7.23 MiB scene=0.17 ms
+[2026-10-16 15:41:21.243] [info] [engine] Frame dt stats: avg=16.227ms min=5.112ms max=18.477ms samples=62
+[2026-10-16 15:41:21.243] [info] [engine] Frame CPU: input=0.83 update=1.42 render=0.26 ui=0.25 present=13.56 ms, steps/frame=0.98, discarded=0.00 ms/frame
+[2026-10-16 15:41:21.627] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.63 MiB scene=0.03 ms
+[2026-10-16 15:41:22.244] [info] [engine] Frame dt stats: avg=16.671ms min=15.894ms max=17.420ms samples=60
+[2026-10-16 15:41:22.244] [info] [engine] Frame CPU: input=0.43 update=0.96 render=0.14 ui=0.14 present=15.00 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:41:22.628] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.44 MiB scene=0.04 ms
+[2026-10-16 15:41:22.712] [info] [engine] Luau live: Reloaded scripts/SoakDriver.luau (runtime state preserved)
+[2026-10-16 15:41:23.220] [info] [engine] ResourceManager cache miss [class engine::resources::Texture] 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm'
+[2026-10-16 15:41:23.247] [info] [engine] Texture loaded 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm' via GPU transfer: 8x8
+[2026-10-16 15:41:23.248] [info] [engine] Frame dt stats: avg=16.897ms min=15.768ms max=29.246ms samples=60
+[2026-10-16 15:41:23.248] [info] [engine] Frame CPU: input=0.43 update=1.17 render=0.49 ui=0.16 present=14.50 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:41:23.629] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.17 MiB scene=0.07 ms
+[2026-10-16 15:41:24.262] [info] [engine] Frame dt stats: avg=16.466ms min=7.584ms max=17.619ms samples=61
+[2026-10-16 15:41:24.262] [info] [engine] Frame CPU: input=0.41 update=0.94 render=0.14 ui=0.15 present=14.96 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:41:24.630] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=7.27 MiB scene=0.06 ms
+[2026-10-16 15:41:25.263] [info] [engine] Frame dt stats: avg=16.697ms min=16.158ms max=17.557ms samples=60
+[2026-10-16 15:41:25.263] [info] [engine] Frame CPU: input=0.41 update=0.92 render=0.14 ui=0.15 present=15.05 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:41:25.631] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.47 MiB scene=0.06 ms
+[2026-10-16 15:41:26.239] [info] [engine] ResourceManager cache miss [class engine::resources::Texture] 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm'
+[2026-10-16 15:41:26.263] [info] [engine] Texture loaded 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm' via GPU transfer: 8x8
+[2026-10-16 15:41:26.265] [info] [engine] Frame dt stats: avg=16.860ms min=16.029ms max=28.683ms samples=60
+[2026-10-16 15:41:26.265] [info] [engine] Frame CPU: input=0.38 update=1.08 render=0.45 ui=0.15 present=14.64 ms, steps/frame=1.02, discarded=0.00 ms/frame
+[2026-10-16 15:41:26.648] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.04 MiB scene=0.06 ms
+[2026-10-16 15:41:27.281] [info] [engine] Frame dt stats: avg=16.481ms min=6.711ms max=17.368ms samples=61
+[2026-10-16 15:41:27.281] [info] [engine] Frame CPU: input=0.39 update=0.82 render=0.13 ui=0.15 present=15.16 ms, steps/frame=0.98, discarded=0.00 ms/frame
+[2026-10-16 15:41:27.649] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.35 MiB scene=0.03 ms
+[2026-10-16 15:41:28.282] [info] [engine] Frame dt stats: avg=16.691ms min=16.091ms max=17.260ms samples=60
+[2026-10-16 15:41:28.282] [info] [engine] Frame CPU: input=0.42 update=0.92 render=0.14 ui=0.15 present=15.05 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:41:28.651] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.78 MiB scene=0.09 ms
+[2026-10-16 15:41:29.259] [info] [engine] ResourceManager cache miss [class engine::resources::Texture] 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm'
+[2026-10-16 15:41:29.289] [info] [engine] Texture loaded 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm' via GPU transfer: 8x8
+[2026-10-16 15:41:29.290] [info] [engine] Frame dt stats: avg=16.958ms min=15.669ms max=33.042ms samples=60
+[2026-10-16 15:41:29.290] [info] [engine] Frame CPU: input=0.51 update=1.36 render=0.55 ui=0.17 present=14.20 ms, steps/frame=1.02, discarded=0.00 ms/frame
+[2026-10-16 15:41:29.668] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.47 MiB scene=0.07 ms
+[2026-10-16 15:41:30.300] [info] [engine] Frame dt stats: avg=16.409ms min=7.108ms max=17.369ms samples=61
+[2026-10-16 15:41:30.300] [info] [engine] Frame CPU: input=0.43 update=0.94 render=0.15 ui=0.16 present=14.86 ms, steps/frame=0.98, discarded=0.00 ms/frame
+[2026-10-16 15:41:30.684] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.39 MiB scene=0.03 ms
+[2026-10-16 15:41:31.301] [info] [engine] Frame dt stats: avg=16.675ms min=15.927ms max=17.469ms samples=60
+[2026-10-16 15:41:31.301] [info] [engine] Frame CPU: input=0.43 update=0.96 render=0.14 ui=0.14 present=15.01 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:41:31.686] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.23 MiB scene=0.07 ms
+[2026-10-16 15:41:32.278] [info] [engine] ResourceManager cache miss [class engine::resources::Texture] 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm'
+[2026-10-16 15:41:32.312] [info] [engine] Texture loaded 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm' via GPU transfer: 8x8
+[2026-10-16 15:41:32.313] [info] [engine] Frame dt stats: avg=17.020ms min=15.782ms max=36.972ms samples=60
+[2026-10-16 15:41:32.313] [info] [engine] Frame CPU: input=0.50 update=1.38 render=0.63 ui=0.18 present=14.18 ms, steps/frame=1.02, discarded=0.00 ms/frame
+[2026-10-16 15:41:32.687] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.75 MiB scene=0.09 ms
+[2026-10-16 15:41:32.871] [info] [engine] Luau live: Reloaded scripts/SoakDriver.luau (runtime state preserved)
+[2026-10-16 15:41:33.335] [info] [engine] Frame dt stats: avg=16.353ms min=4.568ms max=17.249ms samples=62
+[2026-10-16 15:41:33.336] [info] [engine] Frame CPU: input=0.48 update=1.15 render=0.17 ui=0.17 present=14.51 ms, steps/frame=0.98, discarded=0.00 ms/frame
+[2026-10-16 15:41:33.688] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.39 MiB scene=0.08 ms
+[2026-10-16 15:41:34.336] [info] [engine] Frame dt stats: avg=16.677ms min=15.688ms max=17.467ms samples=60
+[2026-10-16 15:41:34.336] [info] [engine] Frame CPU: input=0.48 update=1.08 render=0.17 ui=0.16 present=14.78 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:41:34.688] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.15 MiB scene=0.06 ms
+[2026-10-16 15:41:35.295] [info] [engine] ResourceManager cache miss [class engine::resources::Texture] 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm'
+[2026-10-16 15:41:35.322] [info] [engine] Texture loaded 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm' via GPU transfer: 8x8
+[2026-10-16 15:41:35.337] [info] [engine] Frame dt stats: avg=16.722ms min=6.291ms max=30.015ms samples=60
+[2026-10-16 15:41:35.337] [info] [engine] Frame CPU: input=0.40 update=1.05 render=0.49 ui=0.14 present=14.60 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:41:35.689] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=7.12 MiB scene=0.06 ms
+[2026-10-16 15:41:36.354] [info] [engine] Frame dt stats: avg=16.629ms min=14.129ms max=17.578ms samples=61
+[2026-10-16 15:41:36.354] [info] [engine] Frame CPU: input=0.41 update=0.91 render=0.13 ui=0.14 present=15.09 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:41:36.689] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.79 MiB scene=0.05 ms
+[2026-10-16 15:41:37.355] [info] [engine] Frame dt stats: avg=16.679ms min=16.079ms max=17.623ms samples=60
+[2026-10-16 15:41:37.355] [info] [engine] Frame CPU: input=0.42 update=0.93 render=0.14 ui=0.15 present=15.03 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:41:37.690] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.43 MiB scene=0.03 ms
+[2026-10-16 15:41:38.314] [info] [engine] ResourceManager cache miss [class engine::resources::Texture] 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm'
+[2026-10-16 15:41:38.338] [info] [engine] Texture loaded 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm' via GPU transfer: 8x8
+[2026-10-16 15:41:38.356] [info] [engine] Frame dt stats: avg=16.681ms min=5.769ms max=27.299ms samples=60
+[2026-10-16 15:41:38.356] [info] [engine] Frame CPU: input=0.39 update=0.98 render=0.43 ui=0.14 present=14.73 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:41:38.691] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.39 MiB scene=0.06 ms
+[2026-10-16 15:41:39.357] [info] [engine] Frame dt stats: avg=16.685ms min=16.246ms max=17.345ms samples=60
+[2026-10-16 15:41:39.357] [info] [engine] Frame CPU: input=0.39 update=0.87 render=0.13 ui=0.15 present=15.14 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:41:39.692] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=7.21 MiB scene=0.07 ms
+[2026-10-16 15:41:40.357] [info] [engine] Frame dt stats: avg=16.680ms min=16.104ms max=17.358ms samples=60
+[2026-10-16 15:41:40.358] [info] [engine] Frame CPU: input=0.42 update=0.96 render=0.14 ui=0.14 present=15.02 ms, steps/frame=1.02, discarded=0.00 ms/frame
+[2026-10-16 15:41:40.692] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.56 MiB scene=0.05 ms
+[2026-10-16 15:41:41.317] [info] [engine] ResourceManager cache miss [class engine::resources::Texture] 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm'
+[2026-10-16 15:41:41.341] [info] [engine] Texture loaded 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm' via GPU transfer: 8x8
+[2026-10-16 15:41:41.359] [info] [engine] Frame dt stats: avg=16.688ms min=5.663ms max=28.107ms samples=60
+[2026-10-16 15:41:41.359] [info] [engine] Frame CPU: input=0.43 update=1.12 render=0.46 ui=0.16 present=14.51 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:41:41.693] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.33 MiB scene=0.07 ms
+[2026-10-16 15:41:42.359] [info] [engine] Frame dt stats: avg=16.676ms min=15.891ms max=17.365ms samples=60
+[2026-10-16 15:41:42.359] [info] [engine] Frame CPU: input=0.38 update=0.87 render=0.13 ui=0.16 present=15.15 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:41:42.694] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.11 MiB scene=0.07 ms
+[2026-10-16 15:41:42.812] [info] [engine] Luau live: Reloaded scripts/SoakDriver.luau (runtime state preserved)
+[2026-10-16 15:41:43.360] [info] [engine] Frame dt stats: avg=16.678ms min=15.918ms max=17.441ms samples=60
+[2026-10-16 15:41:43.360] [info] [engine] Frame CPU: input=0.52 update=1.20 render=0.19 ui=0.19 present=14.57 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:41:43.696] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=7.07 MiB scene=0.06 ms
+[2026-10-16 15:41:44.337] [info] [engine] ResourceManager cache miss [class engine::resources::Texture] 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm'
+[2026-10-16 15:41:44.365] [info] [engine] Texture loaded 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm' via GPU transfer: 8x8
+[2026-10-16 15:41:44.366] [info] [engine] Frame dt stats: avg=16.911ms min=16.123ms max=30.704ms samples=60
+[2026-10-16 15:41:44.366] [info] [engine] Frame CPU: input=0.47 update=1.26 render=0.51 ui=0.17 present=14.35 ms, steps/frame=1.02, discarded=0.00 ms/frame
+[2026-10-16 15:41:44.696] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.64 MiB scene=0.07 ms
+[2026-10-16 15:41:45.378] [info] [engine] Frame dt stats: avg=16.445ms min=7.660ms max=17.348ms samples=61
+[2026-10-16 15:41:45.378] [info] [engine] Frame CPU: input=0.42 update=0.96 render=0.15 ui=0.15 present=14.91 ms, steps/frame=0.98, discarded=0.00 ms/frame
+[2026-10-16 15:41:45.696] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.13 MiB scene=0.03 ms
+[2026-10-16 15:41:46.379] [info] [engine] Frame dt stats: avg=16.678ms min=15.976ms max=17.332ms samples=60
+[2026-10-16 15:41:46.379] [info] [engine] Frame CPU: input=0.40 update=0.87 render=0.15 ui=0.15 present=15.11 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:41:46.697] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.31 MiB scene=0.08 ms
+[2026-10-16 15:41:47.354] [info] [engine] ResourceManager cache miss [class engine::resources::Texture] 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm'
+[2026-10-16 15:41:47.377] [info] [engine] Texture loaded 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm' via GPU transfer: 8x8
+[2026-10-16 15:41:47.380] [info] [engine] Frame dt stats: avg=16.854ms min=16.132ms max=26.944ms samples=60
+[2026-10-16 15:41:47.380] [info] [engine] Frame CPU: input=0.38 update=1.02 render=0.45 ui=0.15 present=14.68 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:41:47.698] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.95 MiB scene=0.07 ms
+[2026-10-16 15:41:48.397] [info] [engine] Frame dt stats: avg=16.508ms min=6.410ms max=17.485ms samples=61
+[2026-10-16 15:41:48.397] [info] [engine] Frame CPU: input=0.38 update=0.88 render=0.12 ui=0.13 present=15.16 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:41:48.716] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.46 MiB scene=0.07 ms
+[2026-10-16 15:41:49.398] [info] [engine] Frame dt stats: avg=16.682ms min=15.978ms max=17.453ms samples=60
+[2026-10-16 15:41:49.398] [info] [engine] Frame CPU: input=0.37 update=0.86 render=0.13 ui=0.14 present=15.18 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:41:49.717] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.29 MiB scene=0.16 ms
+[2026-10-16 15:41:50.374] [info] [engine] ResourceManager cache miss [class engine::resources::Texture] 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm'
+[2026-10-16 15:41:50.397] [info] [engine] Texture loaded 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm' via GPU transfer: 8x8
+[2026-10-16 15:41:50.399] [info] [engine] Frame dt stats: avg=16.862ms min=15.745ms max=27.115ms samples=60
+[2026-10-16 15:41:50.399] [info] [engine] Frame CPU: input=0.46 update=1.16 render=0.47 ui=0.16 present=14.42 ms, steps/frame=1.02, discarded=0.00 ms/frame
+[2026-10-16 15:41:50.717] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.30 MiB scene=0.09 ms
+[2026-10-16 15:41:51.416] [info] [engine] Frame dt stats: avg=16.501ms min=5.785ms max=17.805ms samples=61
+[2026-10-16 15:41:51.416] [info] [engine] Frame CPU: input=0.42 update=0.91 render=0.14 ui=0.15 present=15.04 ms, steps/frame=0.98, discarded=0.00 ms/frame
+[2026-10-16 15:41:51.718] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.98 MiB scene=0.06 ms
+[2026-10-16 15:41:52.417] [info] [engine] Frame dt stats: avg=16.677ms min=15.208ms max=17.426ms samples=60
+[2026-10-16 15:41:52.417] [info] [engine] Frame CPU: input=0.40 update=0.96 render=0.14 ui=0.15 present=15.02 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:41:52.719] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.41 MiB scene=0.08 ms
+[2026-10-16 15:41:52.786] [info] [engine] Luau live: Reloaded scripts/SoakDriver.luau (runtime state preserved)
+[2026-10-16 15:41:53.394] [info] [engine] ResourceManager cache miss [class engine::resources::Texture] 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm'
+[2026-10-16 15:41:53.419] [info] [engine] Texture loaded 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm' via GPU transfer: 8x8
+[2026-10-16 15:41:53.420] [info] [engine] Frame dt stats: avg=16.897ms min=15.523ms max=29.419ms samples=60
+[2026-10-16 15:41:53.420] [info] [engine] Frame CPU: input=0.48 update=1.36 render=0.51 ui=0.19 present=14.17 ms, steps/frame=1.02, discarded=0.00 ms/frame
+[2026-10-16 15:41:53.719] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=5.87 MiB scene=0.12 ms
+[2026-10-16 15:41:54.435] [info] [engine] Frame dt stats: avg=16.471ms min=6.062ms max=17.357ms samples=61
+[2026-10-16 15:41:54.435] [info] [engine] Frame CPU: input=0.42 update=0.91 render=0.15 ui=0.17 present=14.99 ms, steps/frame=0.98, discarded=0.00 ms/frame
+[2026-10-16 15:41:54.719] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=7.38 MiB scene=0.03 ms
+[2026-10-16 15:41:55.436] [info] [engine] Frame dt stats: avg=16.682ms min=16.221ms max=17.192ms samples=60
+[2026-10-16 15:41:55.436] [info] [engine] Frame CPU: input=0.38 update=0.90 render=0.13 ui=0.14 present=15.13 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:41:55.721] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.70 MiB scene=0.08 ms
+[2026-10-16 15:41:56.411] [info] [engine] ResourceManager cache miss [class engine::resources::Texture] 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm'
+[2026-10-16 15:41:56.436] [info] [engine] Texture loaded 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm' via GPU transfer: 8x8
+[2026-10-16 15:41:56.437] [info] [engine] Frame dt stats: avg=16.859ms min=15.943ms max=27.478ms samples=60
+[2026-10-16 15:41:56.437] [info] [engine] Frame CPU: input=0.42 update=1.16 render=0.47 ui=0.15 present=14.48 ms, steps/frame=1.02, discarded=0.00 ms/frame
+[2026-10-16 15:41:56.722] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.44 MiB scene=0.06 ms
+[2026-10-16 15:41:57.454] [info] [engine] Frame dt stats: avg=16.504ms min=5.797ms max=17.354ms samples=61
+[2026-10-16 15:41:57.454] [info] [engine] Frame CPU: input=0.42 update=0.89 render=0.14 ui=0.15 present=15.08 ms, steps/frame=0.98, discarded=0.00 ms/frame
+[2026-10-16 15:41:57.739] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.20 MiB scene=0.07 ms
+[2026-10-16 15:41:58.455] [info] [engine] Frame dt stats: avg=16.680ms min=15.974ms max=17.528ms samples=60
+[2026-10-16 15:41:58.455] [info] [engine] Frame CPU: input=0.40 update=0.84 render=0.12 ui=0.13 present=15.18 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:41:58.740] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=7.38 MiB scene=0.07 ms
+[2026-10-16 15:41:59.433] [info] [engine] ResourceManager cache miss [class engine::resources::Texture] 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm'
+[2026-10-16 15:41:59.461] [info] [engine] Texture loaded 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm' via GPU transfer: 8x8
+[2026-10-16 15:41:59.462] [info] [engine] Frame dt stats: avg=16.967ms min=16.125ms max=33.893ms samples=60
+[2026-10-16 15:41:59.462] [info] [engine] Frame CPU: input=0.43 update=1.21 render=0.54 ui=0.16 present=14.44 ms, steps/frame=1.02, discarded=0.00 ms/frame
+[2026-10-16 15:41:59.740] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.61 MiB scene=0.04 ms
+[2026-10-16 15:42:00.473] [info] [engine] Frame dt stats: avg=16.398ms min=5.427ms max=17.344ms samples=61
+[2026-10-16 15:42:00.473] [info] [engine] Frame CPU: input=0.41 update=0.96 render=0.14 ui=0.14 present=14.92 ms, steps/frame=0.98, discarded=0.00 ms/frame
+[2026-10-16 15:42:00.742] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.43 MiB scene=0.05 ms
+[2026-10-16 15:42:01.474] [info] [engine] Frame dt stats: avg=16.671ms min=16.061ms max=17.368ms samples=60
+[2026-10-16 15:42:01.474] [info] [engine] Frame CPU: input=0.44 update=0.98 render=0.14 ui=0.15 present=14.97 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:42:01.742] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.12 MiB scene=0.07 ms
+[2026-10-16 15:42:02.433] [info] [engine] ResourceManager cache miss [class engine::resources::Texture] 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm'
+[2026-10-16 15:42:02.458] [info] [engine] Texture loaded 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm' via GPU transfer: 8x8
+[2026-10-16 15:42:02.475] [info] [engine] Frame dt stats: avg=16.700ms min=4.792ms max=29.734ms samples=60
+[2026-10-16 15:42:02.475] [info] [engine] Frame CPU: input=0.39 update=1.02 render=0.47 ui=0.14 present=14.66 ms, steps/frame=1.02, discarded=0.00 ms/frame
+[2026-10-16 15:42:02.743] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=7.46 MiB scene=0.04 ms
+[2026-10-16 15:42:02.844] [info] [engine] Luau live: Reloaded scripts/SoakDriver.luau (runtime state preserved)
+[2026-10-16 15:42:03.476] [info] [engine] Frame dt stats: avg=16.667ms min=16.014ms max=17.652ms samples=60
+[2026-10-16 15:42:03.476] [info] [engine] Frame CPU: input=0.41 update=0.92 render=0.13 ui=0.14 present=15.08 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:42:03.744] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.88 MiB scene=0.08 ms
+[2026-10-16 15:42:04.476] [info] [engine] Frame dt stats: avg=16.673ms min=15.562ms max=17.739ms samples=60
+[2026-10-16 15:42:04.476] [info] [engine] Frame CPU: input=0.41 update=0.96 render=0.15 ui=0.15 present=15.02 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:42:04.745] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.38 MiB scene=0.07 ms
+[2026-10-16 15:42:05.452] [info] [engine] ResourceManager cache miss [class engine::resources::Texture] 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm'
+[2026-10-16 15:42:05.475] [info] [engine] Texture loaded 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm' via GPU transfer: 8x8
+[2026-10-16 15:42:05.477] [info] [engine] Frame dt stats: avg=16.862ms min=16.062ms max=27.587ms samples=60
+[2026-10-16 15:42:05.477] [info] [engine] Frame CPU: input=0.40 update=1.06 render=0.46 ui=0.14 present=14.62 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:42:05.763] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.22 MiB scene=0.06 ms
+[2026-10-16 15:42:06.494] [info] [engine] Frame dt stats: avg=16.501ms min=5.962ms max=17.810ms samples=61
+[2026-10-16 15:42:06.494] [info] [engine] Frame CPU: input=0.41 update=0.87 render=0.13 ui=0.14 present=15.14 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:42:06.763] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=7.15 MiB scene=0.06 ms
+[2026-10-16 15:42:07.495] [info] [engine] Frame dt stats: avg=16.683ms min=16.126ms max=17.543ms samples=60
+[2026-10-16 15:42:07.495] [info] [engine] Frame CPU: input=0.43 update=0.87 render=0.13 ui=0.13 present=15.12 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:42:07.764] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.55 MiB scene=0.06 ms
+[2026-10-16 15:42:08.474] [info] [engine] ResourceManager cache miss [class engine::resources::Texture] 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm'
+[2026-10-16 15:42:08.505] [info] [engine] Texture loaded 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm' via GPU transfer: 8x8
+[2026-10-16 15:42:08.506] [info] [engine] Frame dt stats: avg=17.012ms min=15.749ms max=36.533ms samples=60
+[2026-10-16 15:42:08.506] [info] [engine] Frame CPU: input=0.43 update=1.26 render=0.56 ui=0.16 present=14.43 ms, steps/frame=1.02, discarded=0.00 ms/frame
+[2026-10-16 15:42:08.765] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.35 MiB scene=0.07 ms
+[2026-10-16 15:42:09.530] [info] [engine] Frame dt stats: avg=16.355ms min=6.412ms max=17.395ms samples=62
+[2026-10-16 15:42:09.530] [info] [engine] Frame CPU: input=0.40 update=0.85 render=0.12 ui=0.14 present=15.00 ms, steps/frame=0.98, discarded=0.00 ms/frame
+[2026-10-16 15:42:09.765] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.00 MiB scene=0.08 ms
+[2026-10-16 15:42:10.531] [info] [engine] Frame dt stats: avg=16.681ms min=15.909ms max=17.660ms samples=60
+[2026-10-16 15:42:10.531] [info] [engine] Frame CPU: input=0.41 update=0.86 render=0.12 ui=0.14 present=15.14 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:42:10.765] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.99 MiB scene=0.04 ms
+[2026-10-16 15:42:11.489] [info] [engine] ResourceManager cache miss [class engine::resources::Texture] 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm'
+[2026-10-16 15:42:11.514] [info] [engine] Texture loaded 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm' via GPU transfer: 8x8
+[2026-10-16 15:42:11.532] [info] [engine] Frame dt stats: avg=16.681ms min=5.760ms max=27.725ms samples=60
+[2026-10-16 15:42:11.532] [info] [engine] Frame CPU: input=0.41 update=1.06 render=0.48 ui=0.14 present=14.59 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:42:11.767] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.51 MiB scene=0.06 ms
+[2026-10-16 15:42:12.532] [info] [engine] Frame dt stats: avg=16.674ms min=16.028ms max=17.434ms samples=60
+[2026-10-16 15:42:12.532] [info] [engine] Frame CPU: input=0.43 update=0.96 render=0.14 ui=0.14 present=15.01 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:42:12.767] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.13 MiB scene=0.04 ms
+[2026-10-16 15:42:12.801] [info] [engine] Luau live: Reloaded scripts/SoakDriver.luau (runtime state preserved)
+[2026-10-16 15:42:13.533] [info] [engine] Frame dt stats: avg=16.682ms min=15.623ms max=17.698ms samples=60
+[2026-10-16 15:42:13.533] [info] [engine] Frame CPU: input=0.43 update=0.98 render=0.14 ui=0.16 present=14.96 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:42:13.768] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.26 MiB scene=0.04 ms
+[2026-10-16 15:42:14.510] [info] [engine] ResourceManager cache miss [class engine::resources::Texture] 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm'
+[2026-10-16 15:42:14.539] [info] [engine] Texture loaded 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm' via GPU transfer: 8x8
+[2026-10-16 15:42:14.540] [info] [engine] Frame dt stats: avg=16.937ms min=15.973ms max=32.145ms samples=60
+[2026-10-16 15:42:14.540] [info] [engine] Frame CPU: input=0.41 update=1.08 render=0.51 ui=0.13 present=14.65 ms, steps/frame=1.02, discarded=0.00 ms/frame
+[2026-10-16 15:42:14.769] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.89 MiB scene=0.03 ms
+[2026-10-16 15:42:15.552] [info] [engine] Frame dt stats: avg=16.433ms min=7.799ms max=17.814ms samples=61
+[2026-10-16 15:42:15.552] [info] [engine] Frame CPU: input=0.42 update=0.93 render=0.14 ui=0.14 present=14.94 ms, steps/frame=0.98, discarded=0.00 ms/frame
+[2026-10-16 15:42:15.770] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.41 MiB scene=0.08 ms
+[2026-10-16 15:42:16.552] [info] [engine] Frame dt stats: avg=16.673ms min=15.346ms max=17.666ms samples=60
+[2026-10-16 15:42:16.552] [info] [engine] Frame CPU: input=0.39 update=0.90 render=0.13 ui=0.14 present=15.10 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:42:16.771] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.17 MiB scene=0.08 ms
+[2026-10-16 15:42:17.528] [info] [engine] ResourceManager cache miss [class engine::resources::Texture] 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm'
+[2026-10-16 15:42:17.552] [info] [engine] Texture loaded 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm' via GPU transfer: 8x8
+[2026-10-16 15:42:17.553] [info] [engine] Frame dt stats: avg=16.858ms min=16.244ms max=27.037ms samples=60
+[2026-10-16 15:42:17.553] [info] [engine] Frame CPU: input=0.38 update=1.00 render=0.44 ui=0.13 present=14.73 ms, steps/frame=1.02, discarded=0.00 ms/frame
+[2026-10-16 15:42:17.772] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=7.02 MiB scene=0.06 ms
+[2026-10-16 15:42:18.571] [info] [engine] Frame dt stats: avg=16.502ms min=6.162ms max=17.363ms samples=61
+[2026-10-16 15:42:18.571] [info] [engine] Frame CPU: input=0.41 update=0.92 render=0.15 ui=0.15 present=15.05 ms, steps/frame=0.98, discarded=0.00 ms/frame
+[2026-10-16 15:42:18.788] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.93 MiB scene=0.03 ms
+[2026-10-16 15:42:19.572] [info] [engine] Frame dt stats: avg=16.684ms min=15.877ms max=17.397ms samples=60
+[2026-10-16 15:42:19.572] [info] [engine] Frame CPU: input=0.41 update=0.94 render=0.14 ui=0.14 present=15.04 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:42:19.790] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.55 MiB scene=0.06 ms
+[2026-10-16 15:42:20.547] [info] [engine] ResourceManager cache miss [class engine::resources::Texture] 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm'
+[2026-10-16 15:42:20.570] [info] [engine] Texture loaded 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm' via GPU transfer: 8x8
+[2026-10-16 15:42:20.572] [info] [engine] Frame dt stats: avg=16.852ms min=16.011ms max=27.223ms samples=60
+[2026-10-16 15:42:20.572] [info] [engine] Frame CPU: input=0.40 update=1.08 render=0.45 ui=0.14 present=14.60 ms, steps/frame=1.02, discarded=0.00 ms/frame
+[2026-10-16 15:42:20.791] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.07 MiB scene=0.08 ms
+[2026-10-16 15:42:21.590] [info] [engine] Frame dt stats: avg=16.512ms min=6.254ms max=17.473ms samples=61
+[2026-10-16 15:42:21.590] [info] [engine] Frame CPU: input=0.41 update=0.87 render=0.13 ui=0.15 present=15.14 ms, steps/frame=0.98, discarded=0.00 ms/frame
+[2026-10-16 15:42:21.792] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=7.31 MiB scene=0.08 ms
+[2026-10-16 15:42:22.590] [info] [engine] Frame dt stats: avg=16.674ms min=16.021ms max=17.433ms samples=60
+[2026-10-16 15:42:22.590] [info] [engine] Frame CPU: input=0.42 update=0.96 render=0.14 ui=0.15 present=14.99 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:42:22.793] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.58 MiB scene=0.07 ms
+[2026-10-16 15:42:23.549] [info] [engine] ResourceManager cache miss [class engine::resources::Texture] 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm'
+[2026-10-16 15:42:23.573] [info] [engine] Texture loaded 'C:/Users/rocco/CLionProjects/TurboGameEngine/assets/textures/arena_wall.ppm' via GPU transfer: 8x8
+[2026-10-16 15:42:23.591] [info] [engine] Frame dt stats: avg=16.685ms min=5.717ms max=28.083ms samples=60
+[2026-10-16 15:42:23.591] [info] [engine] Frame CPU: input=0.45 update=1.17 render=0.47 ui=0.15 present=14.45 ms, steps/frame=1.02, discarded=0.00 ms/frame
+[2026-10-16 15:42:23.809] [info] [engine] Game scene: entities=18 draws=14 culled=0 Luau=6.38 MiB scene=0.06 ms
+[2026-10-16 15:42:24.592] [info] [engine] Frame dt stats: avg=16.682ms min=16.161ms max=17.374ms samples=60
+[2026-10-16 15:42:24.592] [info] [engine] Frame CPU: input=0.40 update=0.91 render=0.14 ui=0.15 present=15.07 ms, steps/frame=1.00, discarded=0.00 ms/frame
+[2026-10-16 15:42:24.809] [info] [engine] Application shutdown started
+[2026-10-16 15:42:24.809] [info] [engine] Exited GameplayState editor scene
+[2026-10-16 15:42:24.812] [info] [engine] LAB_SHUTDOWN pending_cpu=0 pending_uploads=0
+[2026-10-16 15:42:24.903] [info] [engine] Renderer shutdown complete
+[2026-10-16 15:42:24.920] [info] [engine] Application shutdown complete
+[2026-10-16 15:42:24.920] [info] [engine] Logger shutdown
+[39mDiligent Engine: Info: D3D12-capable adapter found: NVIDIA GeForce RTX 5070 (11944 MB)
+[39m[39mDiligent Engine: Info: Created dynamic memory page. Size: 1.00 MB; GPU virtual address 0x6770000
+[39m[39mDiligent Engine: Info: Can not disable SeparablePrograms
+[39m[39mDiligent Engine: Info: Max device shader model: 6_7
+[39m[39mDiligent Engine: Info: Created dynamic memory page. Size: 1.00 MB; GPU virtual address 0x7c30000
+[39m[39mDiligent Engine: Info: Created dynamic memory page. Size: 1.00 MB; GPU virtual address 0x7e10000
+[39m[39mDiligent Engine: Info: Created dynamic memory page. Size: 1.00 MB; GPU virtual address 0x8080000
+[39m[39mDiligent Engine: Info: SAMPLER     dynamic descriptor allocator of immediate context usage stats: peak descriptor count: 0/0
+[39m[39mDiligent Engine: Info: CBV_SRV_UAV dynamic descriptor allocator of immediate context usage stats: peak descriptor count: 0/0
+[39m[39mDiligent Engine: Info: Dynamic heap of immediate context usage stats:
+                       Peak used/aligned/allocated size: 3.75 KB / 3.75 KB / 1.00 MB (1 page). Peak efficiency (used/aligned): 100.0%. Peak utilization (used/allocated): 0.4%
+[39m[39mDiligent Engine: Info: SAMPLER     dynamic descriptor allocator of immediate context usage stats: peak descriptor count: 0/0
+[39m[39mDiligent Engine: Info: CBV_SRV_UAV dynamic descriptor allocator of immediate context usage stats: peak descriptor count: 15/256
+[39m[39mDiligent Engine: Info: Dynamic heap of immediate context usage stats:
+                       Peak used/aligned/allocated size: 119.25 KB / 119.25 KB / 1.00 MB (1 page). Peak efficiency (used/aligned): 100.0%. Peak utilization (used/allocated): 11.6%
+[39m[39mDiligent Engine: Info: Dynamic memory manager usage stats:
+                       Total allocated memory: 4.00 MB
+[39m[39mDiligent Engine: Info: D3D12 query manager peak usage:
+QUERY_TYPE_OCCLUSION          :    0/ 128
+QUERY_TYPE_BINARY_OCCLUSION   :    0/ 128
+QUERY_TYPE_TIMESTAMP          :    0/ 512
+QUERY_TYPE_PIPELINE_STATISTICS:    0/ 128
+QUERY_TYPE_DURATION           :    0/ 512
+[39m[39mDiligent Engine: Info: D3D12 query manager peak usage:
+QUERY_TYPE_TIMESTAMP          :    0/ 512
+QUERY_TYPE_DURATION           :    0/ 512
+[39m[39mDiligent Engine: Info: Command list manager: created 2 allocators
+[39m[39mDiligent Engine: Info: Command list manager: created 0 allocators
+[39m[39mDiligent Engine: Info: Command list manager: created 12 allocators
+[39m[39mDiligent Engine: Info: D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER     GPU heap max allocated size (static|dynamic): 0/1024 (0.00%) | 0/1024 (0.00%).
+[39m[39mDiligent Engine: Info: D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV GPU heap max allocated size (static|dynamic): 0/16384 (0.00%) | 768/262144 (0.29%).
+[39m[39mDiligent Engine: Info: D3D12_DESCRIPTOR_HEAP_TYPE_DSV         CPU heap allocated pool count: 1. Max descriptors: 1/1024 (0.10%).
+[39m[39mDiligent Engine: Info: D3D12_DESCRIPTOR_HEAP_TYPE_RTV         CPU heap allocated pool count: 1. Max descriptors: 4/1024 (0.39%).
+[39m[39mDiligent Engine: Info: D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER     CPU heap allocated pool count: 1. Max descriptors: 0/2048 (0.00%).
+[39m[39mDiligent Engine: Info: D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV CPU heap allocated pool count: 1. Max descriptors: 9/8192 (0.11%).
+[39m

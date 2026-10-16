@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "presentation": {
+    "path": "output/TurboGameEngine-Lab2.pptx",
+    "slides": 13,
+    "editableTextTablesAndChart": true,
+    "embeddedChartDataSnapshot": true,
+    "fonts": ["Arial"],
+    "visualReview": "All 13 slide PNGs inspected individually at 1280x720; no observed clipping or overlap.",
+    "packageAndFontAndChartChecks": "presentation-validation.json",
+    "firstPartyImportPassed": true,
+    "nativePowerPointOpenTested": false
+  },
+  "pdf": {
+    "report": "output/TurboGameEngine-Lab2-report.pdf",
+    "reportHasSelectableCyrillicText": true,
+    "reportPages": 12,
+    "reportVisualReview": "All pages inspected; chapter heading and final Git counts checked again after the final rebuild.",
+    "slides": "output/TurboGameEngine-Lab2-slides.pdf",
+    "slidesAreRasterPages": true,
+    "slidePdfPages": 13,
+    "pdfExporterFallback": "Provided Artifact Tool PDF export failed on missing #standard-fonts/Helvetica alias. Companion PDF uses ReportLab and inspected PNGs; bundled runtime was not modified."
+  },
+  "nativeUI": {
+    "presentation": "evidence/game-overview.jpg",
+    "quiz": "evidence/game-quiz-complete.jpg",
+    "ecs": "evidence/game-ecs-complete.jpg",
+    "reload": "evidence/game-reload-complete.jpg",
+    "collectathon": "evidence/collectathon-native.jpg",
+    "scope": "Quiz, actual ECS spawn/Transform, 3D view and disk reload checked through native GUI. Collectathon smoke checks scene/HUD and clean shutdown, not native keyboard pickup."
+  }
+}

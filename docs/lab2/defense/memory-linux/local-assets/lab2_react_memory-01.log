@@ -1,0 +1,22 @@
+[2026-10-16 15:31:11.649] [info] [engine] Logger initialized
+[2026-10-16 15:31:11.651] [error] [engine] Luau: =RobloxUICompatibility:29: Script execution time limit exceeded
+[C] function traceback
+=RobloxUICompatibility:12 function finite
+=RobloxUICompatibility:29 function new
+=RobloxUICompatibility:36 function new
+=RobloxUICompatibility:39 function fromOffset
+=TweenContract:33 function frame
+=TweenContract:515 function runTweenServiceTests
+=TweenContract:539
+
+=RobloxUICompatibility:29: Script execution time limit exceeded
+[C] function traceback
+=RobloxUICompatibility:12 function finite
+=RobloxUICompatibility:29 function new
+=RobloxUICompatibility:36 function new
+=RobloxUICompatibility:39 function fromOffset
+=TweenContract:33 function frame
+=TweenContract:515 function runTweenServiceTests
+=TweenContract:539
+
+UI TweenService contract failed

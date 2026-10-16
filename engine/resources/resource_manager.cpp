@@ -2,6 +2,11 @@
 
 namespace engine::resources {
 
+void ResourceManager::clearCache() {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    m_cacheByType.clear();
+}
+
 void ResourceManager::clear() {
     std::lock_guard<std::mutex> lock(m_mutex);
     m_cacheByType.clear();

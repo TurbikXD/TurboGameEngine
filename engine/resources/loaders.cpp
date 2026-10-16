@@ -2,9 +2,12 @@
 
 #include <cmath>
 #include <cstdint>
+#include <cstdio>
+#include <filesystem>
 #include <fstream>
 #include <limits>
 #include <memory>
+#include <sstream>
 #include <string>
 #include <utility>
 
@@ -22,6 +25,11 @@
 namespace engine::resources {
 
 namespace {
+
+std::string utf8Path(const std::filesystem::path& path) {
+    const auto utf8 = path.generic_u8string();
+    return {utf8.begin(), utf8.end()};
+}
 
 bool isPpmWhitespace(const int character) {
     return character == ' ' || character == '\t' || character == '\r' ||
@@ -60,9 +68,13 @@ bool readPpmNumber(std::istream& input, std::uint32_t& value) {
     }
 }
 
+bool validTextureSize(const std::uint64_t width, const std::uint64_t height) {
+    return width > 0 && height > 0 && width <= 8192 && height <= 8192 && width * height <= 16777216;
+}
+
 // stb_image supports binary P5/P6, but the engine's editable PPM assets are P3.
 // The caller has already consumed the two-byte magic; inspect contents, not extension.
-bool loadPlainPpm(std::ifstream& input, TextureData& output, std::string* errorMessage) {
+bool loadPlainPpm(std::istream& input, TextureData& output, std::string* errorMessage) {
     const auto fail = [errorMessage](const char* message) {
         if (errorMessage != nullptr) { *errorMessage = message; }
         return false;
@@ -74,7 +86,7 @@ bool loadPlainPpm(std::ifstream& input, TextureData& output, std::string* errorM
         !readPpmNumber(input, height) || !readPpmNumber(input, maximum)) {
         return fail("Invalid P3 PPM header");
     }
-    if (width == 0 || height == 0 || width > STBI_MAX_DIMENSIONS || height > STBI_MAX_DIMENSIONS ||
+    if (!validTextureSize(width, height) ||
         maximum == 0 || maximum > 65535U) {
         return fail("Invalid P3 PPM dimensions or maximum sample value");
     }
@@ -256,21 +268,86 @@ bool loadMeshData(const std::string& path, MeshData& outMeshData, std::string* e
     return true;
 }
 
+bool inspectTextureRgba8(const std::string& path, std::int32_t& width, std::int32_t& height, std::string* errorMessage) {
+    width = height = 0;
+    if (errorMessage) errorMessage->clear();
+    const auto fail = [&](const char* message) { if (errorMessage) *errorMessage = message; return false; };
+    {
+        std::ifstream input(std::filesystem::u8path(path), std::ios::binary);
+        char magic[2]{};
+        if (input.read(magic, sizeof(magic)) && magic[0] == 'P' && magic[1] == '3') {
+            std::uint32_t w = 0, h = 0, maximum = 0;
+            if (!isPpmWhitespace(input.peek()) || !readPpmNumber(input, w) || !readPpmNumber(input, h) ||
+                !readPpmNumber(input, maximum) || maximum == 0 || maximum > 65535 || !validTextureSize(w, h))
+                return fail("Invalid or oversized P3 PPM header (maximum 8192 per side, 16 megapixels)");
+            width = static_cast<std::int32_t>(w); height = static_cast<std::int32_t>(h);
+            return true;
+        }
+    }
+    FILE* rawFile = nullptr;
+#if defined(_WIN32)
+    const auto nativePath = std::filesystem::u8path(path);
+    (void)_wfopen_s(&rawFile, nativePath.c_str(), L"rb");
+#else
+    rawFile = std::fopen(path.c_str(), "rb");
+#endif
+    const std::unique_ptr<FILE, decltype(&std::fclose)> file(rawFile, &std::fclose);
+    int w = 0, h = 0, channels = 0;
+    if (!file || !stbi_info_from_file(file.get(), &w, &h, &channels)) return fail("Cannot inspect image header");
+    if (!validTextureSize(static_cast<std::uint64_t>(w), static_cast<std::uint64_t>(h)))
+        return fail("Image exceeds maximum 8192 per side or 16 megapixels");
+    width = w; height = h;
+    return true;
+}
+
 bool loadTextureDataRgba8(const std::string& path, TextureData& outTextureData, std::string* errorMessage) {
     ENGINE_PROFILE_ZONE("Decode Texture");
     if (errorMessage != nullptr) { errorMessage->clear(); }
-    {
-        std::ifstream input(path, std::ios::binary);
-        char magic[2]{};
-        if (input.read(magic, sizeof(magic)) && magic[0] == 'P' && magic[1] == '3') {
-            return loadPlainPpm(input, outTextureData, errorMessage);
+    std::int32_t headerWidth = 0, headerHeight = 0;
+    if (!inspectTextureRgba8(path, headerWidth, headerHeight, errorMessage)) return false;
+    // Decode the exact bytes whose header was validated. AI/live edits can
+    // replace or grow a file between an earlier metadata probe and the job.
+    // A bounded immutable snapshot closes that race before stb allocates pixels.
+    constexpr std::size_t encodedLimit = 128 * 1024 * 1024;
+    std::ifstream input(std::filesystem::u8path(path), std::ios::binary);
+    if (!input) { if (errorMessage) *errorMessage = "Cannot open texture file"; return false; }
+    input.seekg(0, std::ios::end);
+    const auto encodedSize = input.tellg();
+    if (encodedSize < 0 || static_cast<std::uint64_t>(encodedSize) > encodedLimit) {
+        if (errorMessage) *errorMessage = "Invalid encoded image size or exceeds 128 MiB";
+        return false;
+    }
+    input.seekg(0);
+    std::string encoded;
+    encoded.reserve(static_cast<std::size_t>(encodedSize));
+    char chunk[16384];
+    while (input) {
+        input.read(chunk, sizeof(chunk));
+        const auto count = static_cast<std::size_t>(input.gcount());
+        if (count > encodedLimit - encoded.size()) {
+            if (errorMessage) *errorMessage = "Encoded image exceeds 128 MiB";
+            return false;
         }
+        encoded.append(chunk, count);
+    }
+    if (!input.eof()) { if (errorMessage) *errorMessage = "Cannot read texture file"; return false; }
+    if (encoded.size() >= 2 && encoded[0] == 'P' && encoded[1] == '3') {
+        std::istringstream snapshot(std::move(encoded));
+        snapshot.ignore(2);
+        return loadPlainPpm(snapshot, outTextureData, errorMessage);
     }
     int width = 0;
     int height = 0;
     int channels = 0;
 
-    stbi_uc* pixels = stbi_load(path.c_str(), &width, &height, &channels, 4);
+    const auto* bytes = reinterpret_cast<const stbi_uc*>(encoded.data());
+    const auto byteCount = static_cast<int>(encoded.size());
+    if (!stbi_info_from_memory(bytes, byteCount, &width, &height, &channels) ||
+        !validTextureSize(static_cast<std::uint64_t>(width), static_cast<std::uint64_t>(height))) {
+        if (errorMessage) *errorMessage = "Invalid or oversized immutable image header";
+        return false;
+    }
+    stbi_uc* pixels = stbi_load_from_memory(bytes, byteCount, &width, &height, &channels, 4);
     if (pixels == nullptr) {
         if (errorMessage != nullptr) {
             const char* reason = stbi_failure_reason();
@@ -279,6 +356,11 @@ bool loadTextureDataRgba8(const std::string& path, TextureData& outTextureData, 
         return false;
     }
     const std::unique_ptr<stbi_uc, decltype(&stbi_image_free)> ownedPixels(pixels, &stbi_image_free);
+
+    if (!validTextureSize(static_cast<std::uint64_t>(width), static_cast<std::uint64_t>(height))) {
+        if (errorMessage) *errorMessage = "Image dimensions changed or exceed decode limits";
+        return false;
+    }
 
     const std::size_t pixelCount = static_cast<std::size_t>(width) * static_cast<std::size_t>(height) * 4U;
     outTextureData.width = width;
@@ -292,10 +374,36 @@ bool loadTextureDataRgba8(const std::string& path, TextureData& outTextureData, 
 bool loadShaderProgramSource(
     const std::string& descriptor,
     ShaderProgramSource& outSource,
-    std::string* errorMessage) {
+    std::string* errorMessage,
+    const std::filesystem::path& assetRoot) {
     ENGINE_PROFILE_ZONE("Parse Shader Manifest");
     outSource = ShaderProgramSource{};
     outSource.descriptorPath = descriptor;
+    const auto resolvePaths = [&] {
+        const auto parent = outSource.descriptorIsFile
+            ? std::filesystem::absolute(std::filesystem::u8path(descriptor)).parent_path()
+            : (assetRoot.empty() ? std::filesystem::current_path() : assetRoot);
+        auto root = assetRoot;
+        if (root.empty()) {
+            for (auto ancestor = parent; !ancestor.empty(); ancestor = ancestor.parent_path()) {
+                if (ancestor.filename() == "assets") { root = ancestor; break; }
+                if (ancestor == ancestor.parent_path()) { break; }
+            }
+            if (root.empty()) { root = parent; }
+        }
+        const auto resolve = [&](const std::string& input) {
+            auto path = std::filesystem::u8path(input);
+            if (path.is_absolute()) { return utf8Path(std::filesystem::weakly_canonical(path)); }
+            if (*path.begin() == "assets") { path = root / path.lexically_relative("assets"); }
+            else { path = parent / path; }
+            return utf8Path(std::filesystem::weakly_canonical(path));
+        };
+        outSource.vertexPath = resolve(outSource.vertexPath);
+        outSource.fragmentPath = resolve(outSource.fragmentPath);
+        if (outSource.descriptorIsFile) {
+            outSource.descriptorPath = utf8Path(std::filesystem::weakly_canonical(std::filesystem::absolute(std::filesystem::u8path(descriptor))));
+        }
+    };
 
     const std::size_t separatorPos = descriptor.find('|');
     if (separatorPos != std::string::npos) {
@@ -308,10 +416,15 @@ bool loadShaderProgramSource(
             }
             return false;
         }
+        try { resolvePaths(); }
+        catch (const std::exception& error) {
+            if (errorMessage != nullptr) { *errorMessage = error.what(); }
+            return false;
+        }
         return true;
     }
 
-    std::ifstream in(descriptor);
+    std::ifstream in(std::filesystem::u8path(descriptor));
     if (!in.is_open()) {
         if (errorMessage != nullptr) {
             *errorMessage = "Failed to open shader descriptor file";
@@ -338,6 +451,7 @@ bool loadShaderProgramSource(
             }
             return false;
         }
+        resolvePaths();
         return true;
     } catch (const std::exception& ex) {
         if (errorMessage != nullptr) {

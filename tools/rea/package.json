@@ -1,0 +1,8 @@
+{
+  "name": "turbogameengine-rea-tools",
+  "private": true,
+  "description": "Pinned local REA MCP tooling; independent of the engine build.",
+  "dependencies": {
+    "rea-agents": "6.5.0"
+  }
+}

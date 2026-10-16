@@ -5,6 +5,8 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <cstdio>
+#include <filesystem>
 #include <fstream>
 #include <mutex>
 #include <optional>
@@ -42,6 +44,9 @@
 #include <GLFW/glfw3native.h>
 
 #include "third_party/DiligentEngine/DiligentCore/Common/interface/RefCntAutoPtr.hpp"
+#include "third_party/DiligentEngine/DiligentCore/Common/interface/ObjectBase.hpp"
+#include "third_party/DiligentEngine/DiligentCore/Primitives/interface/DataBlob.h"
+#include "third_party/DiligentEngine/DiligentCore/Primitives/interface/FileStream.h"
 #include "third_party/DiligentEngine/DiligentCore/Graphics/GraphicsEngine/interface/Buffer.h"
 #include "third_party/DiligentEngine/DiligentCore/Graphics/GraphicsEngine/interface/DeviceContext.h"
 #include "third_party/DiligentEngine/DiligentCore/Graphics/GraphicsEngine/interface/Fence.h"
@@ -77,6 +82,109 @@
 namespace engine::rhi::diligent {
 
 namespace {
+
+class NativeShaderFileStream final : public Diligent::ObjectBase<Diligent::IFileStream> {
+public:
+    using Base = Diligent::ObjectBase<Diligent::IFileStream>;
+    NativeShaderFileStream(Diligent::IReferenceCounters* counters, const std::filesystem::path& path)
+        : Base(counters), m_file(path, std::ios::binary) {
+        if (m_file) {
+            m_file.seekg(0, std::ios::end);
+            const auto length = m_file.tellg();
+            if (length >= 0) { m_size = static_cast<std::size_t>(length); m_valid = true; }
+            m_file.seekg(0, std::ios::beg);
+        }
+    }
+    void DILIGENT_CALL_TYPE QueryInterface(const Diligent::INTERFACE_ID& id, Diligent::IObject** output) override {
+        if (output == nullptr) { return; }
+        if (id == Diligent::IID_FileStream) { *output = this; this->AddRef(); }
+        else { Base::QueryInterface(id, output); }
+    }
+    using Diligent::IObject::QueryInterface;
+    void DILIGENT_CALL_TYPE ReadBlob(Diligent::IDataBlob* data) override {
+        if (data == nullptr || !m_valid) { return; }
+        data->Resize(m_size);
+        SetPos(0, SEEK_SET);
+        (void)Read(data->GetDataPtr(), m_size);
+    }
+    bool DILIGENT_CALL_TYPE Read(void* data, const std::size_t size) override {
+        if (!m_valid || size > m_size - m_position) { return false; }
+        if (size == 0) { return true; }
+        m_file.read(static_cast<char*>(data), static_cast<std::streamsize>(size));
+        m_position += static_cast<std::size_t>(m_file.gcount());
+        return static_cast<std::size_t>(m_file.gcount()) == size;
+    }
+    bool DILIGENT_CALL_TYPE Write(const void*, std::size_t) override { return false; }
+    std::size_t DILIGENT_CALL_TYPE GetSize() override { return m_size; }
+    std::size_t DILIGENT_CALL_TYPE GetPos() override { return m_position; }
+    bool DILIGENT_CALL_TYPE SetPos(const std::size_t offset, const int origin) override {
+        const auto base = origin == SEEK_SET ? 0U : origin == SEEK_CUR ? m_position : m_size;
+        if (!m_valid || offset > m_size - base) { return false; }
+        m_file.clear();
+        m_file.seekg(static_cast<std::streamoff>(base + offset), std::ios::beg);
+        if (!m_file) { return false; }
+        m_position = base + offset;
+        return true;
+    }
+    bool DILIGENT_CALL_TYPE IsValid() override { return m_valid; }
+private:
+    std::ifstream m_file;
+    std::size_t m_size{0};
+    std::size_t m_position{0};
+    bool m_valid{false};
+};
+
+// Diligent's default factory also searches the process working directory. Route
+// all requests to absolute files first so includes belong to this shader's
+// assets, including when two projects contain headers with the same name.
+class ShaderDirectoryFactory final : public Diligent::ObjectBase<Diligent::IShaderSourceInputStreamFactory> {
+public:
+    using Base = Diligent::ObjectBase<Diligent::IShaderSourceInputStreamFactory>;
+    ShaderDirectoryFactory(Diligent::IReferenceCounters* counters, const std::string& shader)
+        : Base(counters),
+          m_directory(std::filesystem::weakly_canonical(std::filesystem::absolute(std::filesystem::u8path(shader))).parent_path()),
+          m_root(m_directory) {
+        for (auto ancestor = m_directory; !ancestor.empty(); ancestor = ancestor.parent_path()) {
+            if (ancestor.filename() == "assets") { m_root = ancestor; break; }
+            if (ancestor == ancestor.parent_path()) { break; }
+        }
+    }
+    void DILIGENT_CALL_TYPE QueryInterface(const Diligent::INTERFACE_ID& id, Diligent::IObject** output) override {
+        if (output == nullptr) { return; }
+        if (id == Diligent::IID_IShaderSourceInputStreamFactory) { *output = this; this->AddRef(); }
+        else { Base::QueryInterface(id, output); }
+    }
+    using Diligent::IObject::QueryInterface;
+    void DILIGENT_CALL_TYPE CreateInputStream(const Diligent::Char* name, Diligent::IFileStream** stream) override {
+        CreateInputStream2(name, Diligent::CREATE_SHADER_SOURCE_INPUT_STREAM_FLAG_NONE, stream);
+    }
+    void DILIGENT_CALL_TYPE CreateInputStream2(const Diligent::Char* name,
+        Diligent::CREATE_SHADER_SOURCE_INPUT_STREAM_FLAGS flags, Diligent::IFileStream** stream) override {
+        if (stream == nullptr) { return; }
+        *stream = nullptr;
+        if (name == nullptr || *name == '\0') { return; }
+        try {
+            auto path = std::filesystem::u8path(name);
+            if (!path.is_absolute()) {
+                path = *path.begin() == "assets" ? m_root / path.lexically_relative("assets") : m_directory / path;
+            }
+            path = std::filesystem::weakly_canonical(path);
+            const auto relative = path.lexically_relative(m_root);
+            if (relative.empty() || relative.is_absolute() || *relative.begin() == "..") { return; }
+            Diligent::RefCntAutoPtr<NativeShaderFileStream> file{
+                Diligent::MakeNewRCObj<NativeShaderFileStream>()(path)};
+            if (file->IsValid()) { file->QueryInterface(Diligent::IID_FileStream, stream); }
+            else if ((flags & Diligent::CREATE_SHADER_SOURCE_INPUT_STREAM_FLAG_SILENT) == 0) {
+                ENGINE_LOG_ERROR("Cannot open shader source/include '{}'", name);
+            }
+        } catch (const std::filesystem::filesystem_error& error) {
+            ENGINE_LOG_ERROR("Shader include path resolution failed '{}': {}", name, error.what());
+        }
+    }
+private:
+    std::filesystem::path m_directory;
+    std::filesystem::path m_root;
+};
 
 constexpr std::string_view kVsConstantsName = "Constants";
 constexpr std::string_view kPsConstantsName = "PixelConstants";
@@ -119,7 +227,7 @@ bool contains(std::string_view haystack, std::string_view needle) {
 }
 
 std::optional<VertexLayout> inferVertexLayout(const std::string& shaderPath) {
-    std::ifstream input(shaderPath, std::ios::binary);
+    std::ifstream input(std::filesystem::u8path(shaderPath), std::ios::binary);
     if (!input.is_open()) {
         return std::nullopt;
     }
@@ -264,6 +372,8 @@ public:
     Diligent::ITextureView* shaderResourceView() const {
         return m_srv;
     }
+
+    void* uiShaderResourceView() const override { return m_srv.RawPtr(); }
 
 private:
     ImageDesc m_desc{};
@@ -1371,7 +1481,9 @@ std::unique_ptr<IShaderModule> DiligentDevice::createShaderModule(const ShaderMo
     createInfo.Desc.Name = desc.path.c_str();
     createInfo.SourceLanguage = Diligent::SHADER_SOURCE_LANGUAGE_HLSL;
     createInfo.Desc.UseCombinedTextureSamplers = Diligent::True;
-    createInfo.pShaderSourceStreamFactory = m_impl->shaderSourceFactory;
+    Diligent::RefCntAutoPtr<ShaderDirectoryFactory> sourceFactory{
+        Diligent::MakeNewRCObj<ShaderDirectoryFactory>()(desc.path)};
+    createInfo.pShaderSourceStreamFactory = sourceFactory;
 
     Diligent::RefCntAutoPtr<Diligent::IShader> nativeShader;
     m_impl->renderDevice->CreateShader(createInfo, &nativeShader);

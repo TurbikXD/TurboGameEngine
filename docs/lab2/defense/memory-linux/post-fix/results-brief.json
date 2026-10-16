@@ -1,0 +1,61 @@
+{
+  "status": "passed_exercised_paths",
+  "testProcessRuns": 11,
+  "allExitCodesZero": true,
+  "sanitizerDiagnosticsFound": false,
+  "sanitizerOptions": {
+    "ASAN_OPTIONS": "detect_leaks=1:halt_on_error=1:symbolize=1",
+    "LSAN_OPTIONS": "exitcode=23:report_objects=1",
+    "UBSAN_OPTIONS": "halt_on_error=1:print_stacktrace=1"
+  },
+  "suppressions": [],
+  "sameVmLifecycle": [
+    {
+      "phase": "normal_gc_pacing",
+      "cycles": 120,
+      "passed": true,
+      "wallSeconds": 50.322304364,
+      "baselineVmBytes": 3476060,
+      "endBeforeFullGcVmBytes": 6814692,
+      "endAfterFullGcVmBytes": 3527060,
+      "fullGcDeltaFromBaselineBytes": 51000,
+      "settledVmByteRange": [
+        6219740,
+        8146484
+      ],
+      "allSettledAliveEntities16": true,
+      "allSettledRoots1": true,
+      "allSettledQueuedEvents0": true,
+      "rootsAfterReset": 0,
+      "vmBytesAfterShutdown": 0
+    },
+    {
+      "phase": "full_gc_each_cycle",
+      "cycles": 120,
+      "passed": true,
+      "wallSeconds": 49.062587071,
+      "baselineVmBytes": 3476060,
+      "endBeforeFullGcVmBytes": 3739396,
+      "endAfterFullGcVmBytes": 3739396,
+      "fullGcDeltaFromBaselineBytes": 263336,
+      "settledVmByteRange": [
+        3657604,
+        3772756
+      ],
+      "allSettledAliveEntities16": true,
+      "allSettledRoots1": true,
+      "allSettledQueuedEvents0": true,
+      "rootsAfterReset": 0,
+      "vmBytesAfterShutdown": 0
+    }
+  ],
+  "sourceHashesReference": "post-fix/summary.json",
+  "instrumentationReference": "post-fix/instrumentation.json",
+  "capturedRunnerReference": "post-fix/runner-used.py.txt",
+  "limits": [
+    "LinuxCPU Lua/React paths, notnativeWindowsD3D12/GPU orCLionProfiler.",
+    "React driver copy uses1000ms general batch budget; explicit5ms callback timeout test preserved.",
+    "Two earlier watchdog-limited failed attempts remain in parent/local-assets directories.",
+    "Expected script errors deliberately exercised by existing tests are not sanitizer diagnostics."
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "compileCommands": 207,
+  "commandsMissingRequiredSanitizerFlags": [],
+  "linkCommands": {
+    "lab2_react_memory.dir": "/usr/bin/c++ -g -fsanitize=address,leak,undefined -fno-omit-frame-pointer -fno-sanitize-recover=all CMakeFiles/lab2_react_memory.dir/ReactRuntimeSanitizerTests.cpp.o -o lab2_react_memory  libtge_memory_runtime.a enkits/libenkiTS.a luau/libLuau.VM.a luau/libLuau.Compiler.a luau/libLuau.Ast.a luau/libLuau.Bytecode.a luau/libLuau.Common.a spdlog/libspdlogd.a",
+    "lab2_lifecycle_memory.dir": "/usr/bin/c++ -g -fsanitize=address,leak,undefined -fno-omit-frame-pointer -fno-sanitize-recover=all CMakeFiles/lab2_lifecycle_memory.dir/MemoryLifecycle.cpp.o -o lab2_lifecycle_memory  libtge_memory_runtime.a enkits/libenkiTS.a luau/libLuau.VM.a luau/libLuau.Compiler.a luau/libLuau.Ast.a luau/libLuau.Bytecode.a luau/libLuau.Common.a spdlog/libspdlogd.a",
+    "lab2_scripting_memory.dir": "/usr/bin/c++ -g -fsanitize=address,leak,undefined -fno-omit-frame-pointer -fno-sanitize-recover=all CMakeFiles/lab2_scripting_memory.dir/mnt/c/Users/rocco/CLionProjects/TurboGameEngine/tests/ScriptingSystemTests.cpp.o -o lab2_scripting_memory  libtge_memory_runtime.a enkits/libenkiTS.a luau/libLuau.VM.a luau/libLuau.Compiler.a luau/libLuau.Ast.a luau/libLuau.Bytecode.a luau/libLuau.Common.a spdlog/libspdlogd.a"
+  },
+  "configuredCompiler": "GCC13.3.0 x86_64 Linux",
+  "dependencyCmakeSha256": {
+    "luau-src": "d7d7560e6463a3fa0834749f51bd693b43814cad49e1d36f0f2bae661059473b",
+    "enkits-src": "5d687d50b24b4c249571884f739fd7caec63a8422b069de81b4db3990ecce25c",
+    "spdlog-src": "f07f6617ce68e62b77d482cb408433ed78e8a52191b41042815f64b01b704f87"
+  },
+  "reactTestAdaptedCopySha256": "8ec62bd6e432ef520b6c8d77112f3429eeb263871a9c4051ba3684ff88f0a45f"
+}

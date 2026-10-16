@@ -1,0 +1,34 @@
+Версия MSBuild 17.14.23+b0019275e для .NET Framework
+
+  1>Checking Build System
+  Building Custom Rule C:/tge/clion-vs2022b-rel/_deps/tracy-src/CMakeLists.txt
+  Building Custom Rule C:/tge/clion-vs2022b-rel/_deps/enkits-src/CMakeLists.txt
+  Building Custom Rule C:/tge/clion-vs2022b-rel/_deps/spdlog-src/CMakeLists.txt
+  glfw.vcxproj -> C:\tge\clion-vs2022b-rel\_deps\glfw-build\src\Debug\glfw3.lib
+  TracyClient.vcxproj -> C:\tge\clion-vs2022b-rel\_deps\tracy-build\Debug\TracyClient.lib
+  enkiTS.vcxproj -> C:\tge\clion-vs2022b-rel\_deps\enkits-build\Debug\enkiTS.lib
+  glm.vcxproj -> C:\tge\clion-vs2022b-rel\_deps\glm-build\glm\Debug\glm.lib
+  spdlog.vcxproj -> C:\tge\clion-vs2022b-rel\_deps\spdlog-build\Debug\spdlogd.lib
+  Luau.Common.vcxproj -> C:\tge\clion-vs2022b-rel\_deps\luau-build\Debug\Luau.Common.lib
+  Building Custom Rule C:/Users/rocco/CLionProjects/TurboGameEngine/CMakeLists.txt
+  engine_core.vcxproj -> C:\tge\clion-vs2022b-rel\Debug\engine_core.lib
+  Luau.Bytecode.vcxproj -> C:\tge\clion-vs2022b-rel\_deps\luau-build\Debug\Luau.Bytecode.lib
+  Luau.VM.vcxproj -> C:\tge\clion-vs2022b-rel\_deps\luau-build\Debug\Luau.VM.lib
+  Luau.Ast.vcxproj -> C:\tge\clion-vs2022b-rel\_deps\luau-build\Debug\Luau.Ast.lib
+  Building Custom Rule C:/Users/rocco/CLionProjects/TurboGameEngine/CMakeLists.txt
+  engine_ecs.vcxproj -> C:\tge\clion-vs2022b-rel\Debug\engine_ecs.lib
+  Building Custom Rule C:/Users/rocco/CLionProjects/TurboGameEngine/CMakeLists.txt
+  Luau.Compiler.vcxproj -> C:\tge\clion-vs2022b-rel\_deps\luau-build\Debug\Luau.Compiler.lib
+  engine_platform.vcxproj -> C:\tge\clion-vs2022b-rel\Debug\engine_platform.lib
+  Building Custom Rule C:/Users/rocco/CLionProjects/TurboGameEngine/CMakeLists.txt
+  ScriptingSystem.cpp
+C:\tge\clion-vs2022b-rel\_deps\luau-src\Ast\include\Luau\Ast.h(1691,39): warning C4100: "node": неиспользованный параметр [C:\tge\clion-vs2022b-rel\engine_scripting.vcxproj]
+  (компиляция исходного файла "../../Users/rocco/CLionProjects/TurboGameEngine/engine/scripting/ScriptingSystem.cpp")
+  
+C:\tge\clion-vs2022b-rel\_deps\luau-src\Ast\include\Luau\Ast.h(1741,43): warning C4100: "node": неиспользованный параметр [C:\tge\clion-vs2022b-rel\engine_scripting.vcxproj]
+  (компиляция исходного файла "../../Users/rocco/CLionProjects/TurboGameEngine/engine/scripting/ScriptingSystem.cpp")
+  
+  engine_scripting.vcxproj -> C:\tge\clion-vs2022b-rel\Debug\engine_scripting.lib
+  Building Custom Rule C:/Users/rocco/CLionProjects/TurboGameEngine/CMakeLists.txt
+  ScriptingSystemTests.cpp
+  engine_scripting_tests.vcxproj -> C:\tge\clion-vs2022b-rel\Debug\engine_scripting_tests.exe

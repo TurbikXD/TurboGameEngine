@@ -1,5 +1,10 @@
 cmake_minimum_required(VERSION 3.24)
 
+# CLion reload and Visual Studio ZERO_CHECK can configure the same tree at
+# once. Diligent's legacy try_compile checks share CMakeTmp; racing processes
+# can erase each other's ATL probe and silently disable Direct3D support.
+file(LOCK "${CMAKE_BINARY_DIR}/tge-configure.lock" GUARD PROCESS TIMEOUT 120)
+
 project(TurboGameEngine VERSION 0.1.0 LANGUAGES C CXX)
 enable_testing()
 
@@ -94,6 +99,27 @@ FetchContent_Declare(
     UPDATE_DISCONNECTED ON
 )
 FetchContent_MakeAvailable(entt)
+
+# Roblox's embeddable dialect: ship the compiler and VM in the executable.
+set(LUAU_BUILD_CLI OFF CACHE BOOL "" FORCE)
+set(LUAU_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(LUAU_BUILD_WEB OFF CACHE BOOL "" FORCE)
+FetchContent_Declare(luau
+    GIT_REPOSITORY https://github.com/luau-lang/luau.git
+    GIT_TAG 2d88f9b5facaa9e4ec91247b39ae8251bd49a244
+    UPDATE_DISCONNECTED ON
+)
+FetchContent_MakeAvailable(luau)
+
+# Portable Luau-aware formatter, without changing the user's system PATH.
+if(WIN32)
+    FetchContent_Declare(stylua_runtime
+        URL https://github.com/JohnnyMorganz/StyLua/releases/download/v2.5.2/stylua-windows-x86_64.zip
+        URL_HASH SHA256=e77d0ea1226b8b389b43f702240091249a96eea25857281f90ea24d0eb9eb969
+        DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+    )
+    FetchContent_MakeAvailable(stylua_runtime)
+endif()
 
 set(SPDLOG_BUILD_EXAMPLE OFF CACHE BOOL "" FORCE)
 set(SPDLOG_BUILD_TESTS OFF CACHE BOOL "" FORCE)
@@ -228,7 +254,7 @@ endif()
 
 function(set_engine_warnings target_name)
     if(MSVC)
-        target_compile_options(${target_name} PRIVATE /W4 /permissive-)
+        target_compile_options(${target_name} PRIVATE /W4 /permissive- /utf-8)
     else()
         target_compile_options(${target_name} PRIVATE -Wall -Wextra -Wpedantic)
     endif()
@@ -287,10 +313,17 @@ add_library(engine_core STATIC
     engine/core/Log.cpp
     engine/core/Time.cpp
     engine/core/Config.cpp
+    engine/core/ProjectManager.cpp
+    engine/core/AtomicFile.cpp
+    engine/core/PlaySession.cpp
+    engine/core/LiveFileWatcher.cpp
     engine/core/JobSystem.cpp
 )
 target_include_directories(engine_core PUBLIC "${ENGINE_ROOT_INCLUDE_DIR}")
 target_link_libraries(engine_core PUBLIC spdlog::spdlog nlohmann_json::nlohmann_json PRIVATE enkiTS)
+if(WIN32)
+    target_link_libraries(engine_core PRIVATE shell32 ole32 uuid)
+endif()
 set_engine_warnings(engine_core)
 enable_engine_tracy(engine_core)
 
@@ -310,6 +343,21 @@ add_library(engine_platform STATIC
 target_include_directories(engine_platform PUBLIC "${ENGINE_ROOT_INCLUDE_DIR}")
 target_link_libraries(engine_platform PUBLIC engine_core glfw)
 set_engine_warnings(engine_platform)
+
+add_library(engine_scripting STATIC
+    engine/scripting/ScriptingSystem.cpp
+    engine/scripting/react/ReactRuntime.cpp
+)
+target_include_directories(engine_scripting PUBLIC "${ENGINE_ROOT_INCLUDE_DIR}")
+target_link_libraries(engine_scripting PUBLIC engine_ecs engine_platform Luau.VM Luau.Compiler)
+target_compile_definitions(engine_scripting PRIVATE ENGINE_REACT_PACKAGE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/third_party/react-luau")
+set_engine_warnings(engine_scripting)
+enable_engine_tracy(engine_scripting)
+
+add_library(engine_text_editor STATIC third_party/ImGuiColorTextEdit/TextEditor.cpp)
+target_include_directories(engine_text_editor PUBLIC "${ENGINE_ROOT_INCLUDE_DIR}"
+    "${DILIGENT_ENGINE_DIR}/DiligentTools/ThirdParty/imgui")
+target_link_libraries(engine_text_editor PUBLIC Diligent-Imgui)
 
 add_library(engine_rhi_diligent STATIC
     engine/rhi_diligent/DiligentDevice.cpp
@@ -360,6 +408,8 @@ set_engine_warnings(engine_rhi)
 
 add_library(engine_renderer STATIC
     engine/renderer/Renderer.cpp
+    engine/editor/EditorTheme.cpp
+    engine/renderer/UiCanvasCompositor.cpp
     engine/resources/resource_manager.cpp
     engine/resources/async_load_queue.cpp
     engine/resources/image_mips.cpp
@@ -422,12 +472,21 @@ endif()
 set_engine_warnings(imguizmo)
 
 add_library(engine_game STATIC
+    engine/editor/EditorCommands.cpp
+    engine/editor/EditorRibbon.cpp
+    engine/editor/EditorIcons.cpp
+    engine/editor/ScriptWorkspace.cpp
+    engine/editor/ProjectLauncher.cpp
+    engine/editor/CodexAssistant.cpp
+    engine/editor/ScriptFormatter.cpp
+    engine/scripting/react/ReactUI.cpp
     engine/ecs/physics_system.cpp
     engine/ecs/debug_render_system.cpp
     engine/game/StateStack.cpp
     engine/game/FreeCameraController.cpp
     engine/game/MenuState.cpp
     engine/game/GameplayState.cpp
+    engine/game/GameplayCommands.cpp
     engine/game/PauseState.cpp
     "${DILIGENT_ENGINE_DIR}/DiligentTools/ThirdParty/imgui/misc/cpp/imgui_stdlib.cpp"
 )
@@ -439,7 +498,11 @@ target_include_directories(
         "${DILIGENT_ENGINE_DIR}/DiligentTools/ThirdParty/imgui"
         "${DILIGENT_ENGINE_DIR}/DiligentTools/ThirdParty/imgui/misc/cpp"
 )
-target_link_libraries(engine_game PUBLIC engine_core engine_platform engine_renderer PRIVATE imguizmo)
+target_link_libraries(engine_game PUBLIC engine_core engine_platform engine_renderer engine_scripting PRIVATE imguizmo engine_text_editor)
+if(WIN32)
+    target_link_libraries(engine_game PRIVATE shell32 ole32 uuid)
+    target_compile_definitions(engine_game PRIVATE ENGINE_STYLUA_EXECUTABLE="${stylua_runtime_SOURCE_DIR}/stylua.exe")
+endif()
 set_engine_warnings(engine_game)
 enable_engine_tracy(engine_game)
 
@@ -496,11 +559,93 @@ target_link_libraries(engine_gameplay_state_tests PRIVATE engine_game)
 set_engine_warnings(engine_gameplay_state_tests)
 add_test(NAME engine_gameplay_state_tests COMMAND engine_gameplay_state_tests)
 
+add_executable(engine_editor_command_tests tests/EditorCommandTests.cpp)
+target_include_directories(engine_editor_command_tests PRIVATE "${DILIGENT_ENGINE_DIR}/DiligentTools/ThirdParty/imgui")
+target_link_libraries(engine_editor_command_tests PRIVATE engine_game)
+set_engine_warnings(engine_editor_command_tests)
+add_test(NAME engine_editor_command_tests COMMAND engine_editor_command_tests)
+set_tests_properties(engine_editor_command_tests PROPERTIES TIMEOUT 60)
+
+add_executable(engine_script_workspace_command_tests tests/ScriptWorkspaceCommandTests.cpp)
+target_include_directories(engine_script_workspace_command_tests PRIVATE "${DILIGENT_ENGINE_DIR}/DiligentTools/ThirdParty/imgui")
+target_link_libraries(engine_script_workspace_command_tests PRIVATE engine_game)
+set_engine_warnings(engine_script_workspace_command_tests)
+add_test(NAME engine_script_workspace_command_tests COMMAND engine_script_workspace_command_tests)
+set_tests_properties(engine_script_workspace_command_tests PROPERTIES TIMEOUT 60)
+
+add_executable(engine_scripting_tests tests/ScriptingSystemTests.cpp)
+add_executable(engine_live_file_watcher_tests tests/LiveFileWatcherTests.cpp)
+target_link_libraries(engine_live_file_watcher_tests PRIVATE engine_core)
+set_engine_warnings(engine_live_file_watcher_tests)
+add_test(NAME engine_live_file_watcher_tests COMMAND engine_live_file_watcher_tests)
+target_link_libraries(engine_scripting_tests PRIVATE engine_scripting)
+target_compile_definitions(engine_scripting_tests PRIVATE ENGINE_TEST_ASSET_ROOT="${CMAKE_CURRENT_SOURCE_DIR}/assets")
+set_engine_warnings(engine_scripting_tests)
+add_test(NAME engine_scripting_tests COMMAND engine_scripting_tests)
+set_tests_properties(engine_scripting_tests PROPERTIES WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
+
+add_executable(engine_react_runtime_tests tests/ReactRuntimeTests.cpp)
+target_link_libraries(engine_react_runtime_tests PRIVATE engine_scripting)
+target_compile_definitions(engine_react_runtime_tests PRIVATE ENGINE_REACT_TEST_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests")
+set_engine_warnings(engine_react_runtime_tests)
+add_test(NAME engine_react_runtime_tests COMMAND engine_react_runtime_tests)
+set_tests_properties(engine_react_runtime_tests PROPERTIES TIMEOUT 60 WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
+
+add_executable(engine_codex_assistant_tests tests/CodexAssistantTests.cpp)
+target_include_directories(engine_codex_assistant_tests PRIVATE "${DILIGENT_ENGINE_DIR}/DiligentTools/ThirdParty/imgui")
+target_link_libraries(engine_codex_assistant_tests PRIVATE engine_game)
+set_engine_warnings(engine_codex_assistant_tests)
+add_test(NAME engine_codex_assistant_tests COMMAND engine_codex_assistant_tests)
+set_tests_properties(engine_scripting_tests engine_codex_assistant_tests PROPERTIES TIMEOUT 60)
+
+add_executable(engine_script_formatter_tests tests/ScriptFormatterTests.cpp)
+target_link_libraries(engine_script_formatter_tests PRIVATE engine_game)
+set_engine_warnings(engine_script_formatter_tests)
+add_test(NAME engine_script_formatter_tests COMMAND engine_script_formatter_tests)
+set_tests_properties(engine_script_formatter_tests PROPERTIES TIMEOUT 60)
+
+add_executable(engine_script_editor_tests tests/ScriptEditorTests.cpp)
+target_link_libraries(engine_script_editor_tests PRIVATE engine_text_editor)
+set_engine_warnings(engine_script_editor_tests)
+add_test(NAME engine_script_editor_tests COMMAND engine_script_editor_tests)
+set_tests_properties(engine_script_editor_tests PROPERTIES TIMEOUT 60)
+
+add_executable(engine_project_manager_tests tests/ProjectManagerTests.cpp)
+target_link_libraries(engine_project_manager_tests PRIVATE engine_core)
+set_engine_warnings(engine_project_manager_tests)
+add_test(NAME engine_project_manager_tests COMMAND engine_project_manager_tests)
+set_tests_properties(engine_project_manager_tests PROPERTIES TIMEOUT 60)
+
+add_executable(engine_atomic_file_tests tests/AtomicFileTests.cpp)
+target_link_libraries(engine_atomic_file_tests PRIVATE engine_core)
+set_engine_warnings(engine_atomic_file_tests)
+add_test(NAME engine_atomic_file_tests COMMAND engine_atomic_file_tests)
+set_tests_properties(engine_atomic_file_tests PROPERTIES TIMEOUT 60)
+
+add_executable(engine_project_asset_tests tests/ProjectAssetTests.cpp)
+target_link_libraries(engine_project_asset_tests PRIVATE engine_renderer)
+set_engine_warnings(engine_project_asset_tests)
+add_test(NAME engine_project_asset_tests COMMAND engine_project_asset_tests)
+set_tests_properties(engine_project_asset_tests PROPERTIES TIMEOUT 60)
+
+add_executable(engine_project_launcher_tests tests/ProjectLauncherTests.cpp)
+target_include_directories(engine_project_launcher_tests PRIVATE "${DILIGENT_ENGINE_DIR}/DiligentTools/ThirdParty/imgui")
+target_link_libraries(engine_project_launcher_tests PRIVATE engine_game)
+set_engine_warnings(engine_project_launcher_tests)
+add_test(NAME engine_project_launcher_tests COMMAND engine_project_launcher_tests)
+set_tests_properties(engine_project_launcher_tests PROPERTIES TIMEOUT 60)
+
 # Explicit hardware integration test; not a default CTest on headless CI.
 add_executable(engine_gpu_upload_tests tests/GpuUploadTests.cpp)
 target_link_libraries(engine_gpu_upload_tests PRIVATE engine_renderer engine_platform engine_rhi_diligent glfw)
 set_engine_warnings(engine_gpu_upload_tests)
 copy_pix_runtime_dll(engine_gpu_upload_tests)
+
+add_executable(engine_canvas_gpu_tests tests/CanvasGpuTests.cpp)
+target_include_directories(engine_canvas_gpu_tests PRIVATE "${DILIGENT_ENGINE_DIR}/DiligentTools/ThirdParty/imgui")
+target_link_libraries(engine_canvas_gpu_tests PRIVATE engine_renderer engine_platform engine_rhi_diligent glfw Diligent-Imgui)
+set_engine_warnings(engine_canvas_gpu_tests)
+copy_pix_runtime_dll(engine_canvas_gpu_tests)
 
 set_tests_properties(engine_physics_tests engine_job_system_tests engine_async_load_tests engine_world_tests engine_transform_batch_tests engine_texture_loader_tests engine_gameplay_state_tests
     PROPERTIES TIMEOUT 60)
@@ -513,8 +658,19 @@ add_custom_command(TARGET app POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory
         "${CMAKE_CURRENT_SOURCE_DIR}/assets"
         "$<TARGET_FILE_DIR:app>/assets"
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+        "${CMAKE_CURRENT_SOURCE_DIR}/third_party/react-luau"
+        "$<TARGET_FILE_DIR:app>/assets/scripts/react-luau"
     COMMENT "Copying assets to runtime output directory"
 )
+
+if(WIN32)
+    add_custom_command(TARGET app POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:app>/tools"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different "${stylua_runtime_SOURCE_DIR}/stylua.exe" "$<TARGET_FILE_DIR:app>/tools/stylua.exe"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_CURRENT_SOURCE_DIR}/third_party/StyLua/LICENSE.md" "$<TARGET_FILE_DIR:app>/tools/StyLua-LICENSE.md"
+    )
+endif()
 
 if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/tools/shader_compiler/CMakeLists.txt")
     add_subdirectory(tools/shader_compiler)

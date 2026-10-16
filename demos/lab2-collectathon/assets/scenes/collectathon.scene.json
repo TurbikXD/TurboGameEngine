@@ -1,0 +1,52 @@
+{
+  "version": 1,
+  "cameraEntity": 1,
+  "selectedEntity": 2,
+  "entities": [
+    {
+      "sourceId": 1,
+      "tag": { "value": "Camera" },
+      "transform": { "position": [0, 17, -17], "rotationEulerRadians": [-0.55, 0, 0], "scale": [1, 1, 1] },
+      "camera": { "active": true, "nearPlane": 0.1, "farPlane": 200, "verticalFovRadians": 0.9075712 }
+    },
+    {
+      "sourceId": 2,
+      "tag": { "value": "Collectathon Controller" },
+      "transform": { "position": [0, 0, 8], "rotationEulerRadians": [0, 0, 0], "scale": [1, 1, 1] },
+      "script": {
+        "path": "scripts/Collectathon.luau",
+        "enabled": true,
+        "fields": {
+          "duration": 180,
+          "goal": 20,
+          "tokenCount": 12,
+          "moveSpeed": 6,
+          "pickupRadius": 1,
+          "spawnRadius": 4,
+          "pointsPerToken": 1,
+          "title": "Collect the golden cubes",
+          "allowRestart": true
+        }
+      }
+    },
+    {
+      "sourceId": 3,
+      "tag": { "value": "Ground" },
+      "transform": { "position": [0, -2.5, 8], "rotationEulerRadians": [0, 0, 0], "scale": [28, 1, 20] },
+      "meshRenderer": {
+        "meshId": "__diligent_cube__",
+        "shaderId": "assets/shaders_hlsl/textured.shader.json",
+        "textureId": "assets/textures/arena_floor.ppm",
+        "tint": [0.18, 0.24, 0.3, 1],
+        "uvScale": [8, 6],
+        "visible": true
+      }
+    },
+    {
+      "sourceId": 4,
+      "tag": { "value": "ReactLuauHUD" },
+      "transform": { "position": [0, 0, 0], "rotationEulerRadians": [0, 0, 0], "scale": [1, 1, 1] },
+      "script": { "path": "scripts/ui/demo_ui.luau", "enabled": true, "fields": { "title": "Luau Collectathon" } }
+    }
+  ]
+}

@@ -33,12 +33,22 @@ public:
     std::uint32_t vertexCount{0};
     std::uint32_t indexCount{0};
     std::string lastError;
+    glm::vec3 boundsMinimum{0.0F}, boundsMaximum{0.0F};
+    bool hasBounds{false};
 
     [[nodiscard]] ResourceLoadState loadState() const {
         return m_loadState.load(std::memory_order_relaxed);
     }
 
     void setLoadState(const ResourceLoadState state) {
+        if (state == ResourceLoadState::Loaded && !data.vertices.empty()) {
+            boundsMinimum = boundsMaximum = data.vertices.front().position;
+            for (const auto& vertex : data.vertices) {
+                boundsMinimum = glm::min(boundsMinimum, vertex.position);
+                boundsMaximum = glm::max(boundsMaximum, vertex.position);
+            }
+            hasBounds = true;
+        }
         m_loadState.store(state, std::memory_order_relaxed);
     }
 

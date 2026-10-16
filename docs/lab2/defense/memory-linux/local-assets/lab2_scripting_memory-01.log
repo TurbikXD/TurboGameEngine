@@ -1,0 +1,82 @@
+[2026-10-16 15:31:05.117] [info] [engine] Logger initialized
+[2026-10-16 15:31:05.118] [error] [engine] Luau: bad.json: [json.exception.out_of_range.403] key 'path' not found
+[2026-10-16 15:31:05.119] [error] [engine] Luau: ../outside.json: Asset path escapes assets directory
+[2026-10-16 15:31:05.123] [info] [engine] Luau live: Reloaded behavior.luau (runtime state preserved)
+[2026-10-16 15:31:05.128] [info] [engine] Luau live: Reloaded behavior.luau (runtime state preserved)
+[2026-10-16 15:31:05.130] [error] [engine] Luau: Live reload retained previous code: behavior.luau: :1: Expected identifier when parsing expression, got <eof>
+[2026-10-16 15:31:05.133] [info] [engine] Luau live: Reloaded behavior.luau (runtime state preserved)
+[2026-10-16 15:31:05.136] [info] [engine] Luau live: Reloaded behavior.luau (runtime state preserved)
+[2026-10-16 15:31:05.139] [info] [engine] Luau live: Reloaded behavior.luau (runtime state preserved)
+[2026-10-16 15:31:05.141] [info] [engine] Luau live: Reloaded behavior.luau (runtime state preserved)
+[2026-10-16 15:31:05.143] [info] [engine] Luau live: Reloaded behavior.luau (runtime state preserved)
+[2026-10-16 15:31:05.144] [info] [engine] Luau live: Reloaded behavior.luau (runtime state preserved)
+[2026-10-16 15:31:05.147] [info] [engine] Luau live: Reloaded behavior.luau (runtime state preserved)
+[2026-10-16 15:31:05.149] [info] [engine] Luau live: Reloaded behavior.luau (runtime state preserved)
+[2026-10-16 15:31:05.152] [info] [engine] Luau live: Reloaded behavior.luau (runtime state preserved)
+[2026-10-16 15:31:05.154] [info] [engine] Luau live: Reloaded behavior.luau (runtime state preserved)
+[2026-10-16 15:31:05.156] [info] [engine] Luau live: Reloaded behavior.luau (runtime state preserved)
+[2026-10-16 15:31:05.157] [info] [engine] Luau live: Reloaded behavior.luau (runtime state preserved)
+[2026-10-16 15:31:05.159] [info] [engine] Luau live: Reloaded behavior.luau (runtime state preserved)
+[2026-10-16 15:31:05.260] [error] [engine] Luau: Script execution time limit exceeded
+[C] function traceback
+loop.luau:1
+
+[2026-10-16 15:31:05.262] [error] [engine] Luau: not enough memory
+[C] function traceback
+[C] function rep
+memory.luau:1
+
+[2026-10-16 15:31:05.263] [error] [engine] Luau: structured UI failure
+[C] function traceback
+[C] function error
+=Command:1
+
+[2026-10-16 15:31:05.264] [error] [engine] Luau: syntax.luau::1: Expected identifier when parsing expression, got <eof>
+[2026-10-16 15:31:05.264] [error] [engine] Luau: ../escape.luau: Asset path escapes assets directory
+[2026-10-16 15:31:05.265] [error] [engine] Luau: =Command:1: Cannot load module '../escape.luau' (see Output)
+[C] function traceback
+[C] function require
+=Command:1
+
+[2026-10-16 15:31:05.266] [error] [engine] Luau: Scoped:1: expected scoped module error
+[C] function traceback
+[C] function error
+Scoped:1
+[C] function require
+=Command:1
+
+[2026-10-16 15:31:05.266] [error] [engine] Luau: =Command:1: Cannot load module 'Scoped' (see Output)
+[C] function traceback
+[C] function require
+=Command:1
+
+[2026-10-16 15:31:05.268] [error] [engine] Luau: MalformedFields: fields.badBoolean: default must match supported type number, integer, boolean, bool or string
+[2026-10-16 15:31:05.269] [error] [engine] Luau: MalformedFields: fields.badDefault: default must match supported type number, integer, boolean, bool or string
+[2026-10-16 15:31:05.269] [error] [engine] Luau: MalformedFields: fields.badInteger: integer declaration requires an integral default and a range containing an integer
+[2026-10-16 15:31:05.269] [error] [engine] Luau: MalformedFields: fields.badRange: min must not exceed max
+[2026-10-16 15:31:05.270] [error] [engine] Luau: MalformedFields: fields.badType: type must be a string
+[2026-10-16 15:31:05.270] [error] [engine] Luau: MalformedFields: fields.missingDefault: Declaration requires a scalar default
+[2026-10-16 15:31:05.270] [error] [engine] Luau: MalformedFields: fields.speed: min must be a finite number
+[2026-10-16 15:31:05.286] [info] [engine] Luau live: Reloaded scripts/Collectathon.luau (runtime state preserved)
+[2026-10-16 15:31:07.988] [info] [engine] Luau live: Reloaded game.luau (runtime state preserved)
+[2026-10-16 15:31:08.310] [info] [engine] Luau live: Reloaded rules.luau (runtime state preserved)
+[2026-10-16 15:31:08.311] [info] [engine] Luau live: Reloaded game.luau (runtime state preserved)
+[2026-10-16 15:31:08.615] [info] [engine] Luau live: Reloaded component.luau (runtime state preserved)
+[2026-10-16 15:31:08.615] [info] [engine] Luau live: Reloaded game.luau (runtime state preserved)
+[2026-10-16 15:31:08.928] [info] [engine] Luau live: Reloaded game.luau (runtime state preserved)
+[2026-10-16 15:31:09.229] [error] [engine] Luau: Live reload retained previous code: rules.luau: :1: Expected identifier when parsing expression, got <eof>
+[2026-10-16 15:31:09.538] [error] [engine] Luau: rules.luau:1: broken evaluation
+[C] function traceback
+[C] function error
+rules.luau:1
+[C] function protected host entry
+
+[2026-10-16 15:31:09.541] [error] [engine] Luau: Live reload failed; previous code retained
+[2026-10-16 15:31:09.857] [info] [engine] Luau live: Reloaded rules.luau (runtime state preserved)
+[2026-10-16 15:31:09.858] [info] [engine] Luau live: Reloaded game.luau (runtime state preserved)
+[2026-10-16 15:31:09.880] [info] [engine] Luau live: Reloaded frozen.luau (runtime state preserved)
+[2026-10-16 15:31:09.881] [error] [engine] Luau: frozen.luau: Behavior self is frozen; the engine must update self.fields
+[2026-10-16 15:31:09.882] [info] [engine] Luau live: Reloaded frozen.luau (runtime state preserved)
+[2026-10-16 15:31:09.883] [error] [engine] Luau: frozen.luau: Behavior self is frozen; the engine must attach reloaded methods
+[2026-10-16 15:31:09.883] [info] [engine] Luau live: Reloaded frozen.luau (runtime state preserved)
+Luau: lifecycle, prefab fields, bindings, async reload, last-good code, budgets, stale handles, gameplay and React passed

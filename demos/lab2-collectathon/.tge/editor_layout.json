@@ -1,0 +1,24 @@
+{
+  "version": 1,
+  "locked": false,
+  "visibility": {
+    "toolbar": true,
+    "hierarchy": true,
+    "project": false,
+    "inspector": true,
+    "stats": false,
+    "viewport": true,
+    "status": true,
+    "assistant": false
+  },
+  "dockSlots": {
+    "toolbar": "top",
+    "hierarchy": "right_top",
+    "project": "left_bottom",
+    "inspector": "right_bottom",
+    "stats": "left_top",
+    "viewport": "center",
+    "status": "bottom"
+  },
+  "sizing": { "leftWidth": 0, "rightWidth": 320, "leftSplit": 0.72, "rightSplit": 0.37 }
+}

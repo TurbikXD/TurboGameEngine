@@ -1,0 +1,76 @@
+{
+  "title": "TurboGameEngine",
+  "subtitle": "Лабораторная работа 2: скриптинг как подсистема движка",
+  "date": "2026-10-16",
+  "slides": [
+    {
+      "id": "mission", "title": "Игра объясняет собственный движок",
+      "lead": "C++ задаёт возможности мира. Luau задаёт правила игры и UI.",
+      "bullets": ["Скриптовая механика Collectathon: движение, сбор, таймер, победа.", "Префабы и поля доступны автору без пересборки C++.", "Эта презентация тоже работает внутри TurboGameEngine."],
+      "station": null,
+      "notes": ["Начать с интерактивного проекта Lab2Defense.tgeproj. Уточнить: это собственный C++ движок с Luau, а не Roblox runtime.", "Основная защита занимает 3 минуты; подробные доказательства вынесены в документацию."],
+      "sources": ["assets/scripts/Collectathon.luau", "demos/lab2-defense/Lab2Defense.tgeproj"]
+    },
+    {
+      "id": "boundary", "title": "Граница C++ / Luau",
+      "lead": "Данные и ресурсы принадлежат движку. Скрипт работает через проверяемый API.",
+      "bullets": ["Engine: сущности, Transform, физика, префабы, поиск и статус.", "Input: состояние клавиш и события нажатия.", "Luau вызывает Engine; движок вызывает Init / Update / OnEvent / Destroy."],
+      "station": "quiz",
+      "notes": ["Показать вопрос о том, где должна жить формула начисления очков.", "Handles содержат поколение; isAlive проверяет сущность. Структурные изменения из callback откладываются до безопасной границы."],
+      "sources": ["engine/scripting/ScriptingSystem.cpp", "engine/ecs/world.h", "engine/scripting/ScriptComponent.h"]
+    },
+    {
+      "id": "lifecycle", "title": "Одна VM на мир, явный жизненный цикл",
+      "lead": "Модуль описывает поведение; экземпляр хранит self.entity, self.fields и self.state.",
+      "bullets": ["VM и ECS меняются на потоке владельца.", "Destroy и Stop освобождают экземпляры, подписки и UI.", "Защищённые вызовы, лимит памяти и watchdog ограничивают ошибочный скрипт."],
+      "station": null,
+      "notes": ["Бюджеты: 64 MiB на VM; callback 25 ms Release / 100 ms Debug. Для загрузки доверенных пакетов отдельный бюджет.", "Это ограниченная песочница, а не полный набор Roblox services. Ошибка не превращается в native exception."],
+      "sources": ["engine/scripting/ScriptingSystem.h", "engine/scripting/ScriptingSystem.cpp", "tests/ScriptingSystemTests.cpp"]
+    },
+    {
+      "id": "prefab", "title": "Механика целиком в скрипте",
+      "lead": "JSON-префаб задаёт компоненты, путь модуля и начальные значения полей.",
+      "bullets": ["Collectathon создаёт игрока и волну предметов через spawnPrefab.", "queryRadius + destroy реализуют сбор; поля управляют скоростью, целью и очками.", "Inspector редактирует number / boolean / string и сохраняет их в сцену."],
+      "station": "spawn",
+      "notes": ["В интерактивной презентации создать настоящий checkpoint-префаб и проверить его наличие через Engine.find/isAlive.", "В основной механике выбрать controller: изменить pointsPerToken через Inspector; затем показать сохранение сцены."],
+      "sources": ["assets/scripts/Collectathon.luau", "assets/prefabs/collectathon_controller.json", "engine/game/GameplayState.cpp"]
+    },
+    {
+      "id": "reload", "title": "Hot reload сохраняет состояние сессии",
+      "lead": "Изменяем правило, не перезапускаем мир.",
+      "bullets": ["Чтение и компиляция выполняются в jobs; применение - на потоке VM.", "Успешное обновление меняет методы, сохраняет self.state и вызывает OnReload.", "При ошибке компиляции продолжает работать предыдущая версия."],
+      "station": "reload",
+      "notes": ["В Collectathon изменить строку self.state.score += self.fields.pointsPerToken, добавив * 2. Изменение default поля не подходит: сохранённые поля сцены имеют приоритет.", "В игре-презентации изменить version в scripts/ReloadRules.luau, сохранить файл и дождаться настоящего OnReload. Баллы/этапы не должны сброситься."],
+      "sources": ["engine/scripting/ScriptingSystem.cpp", "engine/core/JobSystem.cpp", "engine/core/LiveFileWatcher.cpp", "assets/scripts/Collectathon.luau"]
+    },
+    {
+      "id": "react", "title": "Игровой UI на настоящем React Luau",
+      "lead": "Upstream React выполняет hooks и reconciliation; собственный host рисует UI.",
+      "bullets": ["useState, эффекты, context, refs, bindings и порталы.", "Instance/Enum/UDim2, layout, текст, изображения, scrolling и TextBox.", "TweenService, градиенты и CanvasGroup с GPU-композицией."],
+      "station": null,
+      "notes": ["UI и игровая логика пишутся на Luau. ReactTurbo и ReactRoblox - адаптеры к одной синхронной реализации.", "Нет web DOM/CSS и полного Roblox DataModel; изображения загружаются из локальных assets."],
+      "sources": ["third_party/react-luau/manifest.tsv", "third_party/react-luau/adapters/ReactTurbo.luau", "engine/scripting/react/ReactUI.cpp", "engine/renderer/UiCanvasCompositor.cpp"]
+    },
+    {
+      "id": "editor", "title": "От проекта до запуска",
+      "lead": "Редактор объединяет сцену, код, ресурсы, диагностику и Play.",
+      "bullets": ["Проекты .tgeproj, Explorer, Properties, Assets и отдельный Play-процесс.", "Script Workspace: документы, сохранение, конфликты, форматирование, Output/Command/State/Errors.", "Общий реестр команд и Home / Model / Test / View / Script; Undo/Redo используют существующие обработчики."],
+      "station": null,
+      "notes": ["Stop после Play in Editor восстанавливает снимок мира и истории. Отмена в документе остаётся в TextEditor.", "Встроенный Codex - опциональный официальный app-server, модель выбирается из каталога; обычная игра от него не зависит.", "Стиль Studio исследован через REA; локальные reference fonts не входят в portable distribution."],
+      "sources": ["engine/editor/EditorCommands.cpp", "engine/editor/EditorRibbon.cpp", "engine/editor/ScriptWorkspace.cpp", "engine/core/PlaySession.cpp", "engine/editor/CodexAssistant.cpp"]
+    },
+    {
+      "id": "verification", "title": "Проверяем утверждения фактами",
+      "lead": "Код, тесты и сырые логи сопровождают каждое существенное утверждение.",
+      "bullets": ["19 из 19 Windows-тестов прошли после исправления дефекта уничтожения ECS.", "Linux: 240 lifecycle-циклов; Windows: 300 с без ошибок Luau. Пределы проверки приведены в отчёте.", "CLion: выбранный Windows toolchain не поддерживает Perf profiler."],
+      "station": null,
+      "notes": ["Не говорить, что график памяти доказывает отсутствие всех утечек. Итоговый статус брать из verification.json и memory report.", "Git-снимок перечисляет каждый изменённый и неотслеживаемый файл, включая удалённые. Коммиты и push этой подготовкой не выполнялись."],
+      "sources": ["docs/lab2/defense/ctest-baseline.log", "docs/lab2/defense/evidence/clion-profiler-unavailable.jpg", "docs/lab2/defense/git-snapshot.json"]
+    }
+  ],
+  "appendix": {
+    "sourceFiles": ["docs/lab2/defense/implementation-evidence.json", "docs/lab2/defense/git-snapshot.json", "docs/lab2/defense/verification.json"],
+    "limits": ["Нет полного Roblox runtime и полного отладчика VM с breakpoints.", "Runtime Undo/Redo пересоздаёт мир, это не checkpoint VM.", "State preservation относится к поведению; изменение идентичности React-компонента может сбросить hooks.", "Ограниченный прогон не доказывает отсутствие утечек во всех сценариях, драйвере или GPU."],
+    "demo": ["0:00-0:30: в Edit изменить поле controller; Save Scene и показать JSON-префаб.", "0:30-1:05: запустить Play; собрать предмет и проверить сохранённое поле.", "1:05-1:55: изменить начисление очков в Luau и сохранить; мир не перезапускается.", "1:55-2:20: внести синтаксическую ошибку; предыдущая версия продолжает работать.", "2:20-3:00: показать UI, Output/State, Stop и восстановление сцены."]
+  }
+}

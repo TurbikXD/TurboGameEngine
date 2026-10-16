@@ -13,6 +13,9 @@ Tracy, debugging checkpoints, and a suggested reading order.
 [Runtime Delete and Tracy FPS troubleshooting](docs/runtime-delete.md): temporary
 Play-mode deletion, safe job boundaries, Stop restore, and profiling-build caveats.
 
+[Live editing and FPS investigation](docs/live-reload-performance.md): automatic
+Luau/React/scene updates in both Play modes and measurements on AI GAME.
+
 ## What Changed
 
 - Legacy internal backends (`rhi_opengl`, `rhi_vulkan`, `rhi_d3d12`) are no longer used by runtime.
@@ -52,6 +55,67 @@ Release:
 cmake --preset release --fresh
 cmake --build --preset release
 ```
+
+In this local CLion workspace, **Run → app** defaults to the build preset profile
+**clion-release - clion-release**, with configuration **Release** and build tree
+`C:/tge/profile`. The IDE builds the `app` target before launching
+`C:/tge/profile/Release/app.exe`. Play in Editor runs inside this process;
+Play Window launches the same executable. Debug remains available as `clion-debug`.
+These local choices are stored in `CMakeUserPresets.json` and `.idea/workspace.xml`.
+
+The equivalent local build is:
+
+```bash
+cmake --preset clion-release
+cmake --build --preset clion-release
+```
+
+## Lab 2: Luau, React UI And Script Workspace
+
+The editor ribbon has **Home / Model / Test / View / Script** tabs. Play,
+Pause/Resume and Stop stay visible; Create and Play menus remember their choice.
+Menu items, ribbon controls and shortcuts share one command registry with current
+enabled/checked state. Scene Undo/Redo and the pre-Play snapshot keep their existing
+behavior. Script document Undo/Redo remains independent of scene history.
+Model exposes separate Move/Rotate/Scale snap increments; View contains compact
+mode and label preferences. Ribbon preferences are saved in the project's editor
+layout. Narrow windows move whole command groups into **More...**.
+The native editor uses a flat charcoal theme, image icons and a compact single-row
+ribbon. **View → Studio Reference Layout** places the viewport beside a flush
+right rail shared by Explorer, Properties and Assistant; existing saved dock slots
+remain intact until that command is used. Dock titles are 26 px, Explorer rows
+20 px, and Properties rows 24 px. Properties uses a two-column component table;
+its filter and header menu retain the existing editing commands and history.
+Hidden/floating panels release their dock space. The engine bundles OFL Source
+Sans Pro at 15 px; a local `.local/editor-fonts` Builder Sans override supplies
+the reference font on this development machine, with Cyrillic/Greek fallback.
+Native panels use a separate Source Sans role, Explorer uses its larger legacy
+Source Sans scale, and script editing/Output/Command use Fira Mono at 16 stb px.
+Local reference fonts are ignored by Git and excluded from runtime asset copies;
+see [font provenance](assets/fonts/README.md).
+**Step Tick** advances the paused simulation by 1/60 s. Script **State** displays
+behavior state; **Errors** displays the latest recorded traceback.
+
+See the [Lab 2 guide](docs/lab2/README.md) for the live scripted demo, behavior
+API, prefabs, hot reload, script editor and the embedded Codex assistant.
+React UI supports Roblox-style scale/offset layout, anchors, colors, corners,
+padding and list layouts. The assistant exposes session model/effort choices
+from the installed runtime and separate approval policy/reviewer controls.
+The [Roblox UI compatibility guide](docs/roblox-ui-compatibility.md) covers
+Instance refs/properties/signals, typed Enum values, global datatypes and
+the ReactRoblox root/portal adapter for porting existing components.
+The [visual UI guide](docs/roblox-ui-visuals.md) covers gradients, image assets,
+atlas/nine-slice, grid/scroll/input controls, constraints and live image edits.
+The [TweenService guide](docs/tween-service.md) covers eased UI animation,
+window transitions, hover, moving gradients and the UI Demo MOTION page.
+The [CanvasGroup guide](docs/canvas-groups.md) covers flattened window fades,
+group tint, nested layers and input gating, shown in UI Demo Canvas / Layers.
+The [agent guide](AGENTS.md) maps the engine components, their contracts and
+the relevant build/test commands.
+The editor's **Script → Lab 2: Collectathon + React UI** prepares the demo.
+Luau is linked statically; React Luau and the Windows StyLua formatter ship
+with the app. The assistant prefers the installed Codex Desktop runtime,
+with an independently installed Codex CLI as fallback.
 
 ## Lab 1: Job System And Tracy
 
@@ -160,12 +224,22 @@ Notes:
 
 ## Run App
 
+Normal startup opens **Projects** before the editor. Choose **Blank Project**
+to create a project, **Open Existing Project** for a `.tgeproj` file, or open
+one of the recent projects. **Engine Demo** opens the existing engine scene.
+Use **File → Switch Project...** to return to the selector; the dialog can
+save the scene and all script documents first.
+
+Each project has its own `assets`, startup scene and `.tge/editor_layout.json`.
+Blank projects contain only an internal editor camera. See the
+[project guide](docs/projects.md) for the format and storage locations.
+
 - Debug: `C:/tge/dbg/Debug/app.exe`
 - Release: `C:/tge/rel/Release/app.exe`
 
 Menu controls in `app`:
 
-- `Enter`: start gameplay
+- Normal startup: select or create a project
 - `Esc` in gameplay: release camera look or return from editor Play to Edit
 
 The separate `PauseState` supports Escape to pop itself, but gameplay Escape

@@ -1,0 +1,3 @@
+PASS: manifest, 4 scene IDs, camera/ground, 4 prefabs, scripts and shader/texture paths.
+Luau compile: PASS (3 files).
+Native GUI/ECS/live reload: NOT RUN by this verifier.

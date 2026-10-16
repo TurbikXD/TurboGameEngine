@@ -1,0 +1,16 @@
+[2026-10-16 15:37:40.371] [info] [engine] Logger initialized
+[2026-10-16 15:37:40.372] [error] [engine] Luau: Unsupported Frame property: DefinitelyUnsupported
+[C] function traceback
+[C] function error
+ReactReconciler/SchedulerWithReactIntegration.new:278
+ReactReconciler/SchedulerWithReactIntegration.new:209 function flushSyncCallbackQueue
+ReactReconciler/ReactFiberWorkLoop.new:1474
+ReactTurbo:191 function render
+=InvalidReactHostProperty:1
+
+[2026-10-16 15:37:40.383] [info] [engine] Luau live: Reloaded scripts/ui/demo_ui.luau (runtime state preserved)
+[2026-10-16 15:37:40.397] [error] [engine] Luau: Script execution time limit exceeded
+[C] function traceback
+ReactTurbo:222 function pump
+
+React native bootstrap, upstream contract, stack and callback guard tests passed

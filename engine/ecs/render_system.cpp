@@ -4,6 +4,7 @@
 
 #include "engine/core/Profiling.h"
 #include "engine/ecs/components.h"
+#include "engine/ecs/frustum.h"
 #include "engine/ecs/transform_utils.h"
 #include "engine/ecs/transform_batch.h"
 #include "engine/ecs/world.h"
@@ -16,6 +17,7 @@ void RenderSystem::render(
     renderer::RenderAdapter& renderer,
     const glm::mat4& viewProjectionMatrix) {
     ENGINE_PROFILE_ZONE("RenderSystem");
+    m_submitted = m_culled = 0;
     const auto phase = world.stablePhase();
     {
         ENGINE_PROFILE_ZONE("Render Gather");
@@ -51,6 +53,9 @@ void RenderSystem::render(
         for (std::size_t index = 0; index < m_entities.size(); ++index) {
             MeshRenderer& meshRenderer = *m_renderers[index];
             const glm::mat4& modelMatrix = m_matrices[index];
+            if (meshRenderer.mesh && meshRenderer.mesh->isReady() && meshRenderer.mesh->hasBounds &&
+                !intersectsFrustum(viewProjectionMatrix * modelMatrix, meshRenderer.mesh->boundsMinimum, meshRenderer.mesh->boundsMaximum)) { ++m_culled; continue; }
+            ++m_submitted;
             if (meshRenderer.mesh != nullptr && meshRenderer.shader != nullptr) {
                 renderer.drawMesh(
                     *meshRenderer.mesh,

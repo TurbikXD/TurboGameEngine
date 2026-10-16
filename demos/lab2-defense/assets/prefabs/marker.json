@@ -1,0 +1,14 @@
+{
+  "name": "Lab2Marker",
+  "components": {
+    "tag": "Lab2Marker",
+    "transform": { "position": [0, 0, 5], "scale": [0.65, 0.65, 0.65] },
+    "meshRenderer": {
+      "meshId": "__diligent_cube__",
+      "textureId": "assets/textures/white.ppm",
+      "shaderId": "assets/shaders_hlsl/textured.shader.json",
+      "tint": [0.24, 0.82, 0.79, 1]
+    },
+    "script": { "path": "scripts/Marker.luau", "fields": {} }
+  }
+}

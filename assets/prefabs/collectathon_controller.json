@@ -1,0 +1,22 @@
+{
+    "name": "Collectathon Controller",
+    "components": {
+        "transform": { "position": [0, 0, 8] },
+        "tag": "Collectathon Controller",
+        "script": {
+            "path": "scripts/Collectathon.luau",
+            "enabled": true,
+            "fields": {
+                "duration": 45,
+                "goal": 10,
+                "tokenCount": 12,
+                "moveSpeed": 6,
+                "pickupRadius": 1,
+                "spawnRadius": 4,
+                "pointsPerToken": 1,
+                "title": "Collect the golden cubes",
+                "allowRestart": true
+            }
+        }
+    }
+}

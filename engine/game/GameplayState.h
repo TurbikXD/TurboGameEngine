@@ -6,9 +6,13 @@
 #include <functional>
 #include <optional>
 #include <string>
+#include <string_view>
+#include <unordered_map>
 #include <vector>
 
 #include "engine/core/EventBus.h"
+#include "engine/core/LiveFileWatcher.h"
+#include "engine/core/ProjectManager.h"
 #include "engine/ecs/collision_utils.h"
 #include "engine/ecs/debug_render_system.h"
 #include "engine/ecs/physics_system.h"
@@ -16,6 +20,11 @@
 #include "engine/ecs/world.h"
 #include "engine/game/FreeCameraController.h"
 #include "engine/game/IGameState.h"
+#include "engine/editor/CodexAssistant.h"
+#include "engine/editor/ScriptWorkspace.h"
+#include "engine/editor/EditorCommands.h"
+#include "engine/editor/EditorRibbon.h"
+#include "engine/scripting/ScriptingSystem.h"
 
 namespace engine::renderer {
 class RenderAdapter;
@@ -105,10 +114,12 @@ private:
         std::optional<ecs::Rigidbody> rigidbody;
         std::optional<ecs::Collider> collider;
         std::optional<ecs::MeshRenderer> meshRenderer;
+        std::optional<scripting::ScriptComponent> script;
     };
 
     struct SceneSnapshot final {
         std::vector<EntitySnapshot> entities;
+        std::unordered_map<ecs::EntityId, ecs::EntityId> fileEntities;
         ecs::EntityId cameraEntity{ecs::kInvalidEntity};
         ecs::EntityId strikerEntity{ecs::kInvalidEntity};
         ecs::EntityId showcaseSphereEntity{ecs::kInvalidEntity};
@@ -142,6 +153,8 @@ private:
     };
 
     void createDemoScene();
+    void createScriptDemo();
+    void renderScriptInspector(ecs::EntityId entity);
     void resetDemoScene();
     void startSimulation(bool relaunchStriker = false);
     void pauseSimulation();
@@ -150,15 +163,23 @@ private:
     void processPendingSpawns();
     void renderEditorUi(renderer::Renderer& renderer);
     void renderMainMenuBar();
-    void renderToolbar();
-    void renderHierarchyPanel();
-    void renderProjectPanel();
+    void renderToolbar(renderer::Renderer* renderer = nullptr);
+    void initializeEditorCommands();
+    [[nodiscard]] editor::CommandState queryEditorCommand(editor::EditorCommandId command) const;
+    void executeEditorAction(editor::EditorCommandId command);
+    bool renderCommandMenuItem(editor::EditorCommandId command, const char* label = nullptr);
+    bool renderCommandButton(editor::EditorCommandId command, const char* label, const ImVec2& size);
+    [[nodiscard]] bool sceneShortcutsBlocked() const;
+    void finishGizmoEdit();
+    void renderHierarchyPanel(renderer::Renderer* renderer = nullptr);
+    void renderProjectPanel(renderer::Renderer* renderer = nullptr);
     void renderInspectorPanel();
+    bool inspectorMatches(std::string_view properties) const;
     void renderStatsPanel(const renderer::Renderer& renderer);
     void renderViewportPanel(renderer::Renderer& renderer);
     void renderViewportGizmo(const CameraFrame& cameraFrame);
-    void renderViewportOverlay(const CameraFrame& cameraFrame) const;
     void renderStatusBar();
+    void renderPanelHeader(EditorPanelId panelId, const char* title);
     void renderPanelDockControls(EditorPanelId panelId, const char* popupId);
     void renderDockDropOverlay();
     void renderDockDropZone(EditorPanelId draggedPanel, EditorDockSlot targetSlot, const ImVec2& position, const ImVec2& size);
@@ -172,6 +193,12 @@ private:
     void renderEntityContextMenu(ecs::EntityId entity);
     void enterPlayMode();
     void stopPlayMode();
+    void launchStandalonePlay();
+    void renderStandaloneUi(renderer::Renderer& renderer);
+    [[nodiscard]] std::string serializeScene(const SceneSnapshot& snapshot, bool playSession = false) const;
+    [[nodiscard]] SceneSnapshot parseScene(const nlohmann::json& scene) const;
+    void pollSceneChanges();
+    void applyLiveScene(const nlohmann::json& scene);
     [[nodiscard]] EntitySnapshot captureEntitySnapshot(ecs::EntityId entity) const;
     [[nodiscard]] SceneSnapshot captureSceneSnapshot() const;
     void restoreSceneSnapshot(const SceneSnapshot& snapshot);
@@ -183,8 +210,14 @@ private:
     void cancelSceneEdit();
     void undoSceneEdit();
     void redoSceneEdit();
-    void saveSceneToDisk();
+    bool saveSceneToDisk();
     void loadSceneFromDisk();
+    void createEditorCamera();
+    [[nodiscard]] std::filesystem::path editorAssetsRoot() const;
+    [[nodiscard]] std::filesystem::path editorScenePath() const;
+    [[nodiscard]] std::filesystem::path editorLayoutPath() const;
+    [[nodiscard]] std::string toAssetPath(const std::filesystem::path& path) const;
+    void renderProjectSwitchDialog();
     [[nodiscard]] CameraFrame buildActiveCameraFrame(const renderer::Renderer& renderer) const;
     [[nodiscard]] std::optional<PickRay> buildPickRay(const CameraFrame& cameraFrame, const glm::vec2& mousePosition) const;
     [[nodiscard]] std::optional<PickResult> pickEntity(const PickRay& ray) const;
@@ -218,6 +251,7 @@ private:
     void dockPanel(EditorDockSlot& panelSlot, EditorDockSlot newSlot);
     [[nodiscard]] EditorDockSlot* dockSlotForPanel(EditorPanelId panelId);
     [[nodiscard]] const EditorDockSlot* dockSlotForPanel(EditorPanelId panelId) const;
+    bool hasDockedPanel(EditorDockSlot slot) const;
     void resetEditorLayout();
     void loadEditorLayout();
     void saveEditorLayout() const;
@@ -265,7 +299,18 @@ private:
     std::vector<ecs::EntityId> m_labEntities;
     bool m_labLoadRequested{false};
     bool m_labLoadCompleted{false};
+    std::optional<core::Project> m_project;
+    core::LiveFileWatcher m_sceneWatcher;
+    nlohmann::json m_diskScene;
+    std::unordered_map<ecs::EntityId, ecs::EntityId> m_fileEntities;
+    bool m_projectSwitchRequested{false};
     ecs::World m_world{};
+    scripting::ScriptingSystem m_scripts{};
+    editor::ScriptWorkspace m_scriptWorkspace{};
+    editor::EditorCommandRegistry m_editorCommands{};
+    editor::EditorRibbonState m_ribbonState{};
+    editor::EditorRibbon m_editorRibbon{};
+    editor::CodexAssistant m_codexAssistant{};
     ecs::RenderSystem m_renderSystem{};
     ecs::DebugRenderSystem m_debugRenderSystem{};
     ecs::PhysicsSystem m_physicsSystem{};
@@ -277,6 +322,8 @@ private:
     std::vector<EditorHistoryEntry> m_redoStack{};
     std::vector<AssetEntry> m_projectAssets{};
     std::optional<SceneSnapshot> m_editModeSnapshot{};
+    std::vector<EditorHistoryEntry> m_editUndoStack;
+    std::vector<EditorHistoryEntry> m_editRedoStack;
     std::optional<PendingSceneEdit> m_pendingSceneEdit{};
     std::optional<SceneSnapshot> m_gizmoEditSnapshot{};
     std::array<std::optional<ecs::Transform>, 4> m_cameraBookmarks{};
@@ -293,10 +340,14 @@ private:
     glm::vec2 m_viewportSize{1280.0F, 720.0F};
     glm::vec2 m_lastHoverPickMouse{-100000.0F, -100000.0F};
     std::string m_hierarchyFilter{};
+    std::string m_inspectorFilter{};
     std::string m_assetFilter{};
     std::string m_selectedAssetPath{};
     bool m_sceneInitialized{false};
     bool m_simulationRunning{false};
+    bool m_stepScriptTick{false};
+    bool m_showScriptWorkspace{false};
+    bool m_showAssistant{true};
     bool m_showColliderDebug{false};
     bool m_cameraLookActive{false};
     bool m_skipNextCameraLookDelta{false};
@@ -305,27 +356,31 @@ private:
     bool m_viewportFocused{false};
     bool m_useLocalGizmoSpace{true};
     bool m_snapEnabled{false};
+    bool m_selectionToolActive{false};
+    bool m_scriptWorkspaceWasVisible{false};
+    bool m_addComponentRequested{false};
+    ecs::EntityId m_componentMenuEntity{ecs::kInvalidEntity};
     bool m_showControlsPopup{false};
     bool m_resetEditorLayout{false};
     bool m_editorLayoutLocked{false};
     bool m_showToolbarPanel{true};
-    bool m_showHierarchyPanel{true};
-    bool m_showProjectPanel{true};
-    bool m_showInspectorPanel{true};
-    bool m_showStatsPanel{true};
+    bool m_showHierarchyPanel{false};
+    bool m_showProjectPanel{false};
+    bool m_showInspectorPanel{false};
+    bool m_showStatsPanel{false};
     bool m_showViewportPanel{true};
     bool m_showStatusPanel{true};
     EditorDockSlot m_toolbarDockSlot{EditorDockSlot::Top};
-    EditorDockSlot m_hierarchyDockSlot{EditorDockSlot::LeftTop};
+    EditorDockSlot m_hierarchyDockSlot{EditorDockSlot::RightTop};
     EditorDockSlot m_projectDockSlot{EditorDockSlot::LeftBottom};
-    EditorDockSlot m_inspectorDockSlot{EditorDockSlot::RightTop};
-    EditorDockSlot m_statsDockSlot{EditorDockSlot::RightBottom};
+    EditorDockSlot m_inspectorDockSlot{EditorDockSlot::RightBottom};
+    EditorDockSlot m_statsDockSlot{EditorDockSlot::LeftTop};
     EditorDockSlot m_viewportDockSlot{EditorDockSlot::Center};
     EditorDockSlot m_statusDockSlot{EditorDockSlot::Bottom};
     float m_editorLeftWidth{0.0F};
     float m_editorRightWidth{0.0F};
     float m_editorLeftSplit{0.72F};
-    float m_editorRightSplit{0.68F};
+    float m_editorRightSplit{0.76F};
     EditorPanelId m_draggedDockPanel{EditorPanelId::Toolbar};
     bool m_dockDragActive{false};
     bool m_dockDropAcceptedThisFrame{false};

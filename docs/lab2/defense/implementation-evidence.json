@@ -1,0 +1,3174 @@
+{
+  "schema_version": 1,
+  "generated_at_utc": "2026-10-16T12:30:48.750361+00:00",
+  "language": "ru",
+  "workspace": "C:\\Users\\rocco\\CLionProjects\\TurboGameEngine",
+  "audit_scope": {
+    "mode": "source_and_existing_logs",
+    "basis": "ТЗ, текущие code/tests; README сверялся с implementation. Только два JSON создаются этим аудитом.",
+    "followup_authorized_repair": {
+      "files": [
+        "engine/scripting/ScriptingSystem.cpp",
+        "tests/ScriptingSystemTests.cpp"
+      ],
+      "builds_or_tests_run_by_this_agent": false,
+      "status": "source fix complete; recorded Windows Debug/Linux CPU/native Release bounded validations passed"
+    },
+    "initial_audit_not_performed": [
+      "build",
+      "test execution",
+      "GUI automation",
+      "paid inference",
+      "git fetch/push",
+      "production/test edits"
+    ],
+    "phase_notes": "Read-only coverage audit completed first. Parent then explicitly authorized the scoped stability source/test repair recorded below; builds and runtime validation are owned by parent/Linux agent."
+  },
+  "requirement_source": {
+    "path": "C:\\Users\\rocco\\.codex\\attachments\\c7430784-4662-47da-af47-b6789a28fc2f\\Вставленный текст.txt",
+    "sha256": "5542fc2a7787fa9b7dfe93b9ffa0a255768361f7710841806afc379614e09e45",
+    "title": "ЛР2 Скриптинг ТЗ",
+    "acceptance_date": "2026-10-16",
+    "demo_seconds": 180
+  },
+  "status_definitions": {
+    "implemented": "Подтверждено source; execution отдельно.",
+    "implemented_with_limits": "Ограниченный явно описанный объём.",
+    "partial": "Частичная допфича.",
+    "not_implemented": "Не заявлять как готовое.",
+    "known_runtime_failure_under_investigation": "Есть наблюдаемый runtime failure, стабильность не подтверждена.",
+    "fix_implemented_validation_pending": "Подтверждённая причина исправлена в source; новые execution evidence ещё ожидаются.",
+    "windows_regression_verified_native_soak_pending": "Confirmed source repair and Windows Debug regression/full CTest pass; optimized native long-session and Linux conclusions remain separate pending evidence.",
+    "regression_and_linux_lifecycle_verified_windows_native_soak_pending": "Windows Debug regression/full tests and Linux CPU sanitizers/240cycle lifecycle verified; final Windows native300s soak still pending.",
+    "verified_in_bounded_scenarios": "Подтверждён кодом, regression/tests и перечисленными ограниченными runtime/sanitizer прогонами; не универсальная гарантия."
+  },
+  "requirements": [
+    {
+      "id": "2.1.lifecycle",
+      "kind": "mandatory",
+      "requirement": "Язык как подсистема: init/shutdown, единая загрузка, lifetime",
+      "implementation_status": "implemented",
+      "actual_behavior": "ScriptingSystem владеет Luau VM; GameplayState initialize/shutdown привязывает VM к миру и asset root. Экземпляры поведения получают fields/state.",
+      "evidence": [
+        {
+          "path": "engine/scripting/ScriptingSystem.cpp",
+          "line": 739,
+          "anchor": "bool ScriptingSystem::initialize(",
+          "excerpt": "bool ScriptingSystem::initialize(ecs::World& world, core::JobSystem* jobs, std::filesystem::path assetRoot) {"
+        },
+        {
+          "path": "engine/scripting/ScriptingSystem.cpp",
+          "line": 752,
+          "anchor": "void ScriptingSystem::shutdown()",
+          "excerpt": "void ScriptingSystem::shutdown() {"
+        },
+        {
+          "path": "engine/game/GameplayState.cpp",
+          "line": 1197,
+          "anchor": "m_scripts.initialize(m_world",
+          "excerpt": "m_scripts.initialize(m_world, stack().jobs(), editorAssetsRoot());"
+        }
+      ],
+      "tests": [
+        "runtimeAndReload",
+        "scriptDemoLifecycleAndSceneHistory"
+      ],
+      "limits": [
+        "Одна VM на мир. Luau behavior table вместо Python trampoline/C++ inheritance."
+      ]
+    },
+    {
+      "id": "2.1.distribution",
+      "kind": "mandatory",
+      "requirement": "Поставка интерпретатора на пользовательской машине",
+      "implementation_status": "implemented",
+      "actual_behavior": "Luau.VM/Compiler статически связаны. React, assets, Windows StyLua копируются рядом с app. Codex не нужен игре.",
+      "evidence": [
+        {
+          "path": "CMakeLists.txt",
+          "line": 107,
+          "anchor": "FetchContent_Declare(luau",
+          "excerpt": "FetchContent_Declare(luau"
+        },
+        {
+          "path": "CMakeLists.txt",
+          "line": 352,
+          "anchor": "target_link_libraries(engine_scripting PUBLIC",
+          "excerpt": "target_link_libraries(engine_scripting PUBLIC engine_ecs engine_platform Luau.VM Luau.Compiler)"
+        },
+        {
+          "path": "CMakeLists.txt",
+          "line": 657,
+          "anchor": "add_custom_command(TARGET app POST_BUILD",
+          "excerpt": "add_custom_command(TARGET app POST_BUILD"
+        }
+      ],
+      "tests": [],
+      "limits": [
+        "Первая configure загружает pinned dependencies; готовому app нужен комплект assets/DLL. Clean-machine запуск в этом аудите не выполнялся."
+      ]
+    },
+    {
+      "id": "2.2.host_to_script",
+      "kind": "mandatory",
+      "requirement": "Движок → скрипт: Init/Update и реакция на события",
+      "implementation_status": "implemented",
+      "actual_behavior": "Init/Update/Destroy/OnEvent вызываются защищённо. C++ collision EventBus ставит события в bounded queue, dispatch идёт после physics.",
+      "evidence": [
+        {
+          "path": "engine/scripting/ScriptingSystem.cpp",
+          "line": 595,
+          "anchor": "void instance(const ecs::EntityId",
+          "excerpt": "void instance(const ecs::EntityId entity, ScriptComponent& component) {"
+        },
+        {
+          "path": "engine/scripting/ScriptingSystem.cpp",
+          "line": 614,
+          "anchor": "void callback(const ecs::EntityId",
+          "excerpt": "void callback(const ecs::EntityId entity, const char* method, const double dt, const Json* event, const bool mutation = true) {"
+        },
+        {
+          "path": "engine/scripting/ScriptingSystem.cpp",
+          "line": 829,
+          "anchor": "void ScriptingSystem::dispatchEvents()",
+          "excerpt": "void ScriptingSystem::dispatchEvents() {"
+        },
+        {
+          "path": "engine/game/GameplayState.cpp",
+          "line": 1327,
+          "anchor": "void GameplayState::bindCollisionEventHandlers()",
+          "excerpt": "void GameplayState::bindCollisionEventHandlers() {"
+        }
+      ],
+      "tests": [
+        "runtimeAndReload",
+        "scriptDemoLifecycleAndSceneHistory"
+      ],
+      "limits": [
+        "Broadcast OnEvent; произвольные subscribe/unsubscribe и приоритеты gameplay events отсутствуют."
+      ]
+    },
+    {
+      "id": "2.2.script_to_host",
+      "kind": "mandatory",
+      "requirement": "Скрипт → движок: минимум4 категории API",
+      "implementation_status": "implemented",
+      "actual_behavior": "Entity/transform; Input; prefab spawn/deferred destroy; find/queryRadius. Дополнительно velocity/force/status.",
+      "evidence": [
+        {
+          "path": "engine/scripting/ScriptingSystem.cpp",
+          "line": 499,
+          "anchor": "void installBindings()",
+          "excerpt": "void installBindings() {"
+        },
+        {
+          "path": "engine/scripting/ScriptingSystem.cpp",
+          "line": 164,
+          "anchor": "enum class Api",
+          "excerpt": "enum class Api : int { Alive, Position, SetPosition, Rotation, SetRotation, Velocity, SetVelocity, Force, Tag, Find, Radius, Spawn, Destroy, Status, ReadStatus, KeyDown, KeyPressed, KeyReleased, MousePosition };"
+        },
+        {
+          "path": "engine/scripting/ScriptingSystem.cpp",
+          "line": 459,
+          "anchor": "if (operation == Api::Radius)",
+          "excerpt": "if (operation == Api::Radius) {"
+        }
+      ],
+      "tests": [
+        "runtimeAndReload",
+        "gameplayDemoAndReact"
+      ],
+      "limits": [
+        "Bindings ручные. queryRadius проверяет transform distance и optional tag; script raycast API нет."
+      ]
+    },
+    {
+      "id": "2.2.ownership",
+      "kind": "mandatory",
+      "requirement": "Безопасное владение на границе",
+      "implementation_status": "implemented",
+      "actual_behavior": "ECS ScriptComponent хранит только данные. VM refs принадлежат runtime; versioned EnTT numeric handle проверяется World::isAlive. Destroy deferred.",
+      "evidence": [
+        {
+          "path": "engine/scripting/ScriptComponent.h",
+          "line": 9,
+          "anchor": "struct ScriptComponent final",
+          "excerpt": "struct ScriptComponent final {"
+        },
+        {
+          "path": "engine/scripting/ScriptingSystem.cpp",
+          "line": 137,
+          "anchor": "ecs::EntityId checkEntity",
+          "excerpt": "ecs::EntityId checkEntity(lua_State* state, const int index) {"
+        },
+        {
+          "path": "engine/scripting/ScriptingSystem.cpp",
+          "line": 409,
+          "anchor": "bool alive(const ecs::EntityId",
+          "excerpt": "bool alive(const ecs::EntityId entity) const { return world != nullptr && world->isAlive(entity) && !pendingDestroy.contains(entity); }"
+        },
+        {
+          "path": "engine/scripting/ScriptingSystem.cpp",
+          "line": 658,
+          "anchor": "void flushDestroy()",
+          "excerpt": "void flushDestroy() {"
+        }
+      ],
+      "tests": [
+        "runtimeAndReload",
+        "runtimeDeleteAndRestore",
+        "updateDestructionKeepsPrefabRespawnsBounded"
+      ],
+      "limits": [
+        "Номер entity — дескриптор, не указатель/владелец. Object-reference field type/picker отсутствует."
+      ]
+    },
+    {
+      "id": "2.3.reload",
+      "kind": "mandatory",
+      "requirement": "Reload без перезапуска; минимум вне Play",
+      "implementation_status": "implemented",
+      "actual_behavior": "Watcher stable changes + explicit reload. JobSystem читает/компилирует, owner thread применяет. Ошибка сохраняет last-good; следующий Play перечитывает disk.",
+      "evidence": [
+        {
+          "path": "engine/scripting/ScriptingSystem.cpp",
+          "line": 868,
+          "anchor": "bool ScriptingSystem::requestReload(",
+          "excerpt": "bool ScriptingSystem::requestReload(const std::string& path) {"
+        },
+        {
+          "path": "engine/scripting/ScriptingSystem.cpp",
+          "line": 909,
+          "anchor": "void ScriptingSystem::pollReload()",
+          "excerpt": "void ScriptingSystem::pollReload() {"
+        },
+        {
+          "path": "engine/scripting/ScriptingSystem.cpp",
+          "line": 923,
+          "anchor": "Live reload retained previous code:",
+          "excerpt": "self.message(ScriptMessage::Kind::Error, \"Live reload retained previous code: \" + reload->error);"
+        },
+        {
+          "path": "engine/scripting/ScriptingSystem.cpp",
+          "line": 771,
+          "anchor": "void ScriptingSystem::start()",
+          "excerpt": "void ScriptingSystem::start() {"
+        }
+      ],
+      "tests": [
+        "runtimeAndReload",
+        "automaticDependencyReload",
+        "liveFileWatcher"
+      ],
+      "limits": [
+        "При jobs=null чтение/compile синхронно. VM/ECS изменения всегда owner thread."
+      ]
+    },
+    {
+      "id": "2.4.mechanic",
+      "kind": "mandatory",
+      "requirement": "Одна настоящая механика полностью в скрипте",
+      "implementation_status": "implemented",
+      "actual_behavior": "Collectathon: движение, волны, pickup, таймер, счёт, победа/поражение и restart; C++ предоставляет сервисы и demo scene setup.",
+      "evidence": [
+        {
+          "path": "assets/scripts/Collectathon.luau",
+          "line": 17,
+          "anchor": "function Behavior:SpawnWave()",
+          "excerpt": "function Behavior:SpawnWave()"
+        },
+        {
+          "path": "assets/scripts/Collectathon.luau",
+          "line": 29,
+          "anchor": "function Behavior:Restart()",
+          "excerpt": "function Behavior:Restart()"
+        },
+        {
+          "path": "assets/scripts/Collectathon.luau",
+          "line": 50,
+          "anchor": "function Behavior:Update(",
+          "excerpt": "function Behavior:Update(dt: number)"
+        },
+        {
+          "path": "assets/scripts/Collectathon.luau",
+          "line": 90,
+          "anchor": "function Behavior:OnEvent(",
+          "excerpt": "function Behavior:OnEvent(event)"
+        }
+      ],
+      "tests": [
+        "gameplayDemoAndReact",
+        "scriptDemoLifecycleAndSceneHistory"
+      ],
+      "limits": [
+        "Локальная механика. Pickup — queryRadius, CollisionEnter отдельно наблюдается в state."
+      ]
+    },
+    {
+      "id": "2.5.prefab",
+      "kind": "mandatory",
+      "requirement": "JSON prefab с компонентами и script.fields; spawn одной командой",
+      "implementation_status": "implemented",
+      "actual_behavior": "Engine.spawnPrefab разбирает JSON/overrides до изменения ECS; Collectathon порождает collectible/player из шаблонов.",
+      "evidence": [
+        {
+          "path": "engine/scripting/ScriptingSystem.cpp",
+          "line": 668,
+          "anchor": "ecs::EntityId spawnPrefab(const std::string& path",
+          "excerpt": "ecs::EntityId spawnPrefab(const std::string& path, const Json& overrides) {"
+        },
+        {
+          "path": "engine/scripting/ScriptingSystem.cpp",
+          "line": 681,
+          "anchor": "Fully parse before touching the ECS",
+          "excerpt": "// Fully parse before touching the ECS: malformed data cannot leave half an entity."
+        },
+        {
+          "path": "assets/prefabs/collectathon_controller.json",
+          "line": 9,
+          "anchor": "\"fields\"",
+          "excerpt": "\"fields\": {"
+        },
+        {
+          "path": "assets/scripts/Collectathon.luau",
+          "line": 20,
+          "anchor": "Engine.spawnPrefab(\"prefabs/collectible.json\")",
+          "excerpt": "local token = Engine.spawnPrefab(\"prefabs/collectible.json\")"
+        }
+      ],
+      "tests": [
+        "runtimeAndReload",
+        "gameplayDemoAndReact"
+      ],
+      "limits": [
+        "Конкретный список компонентов, не generic reflection. Inspector сохраняет экземпляр в сцену; Save Prefab UI не подтверждён."
+      ]
+    },
+    {
+      "id": "2.6.inspector",
+      "kind": "mandatory",
+      "requirement": "Выбор объекта, typed поля, сохранение/применение",
+      "implementation_status": "implemented",
+      "actual_behavior": "Explorer selection, Luau Behavior schema widgets, scene Undo/Redo. Scene JSON сохраняет script.path/enabled/fields; данные применяются следующим Play.",
+      "evidence": [
+        {
+          "path": "engine/game/GameplayState.cpp",
+          "line": 4714,
+          "anchor": "void GameplayState::renderScriptInspector(",
+          "excerpt": "void GameplayState::renderScriptInspector(const ecs::EntityId entity) {"
+        },
+        {
+          "path": "engine/scripting/ScriptingSystem.cpp",
+          "line": 521,
+          "anchor": "std::vector<ScriptField> fieldDefinitions(",
+          "excerpt": "std::vector<ScriptField> fieldDefinitions(const std::string& path) {"
+        },
+        {
+          "path": "engine/scripting/ScriptingSystem.cpp",
+          "line": 576,
+          "anchor": "void defaults(ScriptComponent&",
+          "excerpt": "void defaults(ScriptComponent& component) {"
+        },
+        {
+          "path": "engine/game/GameplayState.cpp",
+          "line": 2258,
+          "anchor": "entityJson[\"script\"] =",
+          "excerpt": "entityJson[\"script\"] = {{\"path\", script.path}, {\"enabled\", script.enabled}, {\"fields\", script.fields}};"
+        }
+      ],
+      "tests": [
+        "scriptDemoLifecycleAndSceneHistory",
+        "projectsHaveIndependentScenesAndScripts",
+        "renderedPanelsPreserveWidgetHistory"
+      ],
+      "limits": [
+        "Scalar number/integer/bool/string; min/max/default. Нет object-reference/enum schema. Rendered checkbox fixture проверяет Mesh Visible; script fields покрыты отдельными integration cases."
+      ]
+    },
+    {
+      "id": "3.stability",
+      "kind": "acceptance",
+      "requirement": "Сломанный скрипт, серия reload, длинная сессия и shutdown",
+      "implementation_status": "verified_in_bounded_scenarios",
+      "actual_behavior": "Confirmed runaway lifetime bug repaired: behavior cleanup no longer erases pending ECS destruction. Windows Debug19/19PASS35.12s, actual prefab/HUD regression PASS, Linux CPU ASan/UBSan/LSan11/11PASS with240 lifecycle cycles, Windows Release/D3D12 requested300s soak303.141s exit0 without Luau/OOM errors. Native GUI dependency reload preserved counter/Init.",
+      "evidence": [
+        {
+          "path": "engine/scripting/ScriptingSystem.cpp",
+          "line": 242,
+          "anchor": "static int errorHandler(",
+          "excerpt": "static int errorHandler(lua_State* state) {"
+        },
+        {
+          "path": "engine/scripting/ScriptingSystem.cpp",
+          "line": 237,
+          "anchor": "static void interrupt(",
+          "excerpt": "static void interrupt(lua_State* state, const int gc) {"
+        },
+        {
+          "path": "engine/scripting/ScriptingSystem.cpp",
+          "line": 321,
+          "anchor": "template<class Function> bool protectedHost",
+          "excerpt": "template<class Function> bool protectedHost(const std::string& context, Function&& function) {"
+        },
+        {
+          "path": "app/main.cpp",
+          "line": 31,
+          "anchor": "logs/crash-last.txt",
+          "excerpt": "fopen_s(&file, \"logs/crash-last.txt\", \"w\");"
+        },
+        {
+          "path": "engine/scripting/ScriptingSystem.cpp",
+          "line": 845,
+          "anchor": "Releasing the behavior must not cancel",
+          "excerpt": "// Releasing the behavior must not cancel an already requested ECS destroy."
+        },
+        {
+          "path": "docs/lab2/defense/memory-windows-run1/runtime.log",
+          "line": 271,
+          "excerpt": "[2026-10-16 15:23:44.405] [error] [engine] Luau: not enough memory",
+          "binary_version": "before_stability_fix"
+        }
+      ],
+      "tests": [
+        "runtimeAndReload",
+        "hostileBehaviorTables",
+        "automaticDependencyReload",
+        "updateDestructionKeepsPrefabRespawnsBounded"
+      ],
+      "limits": [
+        "Original before-fix OOM at~149s remains negative evidence.",
+        "Finite exercised runs do not prove every possible scenario leak/race/crash-free.",
+        "Linux headless CPU sanitizers do not instrument Windows D3D12/GPU/driver. Windows process counters are observations, not heap allocation stacks.",
+        "Collectathon30s GUI smoke verifies render/HUD and clean shutdown; movement/pickup not replayed there.",
+        "Native presentation3/3 GUI pass preceded the isolated ECS fix; post-fix binary was exercised separately by native soak and project smoke."
+      ]
+    },
+    {
+      "id": "4.jobs",
+      "kind": "extra",
+      "requirement": "Reload через JobSystem",
+      "implementation_status": "implemented",
+      "actual_behavior": "Read/compile dispatch Low, join до owner-thread apply; watcher jobs + stable contents debounce.",
+      "evidence": [
+        {
+          "path": "engine/scripting/ScriptingSystem.cpp",
+          "line": 905,
+          "anchor": "self.jobs->dispatch(compile",
+          "excerpt": "if (self.jobs != nullptr) { self.reloadJob = self.jobs->dispatch(compile, core::JobSystem::Priority::Low); }"
+        },
+        {
+          "path": "engine/scripting/ScriptingSystem.cpp",
+          "line": 755,
+          "anchor": "self.jobs->wait(self.reloadJob)",
+          "excerpt": "if (self.reloadJob.valid() && self.jobs != nullptr) { self.jobs->wait(self.reloadJob); }"
+        },
+        {
+          "path": "engine/core/LiveFileWatcher.cpp",
+          "line": 69,
+          "anchor": "self.jobs->dispatch(readFiles",
+          "excerpt": "if (self.jobs) self.job = self.jobs->dispatch(readFiles, JobSystem::Priority::Low);"
+        }
+      ],
+      "tests": [
+        "runtimeAndReload",
+        "liveFileWatcher"
+      ],
+      "limits": [
+        "Используется существующий pool ЛР1, не второй пул."
+      ]
+    },
+    {
+      "id": "4.play_reload_L2",
+      "kind": "extra",
+      "requirement": "Reload в Play с переносом состояния",
+      "implementation_status": "implemented",
+      "actual_behavior": "Сохраняется self.state; заменяется metatable методов, fields синхронизируются; OnReload без повторного Init, require consumers invalidated.",
+      "evidence": [
+        {
+          "path": "engine/scripting/ScriptingSystem.cpp",
+          "line": 1019,
+          "anchor": "Preserve self.state and update the method table",
+          "excerpt": "// Preserve self.state and update the method table; declared scene fields remain data-owned."
+        },
+        {
+          "path": "engine/scripting/ScriptingSystem.cpp",
+          "line": 1036,
+          "anchor": "self.callback(entity, \"OnReload\"",
+          "excerpt": "for (const auto entity : reloaded) self.callback(entity, \"OnReload\", 0.0, nullptr);"
+        },
+        {
+          "path": "engine/scripting/ScriptingSystem.cpp",
+          "line": 875,
+          "anchor": "Re-evaluate consumers too",
+          "excerpt": "// Re-evaluate consumers too: their local require() bindings may contain functions/scalars."
+        }
+      ],
+      "tests": [
+        "runtimeAndReload",
+        "automaticDependencyReload"
+      ],
+      "limits": [
+        "Автор мигрирует изменённую state schema. React hooks identity переносится не универсально; VM checkpoint отсутствует."
+      ]
+    },
+    {
+      "id": "4.fields_L1",
+      "kind": "extra",
+      "requirement": "Типизированный Inspector и валидация",
+      "implementation_status": "implemented",
+      "actual_behavior": "Defaults, bounds, integer semantics, scalar widgets, сохранение scene fields.",
+      "evidence": [
+        {
+          "path": "engine/scripting/ScriptingSystem.cpp",
+          "line": 521,
+          "anchor": "std::vector<ScriptField> fieldDefinitions(",
+          "excerpt": "std::vector<ScriptField> fieldDefinitions(const std::string& path) {"
+        },
+        {
+          "path": "engine/scripting/ScriptingSystem.cpp",
+          "line": 576,
+          "anchor": "void defaults(ScriptComponent&",
+          "excerpt": "void defaults(ScriptComponent& component) {"
+        },
+        {
+          "path": "engine/game/GameplayState.cpp",
+          "line": 4714,
+          "anchor": "void GameplayState::renderScriptInspector(",
+          "excerpt": "void GameplayState::renderScriptInspector(const ecs::EntityId entity) {"
+        }
+      ],
+      "tests": [
+        "malformedFields",
+        "scriptDemoLifecycleAndSceneHistory"
+      ],
+      "limits": [
+        "Произвольные nested значения/enum combo schema отсутствуют."
+      ]
+    },
+    {
+      "id": "4.fields_L2",
+      "kind": "extra",
+      "requirement": "Поля-ссылки на игровые объекты",
+      "implementation_status": "not_implemented",
+      "actual_behavior": "Есть безопасные runtime handles, но ScriptField schema и Inspector не имеют entity-reference типа/picker.",
+      "evidence": [
+        {
+          "path": "engine/scripting/ScriptingSystem.h",
+          "line": 26,
+          "anchor": "struct ScriptField final",
+          "excerpt": "struct ScriptField final {"
+        },
+        {
+          "path": "engine/scripting/ScriptingSystem.cpp",
+          "line": 562,
+          "anchor": "default must match supported type",
+          "excerpt": "if (!matches) { invalid(name, \"default must match supported type number, integer, boolean, bool or string\"); continue; }"
+        }
+      ],
+      "tests": [],
+      "limits": [
+        "Numeric field/self.state handle не равны сериализуемому editor object-reference field."
+      ]
+    },
+    {
+      "id": "4.events",
+      "kind": "extra",
+      "requirement": "События, подписки и отложенная очередь",
+      "implementation_status": "implemented_with_limits",
+      "actual_behavior": "CollisionEnter/Stay/Exit → queue → Behavior:OnEvent; UI signals — отдельный deferred pump.",
+      "evidence": [
+        {
+          "path": "engine/game/GameplayState.cpp",
+          "line": 1327,
+          "anchor": "void GameplayState::bindCollisionEventHandlers()",
+          "excerpt": "void GameplayState::bindCollisionEventHandlers() {"
+        },
+        {
+          "path": "engine/scripting/ScriptingSystem.cpp",
+          "line": 825,
+          "anchor": "void ScriptingSystem::queueEvent(",
+          "excerpt": "void ScriptingSystem::queueEvent(std::string type, Json payload) {"
+        },
+        {
+          "path": "engine/scripting/ScriptingSystem.cpp",
+          "line": 829,
+          "anchor": "void ScriptingSystem::dispatchEvents()",
+          "excerpt": "void ScriptingSystem::dispatchEvents() {"
+        }
+      ],
+      "tests": [
+        "runtimeAndReload",
+        "scriptDemoLifecycleAndSceneHistory"
+      ],
+      "limits": [
+        "Нет script subscribe/unsubscribe, приоритетов и post-in-future общего gameplay bus."
+      ]
+    },
+    {
+      "id": "4.bindgen",
+      "kind": "extra",
+      "requirement": "Генерация bindings/stubs",
+      "implementation_status": "not_implemented",
+      "actual_behavior": "Engine/Input API регистрируется вручную.",
+      "evidence": [
+        {
+          "path": "engine/scripting/ScriptingSystem.cpp",
+          "line": 499,
+          "anchor": "void installBindings()",
+          "excerpt": "void installBindings() {"
+        }
+      ],
+      "tests": [],
+      "limits": [
+        "Нет генерации из C++ headers/annotations и IDE stubs."
+      ]
+    },
+    {
+      "id": "4.ide",
+      "kind": "extra",
+      "requirement": "Поддержка IDE/скриптера",
+      "implementation_status": "implemented_with_limits",
+      "actual_behavior": "Documents, Luau highlighting, Find/GoToLine/comment, Undo/Redo, Check и AST-verified async StyLua.",
+      "evidence": [
+        {
+          "path": "engine/editor/ScriptWorkspace.cpp",
+          "line": 369,
+          "anchor": "void ScriptWorkspace::render(",
+          "excerpt": "void ScriptWorkspace::render(bool* open, const ecs::EntityId selected, const bool playing, const bool running) {"
+        },
+        {
+          "path": "engine/editor/ScriptWorkspace.cpp",
+          "line": 154,
+          "anchor": "void check()",
+          "excerpt": "void check() {"
+        },
+        {
+          "path": "engine/editor/ScriptFormatter.cpp",
+          "line": 150,
+          "anchor": "--syntax Luau --verify",
+          "excerpt": "std::wstring command = L\"\\\"\" + executable.wstring() + L\"\\\" --syntax Luau --verify --indent-type Spaces --indent-width 4\""
+        }
+      ],
+      "tests": [
+        "scriptEditor",
+        "scriptFormatter",
+        "scriptWorkspace"
+      ],
+      "limits": [
+        "Check — compile/syntax, не full typechecker/LSP/autocomplete."
+      ]
+    },
+    {
+      "id": "4.repl",
+      "kind": "extra",
+      "requirement": "REPL-консоль и наблюдаемость",
+      "implementation_status": "implemented",
+      "actual_behavior": "Command выполняет source в текущей VM; State — inspect(selected), Errors — последний traceback; Activity memory/reload/status.",
+      "evidence": [
+        {
+          "path": "engine/editor/ScriptWorkspace.cpp",
+          "line": 588,
+          "anchor": "impl.scripts->execute(impl.command)",
+          "excerpt": "if (ImGui::Button(\"Execute\") && impl.scripts && !impl.command.empty()) { impl.scripts->execute(impl.command); }"
+        },
+        {
+          "path": "engine/editor/ScriptWorkspace.cpp",
+          "line": 594,
+          "anchor": "impl.scripts->inspect(selected)",
+          "excerpt": "const auto text = impl.scripts->inspect(selected).dump(2);"
+        },
+        {
+          "path": "engine/editor/ScriptWorkspace.cpp",
+          "line": 604,
+          "anchor": "Latest recorded script error and traceback.",
+          "excerpt": "ImGui::TextDisabled(\"Latest recorded script error and traceback.\");"
+        }
+      ],
+      "tests": [
+        "scriptWorkspace"
+      ],
+      "limits": [
+        "Command может менять мир. State JSON не является save game."
+      ]
+    },
+    {
+      "id": "4.profiling",
+      "kind": "extra",
+      "requirement": "Tracy entry point zones",
+      "implementation_status": "implemented",
+      "actual_behavior": "Callback и reload read/compile содержат ENGINE_PROFILE_ZONE.",
+      "evidence": [
+        {
+          "path": "engine/scripting/ScriptingSystem.cpp",
+          "line": 615,
+          "anchor": "ENGINE_PROFILE_ZONE(\"Luau Behavior Entry Point\")",
+          "excerpt": "ENGINE_PROFILE_ZONE(\"Luau Behavior Entry Point\");"
+        },
+        {
+          "path": "engine/scripting/ScriptingSystem.cpp",
+          "line": 893,
+          "anchor": "ENGINE_PROFILE_ZONE(\"Luau Hot Reload Read and Compile\")",
+          "excerpt": "ENGINE_PROFILE_ZONE(\"Luau Hot Reload Read and Compile\");"
+        }
+      ],
+      "tests": [],
+      "limits": [
+        "Новых ЛР2 .tracy/performance измерений этим аудитом не проводилось."
+      ]
+    },
+    {
+      "id": "4.debugger",
+      "kind": "extra",
+      "requirement": "Подключаемый построчный debugger",
+      "implementation_status": "not_implemented",
+      "actual_behavior": "Step Tick — один simulation tick; Errors — последний traceback.",
+      "evidence": [
+        {
+          "path": "engine/game/GameplayCommands.cpp",
+          "line": 157,
+          "anchor": "case Command::StepTick: m_stepScriptTick",
+          "excerpt": "case Command::StepTick: m_stepScriptTick = true; break;"
+        },
+        {
+          "path": "engine/editor/ScriptWorkspace.cpp",
+          "line": 604,
+          "anchor": "Latest recorded script error and traceback.",
+          "excerpt": "ImGui::TextDisabled(\"Latest recorded script error and traceback.\");"
+        }
+      ],
+      "tests": [],
+      "limits": [
+        "Нет breakpoints/step-over/locals/VM debug adapter."
+      ]
+    },
+    {
+      "id": "4.sandbox",
+      "kind": "extra",
+      "requirement": "Изоляция/ограничения",
+      "implementation_status": "implemented_with_limits",
+      "actual_behavior": "Luau sandbox, contained asset paths, VM64 MiB, source2 MiB, callback25 ms Release/100 ms Debug; protected host boundaries.",
+      "evidence": [
+        {
+          "path": "engine/scripting/ScriptingSystem.h",
+          "line": 37,
+          "anchor": "struct Limits final",
+          "excerpt": "struct Limits final {"
+        },
+        {
+          "path": "engine/scripting/ScriptingSystem.cpp",
+          "line": 747,
+          "anchor": "luaL_sandbox(self.vm)",
+          "excerpt": "luaL_openlibs(self.vm); self.installBindings(); luaL_sandbox(self.vm); luaL_sandboxthread(self.vm);"
+        },
+        {
+          "path": "engine/scripting/ScriptingSystem.cpp",
+          "line": 286,
+          "anchor": "Asset path escapes assets directory",
+          "excerpt": "if (relative.empty() || *relative.begin() == \"..\") { throw std::invalid_argument(\"Asset path escapes assets directory\"); }"
+        }
+      ],
+      "tests": [
+        "runtimeAndReload",
+        "hostileBehaviorTables"
+      ],
+      "limits": [
+        "Одна VM мира, не отдельный state на mod/entity. Не OS security boundary."
+      ]
+    },
+    {
+      "id": "4.scene_runtime",
+      "kind": "extra",
+      "requirement": "Загрузка уровня на ходу через jobs",
+      "implementation_status": "partial",
+      "actual_behavior": "Watcher читает файлы в jobs; live scene authored deltas применяются к работающему миру. Есть project scene load.",
+      "evidence": [
+        {
+          "path": "engine/game/GameplayState.cpp",
+          "line": 2371,
+          "anchor": "void GameplayState::pollSceneChanges()",
+          "excerpt": "void GameplayState::pollSceneChanges() {"
+        },
+        {
+          "path": "engine/game/GameplayState.cpp",
+          "line": 2385,
+          "anchor": "void GameplayState::applyLiveScene(",
+          "excerpt": "void GameplayState::applyLiveScene(const nlohmann::json& scene) {"
+        },
+        {
+          "path": "engine/game/GameplayState.cpp",
+          "line": 2458,
+          "anchor": "void GameplayState::loadSceneFromDisk()",
+          "excerpt": "void GameplayState::loadSceneFromDisk() {"
+        }
+      ],
+      "tests": [
+        "liveScenesPreservePlay"
+      ],
+      "limits": [
+        "JSON parse/validation и ECS apply на owner thread. Нет полного script API async level switching."
+      ]
+    },
+    {
+      "id": "4.save_game",
+      "kind": "extra",
+      "requirement": "Save game с состоянием механики",
+      "implementation_status": "not_implemented",
+      "actual_behavior": "Scene сохраняет authored components и script.fields; self.state/VM refs не сериализуются.",
+      "evidence": [
+        {
+          "path": "engine/game/GameplayState.cpp",
+          "line": 2230,
+          "anchor": "std::string GameplayState::serializeScene(",
+          "excerpt": "std::string GameplayState::serializeScene(const SceneSnapshot& snapshot, const bool playSession) const {"
+        },
+        {
+          "path": "engine/game/GameplayState.cpp",
+          "line": 2258,
+          "anchor": "entityJson[\"script\"] =",
+          "excerpt": "entityJson[\"script\"] = {{\"path\", script.path}, {\"enabled\", script.enabled}, {\"fields\", script.fields}};"
+        },
+        {
+          "path": "engine/scripting/ScriptComponent.h",
+          "line": 9,
+          "anchor": "struct ScriptComponent final",
+          "excerpt": "struct ScriptComponent final {"
+        }
+      ],
+      "tests": [],
+      "limits": [
+        "Scene Save/Load, pre-Play snapshot и State view не являются save game/VM checkpoint."
+      ]
+    },
+    {
+      "id": "4.world_queries",
+      "kind": "extra",
+      "requirement": "Запросы к миру из скрипта",
+      "implementation_status": "implemented_with_limits",
+      "actual_behavior": "Engine.find(tag) и queryRadius(position,radius,tag?) используются для pickup.",
+      "evidence": [
+        {
+          "path": "engine/scripting/ScriptingSystem.cpp",
+          "line": 164,
+          "anchor": "enum class Api",
+          "excerpt": "enum class Api : int { Alive, Position, SetPosition, Rotation, SetRotation, Velocity, SetVelocity, Force, Tag, Find, Radius, Spawn, Destroy, Status, ReadStatus, KeyDown, KeyPressed, KeyReleased, MousePosition };"
+        },
+        {
+          "path": "engine/scripting/ScriptingSystem.cpp",
+          "line": 459,
+          "anchor": "if (operation == Api::Radius)",
+          "excerpt": "if (operation == Api::Radius) {"
+        },
+        {
+          "path": "assets/scripts/Collectathon.luau",
+          "line": 68,
+          "anchor": "Engine.queryRadius(",
+          "excerpt": "for _, token in Engine.queryRadius(position, self.fields.pickupRadius, \"ScriptToken\") do"
+        }
+      ],
+      "tests": [
+        "gameplayDemoAndReact"
+      ],
+      "limits": [
+        "Нет script raycast/sweep/physics shape query; editor picking ray не API Luau."
+      ]
+    }
+  ],
+  "feature_inventory": [
+    {
+      "id": "scripting",
+      "title": "Luau runtime/bindings",
+      "actual": "Новая untracked подсистема: VM lifecycle, behavior instances, API, require graph, events, quotas.",
+      "evidence": [
+        {
+          "path": "engine/scripting/ScriptingSystem.cpp",
+          "line": 739,
+          "anchor": "bool ScriptingSystem::initialize(",
+          "excerpt": "bool ScriptingSystem::initialize(ecs::World& world, core::JobSystem* jobs, std::filesystem::path assetRoot) {"
+        },
+        {
+          "path": "engine/scripting/ScriptingSystem.cpp",
+          "line": 499,
+          "anchor": "void installBindings()",
+          "excerpt": "void installBindings() {"
+        },
+        {
+          "path": "engine/scripting/ScriptingSystem.cpp",
+          "line": 845,
+          "anchor": "Releasing the behavior must not cancel",
+          "excerpt": "// Releasing the behavior must not cancel an already requested ECS destroy."
+        }
+      ],
+      "tests": [
+        "engine_scripting_tests"
+      ],
+      "limits": [
+        "Не полный Roblox runtime.",
+        "Deferred destruction repair verified in recorded bounded scenarios; no universal absence-of-leaks claim."
+      ],
+      "path_prefixes": [
+        "engine/scripting/ScriptingSystem",
+        "engine/scripting/ScriptComponent"
+      ],
+      "working_tree_file_count": 3,
+      "working_tree_paths": [
+        "engine/scripting/ScriptComponent.h",
+        "engine/scripting/ScriptingSystem.cpp",
+        "engine/scripting/ScriptingSystem.h"
+      ],
+      "full_file_inventory": "git-snapshot.json / files[].feature_tags contains scripting",
+      "validation": {
+        "windows_debug_ctest": "19/19PASS35.12s",
+        "linux_sanitizers": "11/11PASS_exercised_CPU_paths",
+        "actual_lifecycle_cycles": 240,
+        "optimized_release_build": "linked15:37",
+        "windows_native_300s_soak": "PASS303.141s0LuaErrors"
+      },
+      "post_fix_linux_evidence": "docs\\lab2\\defense\\memory-linux\\post-fix\\summary.json",
+      "working_tree_paths_truncated": false
+    },
+    {
+      "id": "mechanic_assets",
+      "title": "Collectathon/prefabs/HUD",
+      "actual": "Новые Luau/JSON assets: gameplay decisions, balance fields, player/tokens, React HUD.",
+      "evidence": [
+        {
+          "path": "assets/scripts/Collectathon.luau",
+          "line": 50,
+          "anchor": "function Behavior:Update(",
+          "excerpt": "function Behavior:Update(dt: number)"
+        },
+        {
+          "path": "assets/prefabs/collectathon_controller.json",
+          "line": 9,
+          "anchor": "\"fields\"",
+          "excerpt": "\"fields\": {"
+        }
+      ],
+      "tests": [
+        "engine_scripting_tests",
+        "engine_gameplay_state_tests"
+      ],
+      "limits": [
+        "Демо локальной игровой механики."
+      ],
+      "path_prefixes": [
+        "assets/scripts/",
+        "assets/prefabs/"
+      ],
+      "working_tree_file_count": 19,
+      "working_tree_paths": [
+        "assets/prefabs/collectathon_controller.json",
+        "assets/prefabs/collectathon_player.json",
+        "assets/prefabs/collectible.json",
+        "assets/prefabs/react_ui.json",
+        "assets/scripts/Collectathon.luau",
+        "assets/scripts/Collectible.luau",
+        "assets/scripts/ui/counter.luau",
+        "assets/scripts/ui/demo_ui.luau",
+        "assets/scripts/ui/roblox_tutorial/Components.luau",
+        "assets/scripts/ui/roblox_tutorial/LICENSE",
+        "assets/scripts/ui/roblox_tutorial/README.md",
+        "assets/scripts/ui/roblox_tutorial/Tutorial.original.lua",
+        "assets/scripts/ui/studio_components/LICENSE",
+        "assets/scripts/ui/studio_components/LoadingDots.luau",
+        "assets/scripts/ui/studio_components/LoadingDots.original.luau",
+        "assets/scripts/ui/studio_components/ProgressBar.luau",
+        "assets/scripts/ui/studio_components/ProgressBar.original.luau",
+        "assets/scripts/ui/studio_components/README.md",
+        "assets/scripts/ui/studio_components/Theme.luau"
+      ],
+      "full_file_inventory": "git-snapshot.json / files[].feature_tags contains mechanic_assets",
+      "post_fix_linux_evidence": "docs\\lab2\\defense\\memory-linux\\post-fix\\summary.json",
+      "working_tree_paths_truncated": false
+    },
+    {
+      "id": "reload",
+      "title": "LiveFileWatcher/reload",
+      "actual": "Новая shared-core служба + integration: stable content jobs, module consumers invalidation, last-good/state attach.",
+      "evidence": [
+        {
+          "path": "engine/core/LiveFileWatcher.cpp",
+          "line": 44,
+          "anchor": "std::vector<LiveFileWatcher::Change> LiveFileWatcher::poll",
+          "excerpt": "std::vector<LiveFileWatcher::Change> LiveFileWatcher::poll(const Clock::time_point now) {"
+        },
+        {
+          "path": "engine/scripting/ScriptingSystem.cpp",
+          "line": 909,
+          "anchor": "void ScriptingSystem::pollReload()",
+          "excerpt": "void ScriptingSystem::pollReload() {"
+        }
+      ],
+      "tests": [
+        "engine_live_file_watcher_tests",
+        "engine_scripting_tests"
+      ],
+      "limits": [
+        "jobs=null — синхронный fallback."
+      ],
+      "path_prefixes": [
+        "engine/core/LiveFileWatcher",
+        "engine/scripting/ScriptingSystem",
+        "tests/LiveFileWatcherTests.cpp"
+      ],
+      "working_tree_file_count": 5,
+      "working_tree_paths": [
+        "engine/core/LiveFileWatcher.cpp",
+        "engine/core/LiveFileWatcher.h",
+        "engine/scripting/ScriptingSystem.cpp",
+        "engine/scripting/ScriptingSystem.h",
+        "tests/LiveFileWatcherTests.cpp"
+      ],
+      "full_file_inventory": "git-snapshot.json / files[].feature_tags contains reload",
+      "post_fix_linux_evidence": "docs\\lab2\\defense\\memory-linux\\post-fix\\summary.json",
+      "working_tree_paths_truncated": false
+    },
+    {
+      "id": "react_vendor",
+      "title": "Upstream React Luau vendor",
+      "actual": "Настоящие pinned Roblox/react-luau + polyfill/symbol/promise; hashes/licenses/vendor script.",
+      "evidence": [
+        {
+          "path": "third_party/react-luau/upstream.json",
+          "line": 3,
+          "anchor": "\"react-luau\"",
+          "excerpt": "\"react-luau\": ["
+        },
+        {
+          "path": "tools/vendor_react_luau.py",
+          "line": 6,
+          "anchor": "import ",
+          "excerpt": "from __future__ import annotations"
+        }
+      ],
+      "tests": [
+        "engine_react_runtime_tests"
+      ],
+      "limits": [
+        "Upstream hooks/reconciler не добавляют Roblox platform services."
+      ],
+      "path_prefixes": [
+        "third_party/react-luau/",
+        "tools/vendor_react_luau.py",
+        "tools/test_react_luau.py"
+      ],
+      "working_tree_file_count": 231,
+      "working_tree_paths": [
+        "third_party/react-luau/README.md",
+        "third_party/react-luau/adapters/Compatibility.luau",
+        "third_party/react-luau/adapters/ReactTurbo.luau",
+        "third_party/react-luau/adapters/RobloxUI.luau",
+        "third_party/react-luau/adapters/TweenService.luau",
+        "third_party/react-luau/licenses/luau-polyfill.txt",
+        "third_party/react-luau/licenses/promise.txt",
+        "third_party/react-luau/licenses/react-luau.txt",
+        "third_party/react-luau/licenses/symbol-luau.txt",
+        "third_party/react-luau/manifest.tsv",
+        "third_party/react-luau/packages/Boolean/init.lua",
+        "third_party/react-luau/packages/Boolean/toJSBoolean.lua",
+        "third_party/react-luau/packages/Collections/Array/concat.lua",
+        "third_party/react-luau/packages/Collections/Array/every.lua",
+        "third_party/react-luau/packages/Collections/Array/filter.lua",
+        "third_party/react-luau/packages/Collections/Array/find.lua",
+        "third_party/react-luau/packages/Collections/Array/findIndex.lua",
+        "third_party/react-luau/packages/Collections/Array/flat.lua",
+        "third_party/react-luau/packages/Collections/Array/flatMap.lua",
+        "third_party/react-luau/packages/Collections/Array/forEach.lua",
+        "third_party/react-luau/packages/Collections/Array/from/fromArray.lua",
+        "third_party/react-luau/packages/Collections/Array/from/fromMap.lua",
+        "third_party/react-luau/packages/Collections/Array/from/fromSet.lua",
+        "third_party/react-luau/packages/Collections/Array/from/fromString.lua",
+        "third_party/react-luau/packages/Collections/Array/from/init.lua",
+        "third_party/react-luau/packages/Collections/Array/includes.lua",
+        "third_party/react-luau/packages/Collections/Array/indexOf.lua",
+        "third_party/react-luau/packages/Collections/Array/init.lua",
+        "third_party/react-luau/packages/Collections/Array/isArray.lua",
+        "third_party/react-luau/packages/Collections/Array/join.lua",
+        "third_party/react-luau/packages/Collections/Array/map.lua",
+        "third_party/react-luau/packages/Collections/Array/reduce.lua",
+        "third_party/react-luau/packages/Collections/Array/reverse.lua",
+        "third_party/react-luau/packages/Collections/Array/shift.lua",
+        "third_party/react-luau/packages/Collections/Array/slice.lua",
+        "third_party/react-luau/packages/Collections/Array/some.lua",
+        "third_party/react-luau/packages/Collections/Array/sort.lua",
+        "third_party/react-luau/packages/Collections/Array/splice.lua",
+        "third_party/react-luau/packages/Collections/Array/unshift.lua",
+        "third_party/react-luau/packages/Collections/Map/Map.lua",
+        "third_party/react-luau/packages/Collections/Map/coerceToMap.lua",
+        "third_party/react-luau/packages/Collections/Map/coerceToTable.lua",
+        "third_party/react-luau/packages/Collections/Map/init.lua",
+        "third_party/react-luau/packages/Collections/Object/None.lua",
+        "third_party/react-luau/packages/Collections/Object/assign.lua",
+        "third_party/react-luau/packages/Collections/Object/entries.lua",
+        "third_party/react-luau/packages/Collections/Object/freeze.lua",
+        "third_party/react-luau/packages/Collections/Object/init.lua",
+        "third_party/react-luau/packages/Collections/Object/is.lua",
+        "third_party/react-luau/packages/Collections/Object/isFrozen.lua",
+        "third_party/react-luau/packages/Collections/Object/keys.lua",
+        "third_party/react-luau/packages/Collections/Object/preventExtensions.lua",
+        "third_party/react-luau/packages/Collections/Object/seal.lua",
+        "third_party/react-luau/packages/Collections/Object/values.lua",
+        "third_party/react-luau/packages/Collections/Set/init.lua",
+        "third_party/react-luau/packages/Collections/WeakMap.lua",
+        "third_party/react-luau/packages/Collections/init.lua",
+        "third_party/react-luau/packages/Collections/inspect.lua",
+        "third_party/react-luau/packages/Console/init.lua",
+        "third_party/react-luau/packages/Console/makeConsoleImpl.lua",
+        "third_party/react-luau/packages/ES7Types/init.lua",
+        "third_party/react-luau/packages/InstanceOf/init.lua",
+        "third_party/react-luau/packages/InstanceOf/instanceof.lua",
+        "third_party/react-luau/packages/LuauPolyfill/AssertionError/AssertionError.global.lua",
+        "third_party/react-luau/packages/LuauPolyfill/AssertionError/init.lua",
+        "third_party/react-luau/packages/LuauPolyfill/Error/Error.global.lua",
+        "third_party/react-luau/packages/LuauPolyfill/Error/init.lua",
+        "third_party/react-luau/packages/LuauPolyfill/Promise.lua",
+        "third_party/react-luau/packages/LuauPolyfill/encodeURIComponent.lua",
+        "third_party/react-luau/packages/LuauPolyfill/extends.lua",
+        "third_party/react-luau/packages/LuauPolyfill/init.lua",
+        "third_party/react-luau/packages/Math/clz32.lua",
+        "third_party/react-luau/packages/Math/init.lua",
+        "third_party/react-luau/packages/Number/MAX_SAFE_INTEGER.lua",
+        "third_party/react-luau/packages/Number/MIN_SAFE_INTEGER.lua",
+        "third_party/react-luau/packages/Number/init.lua",
+        "third_party/react-luau/packages/Number/isFinite.lua",
+        "third_party/react-luau/packages/Number/isInteger.lua",
+        "third_party/react-luau/packages/Number/isNaN.lua",
+        "third_party/react-luau/packages/Number/isSafeInteger.lua",
+        "third_party/react-luau/packages/Number/toExponential.lua",
+        "third_party/react-luau/packages/Promise/init.lua",
+        "third_party/react-luau/packages/React/None.roblox.lua",
+        "third_party/react-luau/packages/React/React.lua",
+        "third_party/react-luau/packages/React/ReactBaseClasses.lua",
+        "third_party/react-luau/packages/React/ReactBinding.roblox.lua",
+        "third_party/react-luau/packages/React/ReactChildren.lua",
+        "third_party/react-luau/packages/React/ReactContext.lua",
+        "third_party/react-luau/packages/React/ReactCreateRef.lua",
+        "third_party/react-luau/packages/React/ReactElement.lua",
+        "third_party/react-luau/packages/React/ReactElementValidator.lua",
+        "third_party/react-luau/packages/React/ReactForwardRef.lua",
+        "third_party/react-luau/packages/React/ReactHooks.lua",
+        "third_party/react-luau/packages/React/ReactLazy.lua",
+        "third_party/react-luau/packages/React/ReactMemo.lua",
+        "third_party/react-luau/packages/React/ReactMutableSource.lua",
+        "third_party/react-luau/packages/React/ReactNoopUpdateQueue.lua",
+        "third_party/react-luau/packages/React/createSignal.roblox.lua",
+        "third_party/react-luau/packages/React/init.lua",
+        "third_party/react-luau/packages/ReactGlobals/ReactGlobals.global.lua"
+      ],
+      "working_tree_paths_truncated": true,
+      "full_file_inventory": "git-snapshot.json / files[].feature_tags contains react_vendor"
+    },
+    {
+      "id": "react_host",
+      "title": "ReactTurbo/ReactRoblox UI host",
+      "actual": "Новые UI adapters/native host: refs/bindings/signals, enums/datatypes, roots/portals, native geometry и deferred pump.",
+      "evidence": [
+        {
+          "path": "engine/scripting/react/ReactRuntime.cpp",
+          "line": 39,
+          "anchor": "bool ReactRuntime::install(",
+          "excerpt": "bool ReactRuntime::install(ScriptingSystem& scripting, std::filesystem::path packageRoot) {"
+        },
+        {
+          "path": "engine/scripting/react/ReactUI.cpp",
+          "line": 1198,
+          "anchor": "void ReactUI::draw(",
+          "excerpt": "void ReactUI::draw(ScriptingSystem& scripting, const bool gameOnly, const ImageResolver& images, const CanvasResolver& canvases) {"
+        },
+        {
+          "path": "third_party/react-luau/adapters/ReactTurbo.luau",
+          "line": 181,
+          "anchor": "Reconciler.ReactRootTags.LegacyRoot",
+          "excerpt": "local fiber = Reconciler.createContainer(container, Reconciler.ReactRootTags.LegacyRoot, false, nil)"
+        }
+      ],
+      "tests": [
+        "engine_react_runtime_tests",
+        "engine_gameplay_state_tests"
+      ],
+      "limits": [
+        "Синхронный LegacyRoot. Instance facade UI-only; неизвестные non-UI services fail явно."
+      ],
+      "path_prefixes": [
+        "engine/scripting/react/",
+        "third_party/react-luau/adapters/"
+      ],
+      "working_tree_file_count": 8,
+      "working_tree_paths": [
+        "engine/scripting/react/ReactRuntime.cpp",
+        "engine/scripting/react/ReactRuntime.h",
+        "engine/scripting/react/ReactUI.cpp",
+        "engine/scripting/react/ReactUI.h",
+        "third_party/react-luau/adapters/Compatibility.luau",
+        "third_party/react-luau/adapters/ReactTurbo.luau",
+        "third_party/react-luau/adapters/RobloxUI.luau",
+        "third_party/react-luau/adapters/TweenService.luau"
+      ],
+      "full_file_inventory": "git-snapshot.json / files[].feature_tags contains react_host",
+      "post_fix_linux_evidence": "docs\\lab2\\defense\\memory-linux\\post-fix\\summary.json",
+      "working_tree_paths_truncated": false
+    },
+    {
+      "id": "ui_visuals",
+      "title": "UI layout/images/controls",
+      "actual": "UIGradient, image atlas/Fit/Crop/Tile/Slice, TextBox, scroll/grid/scale/constraints; bounded renderer cache и frame pinning.",
+      "evidence": [
+        {
+          "path": "engine/scripting/react/ReactUI.cpp",
+          "line": 1198,
+          "anchor": "void ReactUI::draw(",
+          "excerpt": "void ReactUI::draw(ScriptingSystem& scripting, const bool gameOnly, const ImageResolver& images, const CanvasResolver& canvases) {"
+        },
+        {
+          "path": "engine/renderer/Renderer.cpp",
+          "line": 1447,
+          "anchor": "Renderer::UiImage Renderer::resolveUiImage(",
+          "excerpt": "Renderer::UiImage Renderer::resolveUiImage(const std::string_view image) {"
+        }
+      ],
+      "tests": [
+        "engine_react_runtime_tests",
+        "engine_gameplay_state_tests",
+        "engine_project_asset_tests"
+      ],
+      "limits": [
+        "Локальные images/aliases; HTTP/CDN отсутствуют."
+      ],
+      "path_prefixes": [
+        "docs/roblox-ui-",
+        "assets/textures/ui_demo/",
+        "engine/renderer/Renderer",
+        "engine/scripting/react/ReactUI"
+      ],
+      "working_tree_file_count": 16,
+      "working_tree_paths": [
+        "assets/textures/ui_demo/README.md",
+        "assets/textures/ui_demo/azure.png",
+        "assets/textures/ui_demo/dusk.png",
+        "assets/textures/ui_demo/ember.png",
+        "assets/textures/ui_demo/frontier.png",
+        "assets/textures/ui_demo/gaia.png",
+        "assets/textures/ui_demo/generate.py",
+        "assets/textures/ui_demo/icons.png",
+        "assets/textures/ui_demo/ion.png",
+        "assets/textures/ui_demo/sol.png",
+        "docs/roblox-ui-compatibility.md",
+        "docs/roblox-ui-visuals.md",
+        "engine/renderer/Renderer.cpp",
+        "engine/renderer/Renderer.h",
+        "engine/scripting/react/ReactUI.cpp",
+        "engine/scripting/react/ReactUI.h"
+      ],
+      "full_file_inventory": "git-snapshot.json / files[].feature_tags contains ui_visuals",
+      "working_tree_paths_truncated": false
+    },
+    {
+      "id": "tween",
+      "title": "UI TweenService",
+      "actual": "Новый adapter: один deterministic pump, TweenInfo/easing/repeat/reverse/delay/cancel/completed, binding ownership.",
+      "evidence": [
+        {
+          "path": "third_party/react-luau/adapters/TweenService.luau",
+          "line": 1,
+          "anchor": "-- UI-only TweenService",
+          "excerpt": "-- UI-only TweenService. One deterministic pump owns every tween; no Heartbeat"
+        }
+      ],
+      "tests": [
+        "engine_react_runtime_tests",
+        "engine_gameplay_state_tests"
+      ],
+      "limits": [
+        "UI-only, не scene/physics tween."
+      ],
+      "path_prefixes": [
+        "third_party/react-luau/adapters/TweenService.luau",
+        "tests/TweenServiceTests.luau",
+        "docs/tween-service.md"
+      ],
+      "working_tree_file_count": 3,
+      "working_tree_paths": [
+        "docs/tween-service.md",
+        "tests/TweenServiceTests.luau",
+        "third_party/react-luau/adapters/TweenService.luau"
+      ],
+      "full_file_inventory": "git-snapshot.json / files[].feature_tags contains tween",
+      "working_tree_paths_truncated": false
+    },
+    {
+      "id": "canvas",
+      "title": "CanvasGroup GPU composition",
+      "actual": "Новый GPU subsystem: capture subtree, nested child-first flatten, straight-alpha resolve, fence lifetime.",
+      "evidence": [
+        {
+          "path": "engine/renderer/UiCanvasCompositor.cpp",
+          "line": 161,
+          "anchor": "UiCanvasCompositor::Image UiCanvasCompositor::enqueue(",
+          "excerpt": "UiCanvasCompositor::Image UiCanvasCompositor::enqueue(const void*, const ImDrawList& list,"
+        },
+        {
+          "path": "engine/renderer/UiCanvasCompositor.cpp",
+          "line": 198,
+          "anchor": "void UiCanvasCompositor::render(",
+          "excerpt": "void UiCanvasCompositor::render(Diligent::IDeviceContext* context) {"
+        }
+      ],
+      "tests": [
+        "engine_react_runtime_tests",
+        "engine_gameplay_state_tests",
+        "engine_canvas_gpu_tests"
+      ],
+      "limits": [
+        "32 layers/frame,2048 side,64 MiB targets. GPU harness не запускался этим аудитом."
+      ],
+      "path_prefixes": [
+        "engine/renderer/UiCanvasCompositor",
+        "tests/Canvas",
+        "docs/canvas-groups.md",
+        "engine/rhi/Resources.h",
+        "engine/rhi_diligent/DiligentDevice.cpp"
+      ],
+      "working_tree_file_count": 7,
+      "working_tree_paths": [
+        "docs/canvas-groups.md",
+        "engine/renderer/UiCanvasCompositor.cpp",
+        "engine/renderer/UiCanvasCompositor.h",
+        "engine/rhi/Resources.h",
+        "engine/rhi_diligent/DiligentDevice.cpp",
+        "tests/CanvasGpuTests.cpp",
+        "tests/CanvasGroupTests.luau"
+      ],
+      "full_file_inventory": "git-snapshot.json / files[].feature_tags contains canvas",
+      "working_tree_paths_truncated": false
+    },
+    {
+      "id": "workspace",
+      "title": "Script Workspace/TextEditor",
+      "actual": "Новый editor: documents, linear Luau tokenizer, Find/Goto/comment, document history, Check, tools tabs, disk conflicts.",
+      "evidence": [
+        {
+          "path": "engine/editor/ScriptWorkspace.cpp",
+          "line": 369,
+          "anchor": "void ScriptWorkspace::render(",
+          "excerpt": "void ScriptWorkspace::render(bool* open, const ecs::EntityId selected, const bool playing, const bool running) {"
+        },
+        {
+          "path": "engine/editor/ScriptWorkspace.cpp",
+          "line": 138,
+          "anchor": "File changed on disk. Use Reload Disk",
+          "excerpt": "status = \"File changed on disk. Use Reload Disk to review it before saving.\";"
+        }
+      ],
+      "tests": [
+        "engine_script_workspace_command_tests",
+        "engine_script_editor_tests"
+      ],
+      "limits": [
+        "Нет LSP и VM debugger."
+      ],
+      "path_prefixes": [
+        "engine/editor/ScriptWorkspace",
+        "third_party/ImGuiColorTextEdit/",
+        "tests/ScriptEditorTests.cpp",
+        "tests/ScriptWorkspaceCommandTests.cpp"
+      ],
+      "working_tree_file_count": 8,
+      "working_tree_paths": [
+        "engine/editor/ScriptWorkspace.cpp",
+        "engine/editor/ScriptWorkspace.h",
+        "tests/ScriptEditorTests.cpp",
+        "tests/ScriptWorkspaceCommandTests.cpp",
+        "third_party/ImGuiColorTextEdit/LICENSE",
+        "third_party/ImGuiColorTextEdit/README.tge.md",
+        "third_party/ImGuiColorTextEdit/TextEditor.cpp",
+        "third_party/ImGuiColorTextEdit/TextEditor.h"
+      ],
+      "full_file_inventory": "git-snapshot.json / files[].feature_tags contains workspace",
+      "working_tree_paths_truncated": false
+    },
+    {
+      "id": "formatter",
+      "title": "Асинхронный StyLua",
+      "actual": "Настоящий formatter subprocess с --verify, revision check/cancel, Undo apply.",
+      "evidence": [
+        {
+          "path": "engine/editor/ScriptFormatter.cpp",
+          "line": 150,
+          "anchor": "--syntax Luau --verify",
+          "excerpt": "std::wstring command = L\"\\\"\" + executable.wstring() + L\"\\\" --syntax Luau --verify --indent-type Spaces --indent-width 4\""
+        },
+        {
+          "path": "engine/editor/ScriptFormatter.cpp",
+          "line": 228,
+          "anchor": "bool ScriptFormatter::start(",
+          "excerpt": "bool ScriptFormatter::start(std::string documentPath, std::string source) {"
+        }
+      ],
+      "tests": [
+        "engine_script_formatter_tests",
+        "engine_script_editor_tests"
+      ],
+      "limits": [
+        "Отдельный Windows runtime копируется CMake."
+      ],
+      "path_prefixes": [
+        "engine/editor/ScriptFormatter",
+        "third_party/StyLua/",
+        "tests/ScriptFormatterTests.cpp"
+      ],
+      "working_tree_file_count": 5,
+      "working_tree_paths": [
+        "engine/editor/ScriptFormatter.cpp",
+        "engine/editor/ScriptFormatter.h",
+        "tests/ScriptFormatterTests.cpp",
+        "third_party/StyLua/LICENSE.md",
+        "third_party/StyLua/README.md"
+      ],
+      "full_file_inventory": "git-snapshot.json / files[].feature_tags contains formatter",
+      "working_tree_paths_truncated": false
+    },
+    {
+      "id": "codex",
+      "title": "Codex app-server client",
+      "actual": "Новый optional subsystem: stdio JSON-RPC, catalog pagination, settings, streaming, UTF-8 bounds, explicit approvals.",
+      "evidence": [
+        {
+          "path": "engine/editor/CodexAssistant.cpp",
+          "line": 422,
+          "anchor": "bool initializeConnection()",
+          "excerpt": "bool initializeConnection() {"
+        },
+        {
+          "path": "engine/editor/CodexAssistant.cpp",
+          "line": 442,
+          "anchor": "request(\"turn/start\"",
+          "excerpt": "if (request(\"turn/start\", std::move(params))) {"
+        },
+        {
+          "path": "engine/editor/CodexAssistant.cpp",
+          "line": 332,
+          "anchor": "request(\"model/list\"",
+          "excerpt": "if (!request(\"model/list\", Json{{\"limit\", 100}, {\"includeHidden\", true}})) catalogLoading = false;"
+        }
+      ],
+      "tests": [
+        "engine_codex_assistant_tests"
+      ],
+      "limits": [
+        "Protocol/transport tests не доказывают login/paid inference или право на модель."
+      ],
+      "path_prefixes": [
+        "engine/editor/CodexAssistant",
+        "tests/CodexAssistantTests.cpp"
+      ],
+      "working_tree_file_count": 3,
+      "working_tree_paths": [
+        "engine/editor/CodexAssistant.cpp",
+        "engine/editor/CodexAssistant.h",
+        "tests/CodexAssistantTests.cpp"
+      ],
+      "full_file_inventory": "git-snapshot.json / files[].feature_tags contains codex",
+      "working_tree_paths_truncated": false
+    },
+    {
+      "id": "projects",
+      "title": "Projects launcher/manifest/recents",
+      "actual": "Новые ProjectManager/Launcher + Application integration; contained paths, .tgeproj, asset namespace isolation.",
+      "evidence": [
+        {
+          "path": "engine/core/ProjectManager.cpp",
+          "line": 204,
+          "anchor": "std::optional<Project> ProjectManager::createBlank(",
+          "excerpt": "std::optional<Project> ProjectManager::createBlank(const fs::path& parentDirectory, const std::string& name, std::string& error) {"
+        },
+        {
+          "path": "engine/core/ProjectManager.cpp",
+          "line": 241,
+          "anchor": "std::optional<Project> ProjectManager::open(",
+          "excerpt": "std::optional<Project> ProjectManager::open(const fs::path& manifestOrDirectory, std::string& error) {"
+        },
+        {
+          "path": "engine/core/Application.cpp",
+          "line": 348,
+          "anchor": "void Application::applyProjectSelection()",
+          "excerpt": "void Application::applyProjectSelection() {"
+        }
+      ],
+      "tests": [
+        "engine_project_manager_tests",
+        "engine_project_launcher_tests",
+        "engine_project_asset_tests",
+        "engine_gameplay_state_tests"
+      ],
+      "limits": [
+        "Пользовательские projects/recents — user data."
+      ],
+      "path_prefixes": [
+        "engine/core/ProjectManager",
+        "engine/editor/ProjectLauncher",
+        "engine/core/Application",
+        "engine/resources/resource_manager",
+        "docs/projects.md",
+        "tests/Project"
+      ],
+      "working_tree_file_count": 12,
+      "working_tree_paths": [
+        "docs/projects.md",
+        "engine/core/Application.cpp",
+        "engine/core/Application.h",
+        "engine/core/ProjectManager.cpp",
+        "engine/core/ProjectManager.h",
+        "engine/editor/ProjectLauncher.cpp",
+        "engine/editor/ProjectLauncher.h",
+        "engine/resources/resource_manager.cpp",
+        "engine/resources/resource_manager.h",
+        "tests/ProjectAssetTests.cpp",
+        "tests/ProjectLauncherTests.cpp",
+        "tests/ProjectManagerTests.cpp"
+      ],
+      "full_file_inventory": "git-snapshot.json / files[].feature_tags contains projects",
+      "working_tree_paths_truncated": false
+    },
+    {
+      "id": "play",
+      "title": "Оба Play режима",
+      "actual": "Изменённый GameplayState + новый PlaySession: pre-Play snapshot/history restore; child app с temporary scene/manifest и source/snapshot distinction.",
+      "evidence": [
+        {
+          "path": "engine/game/GameplayState.cpp",
+          "line": 2265,
+          "anchor": "void GameplayState::launchStandalonePlay()",
+          "excerpt": "void GameplayState::launchStandalonePlay() {"
+        },
+        {
+          "path": "engine/core/PlaySession.cpp",
+          "line": 74,
+          "anchor": "bool PlaySession::start(",
+          "excerpt": "bool PlaySession::start(const std::filesystem::path& executable, const std::string& scene,"
+        },
+        {
+          "path": "engine/core/PlaySession.cpp",
+          "line": 46,
+          "anchor": "void PlaySession::stop()",
+          "excerpt": "void PlaySession::stop() {"
+        }
+      ],
+      "tests": [
+        "engine_gameplay_state_tests"
+      ],
+      "limits": [
+        "Scene/history snapshot не VM checkpoint. Настоящий standalone D3D12 smoke не запускался этим аудитом."
+      ],
+      "path_prefixes": [
+        "engine/core/PlaySession",
+        "engine/game/StateStack.h",
+        "app/main.cpp",
+        "engine/game/GameplayState"
+      ],
+      "working_tree_file_count": 6,
+      "working_tree_paths": [
+        "app/main.cpp",
+        "engine/core/PlaySession.cpp",
+        "engine/core/PlaySession.h",
+        "engine/game/GameplayState.cpp",
+        "engine/game/GameplayState.h",
+        "engine/game/StateStack.h"
+      ],
+      "full_file_inventory": "git-snapshot.json / files[].feature_tags contains play",
+      "working_tree_paths_truncated": false
+    },
+    {
+      "id": "scene_live",
+      "title": "Live authored scene deltas",
+      "actual": "Watcher + sourceId remap + validation/apply сохраняют продолжающуюся simulation и runtime-spawned entities.",
+      "evidence": [
+        {
+          "path": "engine/game/GameplayState.cpp",
+          "line": 2371,
+          "anchor": "void GameplayState::pollSceneChanges()",
+          "excerpt": "void GameplayState::pollSceneChanges() {"
+        },
+        {
+          "path": "engine/game/GameplayState.cpp",
+          "line": 2385,
+          "anchor": "void GameplayState::applyLiveScene(",
+          "excerpt": "void GameplayState::applyLiveScene(const nlohmann::json& scene) {"
+        }
+      ],
+      "tests": [
+        "engine_gameplay_state_tests"
+      ],
+      "limits": [
+        "JSON parse и ECS apply — owner thread, не полный async scene loader."
+      ],
+      "path_prefixes": [
+        "engine/game/GameplayState",
+        "docs/live-reload-performance.md"
+      ],
+      "working_tree_file_count": 3,
+      "working_tree_paths": [
+        "docs/live-reload-performance.md",
+        "engine/game/GameplayState.cpp",
+        "engine/game/GameplayState.h"
+      ],
+      "full_file_inventory": "git-snapshot.json / files[].feature_tags contains scene_live",
+      "working_tree_paths_truncated": false
+    },
+    {
+      "id": "scene_edit",
+      "title": "Inspector/history/input integration",
+      "actual": "Script fields serialization, lazy history edits, component editing, Play-safe history и scene shortcuts capture.",
+      "evidence": [
+        {
+          "path": "engine/game/GameplayState.cpp",
+          "line": 2137,
+          "anchor": "void GameplayState::trackEditedItem(",
+          "excerpt": "void GameplayState::trackEditedItem(const std::string& label, const bool changed, const EntitySnapshot& before) {"
+        },
+        {
+          "path": "engine/game/GameplayState.cpp",
+          "line": 2258,
+          "anchor": "entityJson[\"script\"] =",
+          "excerpt": "entityJson[\"script\"] = {{\"path\", script.path}, {\"enabled\", script.enabled}, {\"fields\", script.fields}};"
+        },
+        {
+          "path": "engine/game/GameplayCommands.cpp",
+          "line": 202,
+          "anchor": "bool GameplayState::sceneShortcutsBlocked()",
+          "excerpt": "bool GameplayState::sceneShortcutsBlocked() const {"
+        }
+      ],
+      "tests": [
+        "engine_gameplay_state_tests"
+      ],
+      "limits": [
+        "Runtime Undo реконструирует ECS и script instances; VM instruction state не сохраняется."
+      ],
+      "path_prefixes": [
+        "engine/game/GameplayState",
+        "engine/game/GameplayCommands.cpp",
+        "engine/platform/Events.h",
+        "engine/platform/WindowGLFW.cpp"
+      ],
+      "working_tree_file_count": 5,
+      "working_tree_paths": [
+        "engine/game/GameplayCommands.cpp",
+        "engine/game/GameplayState.cpp",
+        "engine/game/GameplayState.h",
+        "engine/platform/Events.h",
+        "engine/platform/WindowGLFW.cpp"
+      ],
+      "full_file_inventory": "git-snapshot.json / files[].feature_tags contains scene_edit",
+      "working_tree_paths_truncated": false
+    },
+    {
+      "id": "ribbon",
+      "title": "Command registry/Studio-style native UI",
+      "actual": "Новые command registry/5tabs, split choices, whole-group overflow, snap prefs, flat dock panels, shared Assistant rail, fonts/icons provenance.",
+      "evidence": [
+        {
+          "path": "engine/editor/EditorCommands.cpp",
+          "line": 111,
+          "anchor": "EditorCommandRegistry::execute(",
+          "excerpt": "bool EditorCommandRegistry::execute(const EditorCommandId id) const {"
+        },
+        {
+          "path": "engine/editor/EditorRibbon.cpp",
+          "line": 324,
+          "anchor": "bool EditorRibbon::render(",
+          "excerpt": "bool EditorRibbon::render(EditorCommandRegistry& commands, EditorRibbonState& state, const EditorIcons::Resolver& resolve) {"
+        },
+        {
+          "path": "engine/game/GameplayState.cpp",
+          "line": 685,
+          "anchor": "EditorLayout computeEditorLayout(",
+          "excerpt": "EditorLayout computeEditorLayout("
+        },
+        {
+          "path": "engine/editor/EditorTheme.h",
+          "line": 17,
+          "anchor": "kPanelTitleHeight",
+          "excerpt": "inline constexpr float kPanelTitleHeight = 26.0F;"
+        }
+      ],
+      "tests": [
+        "engine_editor_command_tests",
+        "engine_gameplay_state_tests",
+        "engine_script_workspace_command_tests"
+      ],
+      "limits": [
+        "Реальные TGE handlers, не сервисы Roblox. Local reference fonts ignored/не portable dependency."
+      ],
+      "path_prefixes": [
+        "engine/editor/EditorCommands",
+        "engine/editor/EditorRibbon",
+        "engine/editor/EditorIcons",
+        "engine/editor/EditorTheme",
+        "engine/game/GameplayCommands.cpp",
+        "assets/editor/",
+        "assets/fonts/",
+        "assets/editor_layout.json",
+        "tests/EditorCommandTests.cpp"
+      ],
+      "working_tree_file_count": 72,
+      "working_tree_paths": [
+        "assets/editor/icons/Geometric.png",
+        "assets/editor/icons/RibbonAI.png",
+        "assets/editor/icons/RibbonAddTools.png",
+        "assets/editor/icons/RibbonAlignPosition.png",
+        "assets/editor/icons/RibbonAnalysis.png",
+        "assets/editor/icons/RibbonAnchor.png",
+        "assets/editor/icons/RibbonArrowDownAngleSmall.png",
+        "assets/editor/icons/RibbonAssetManager.png",
+        "assets/editor/icons/RibbonBack.png",
+        "assets/editor/icons/RibbonCallStack.png",
+        "assets/editor/icons/RibbonCamera.png",
+        "assets/editor/icons/RibbonClientSmall.png",
+        "assets/editor/icons/RibbonCodeSnippet.png",
+        "assets/editor/icons/RibbonColor.png",
+        "assets/editor/icons/RibbonCommand.png",
+        "assets/editor/icons/RibbonDeleteSmall.png",
+        "assets/editor/icons/RibbonDuplicate.png",
+        "assets/editor/icons/RibbonEffect_Highlight.png",
+        "assets/editor/icons/RibbonExplorer.png",
+        "assets/editor/icons/RibbonFind.png",
+        "assets/editor/icons/RibbonFormatDocument.png",
+        "assets/editor/icons/RibbonFrame.png",
+        "assets/editor/icons/RibbonFwd.png",
+        "assets/editor/icons/RibbonGeometric.png",
+        "assets/editor/icons/RibbonGoToLine.png",
+        "assets/editor/icons/RibbonGroup.png",
+        "assets/editor/icons/RibbonLock.png",
+        "assets/editor/icons/RibbonMoreSmall.png",
+        "assets/editor/icons/RibbonMove.png",
+        "assets/editor/icons/RibbonMoveSpinboxSmall.png",
+        "assets/editor/icons/RibbonOutput.png",
+        "assets/editor/icons/RibbonPart.png",
+        "assets/editor/icons/RibbonPart_Sphere.png",
+        "assets/editor/icons/RibbonPart_Wedge.png",
+        "assets/editor/icons/RibbonPauseSmall.png",
+        "assets/editor/icons/RibbonPerformance.png",
+        "assets/editor/icons/RibbonPhysical.png",
+        "assets/editor/icons/RibbonPlaySmall.png",
+        "assets/editor/icons/RibbonProperties.png",
+        "assets/editor/icons/RibbonReactDevTools.png",
+        "assets/editor/icons/RibbonResetPivot.png",
+        "assets/editor/icons/RibbonRotate.png",
+        "assets/editor/icons/RibbonRotateSpinboxSmall.png",
+        "assets/editor/icons/RibbonScale.png",
+        "assets/editor/icons/RibbonScript.png",
+        "assets/editor/icons/RibbonSelect.png",
+        "assets/editor/icons/RibbonStepForwardSmall.png",
+        "assets/editor/icons/RibbonStopActiveSmall.png",
+        "assets/editor/icons/RibbonUIGridLayout.png",
+        "assets/editor/icons/RibbonUpdateSmall.png",
+        "assets/editor/icons/RibbonVectorForce.png",
+        "assets/editor/icons/RibbonViewportFrame.png",
+        "assets/editor/icons/RibbonVisible.png",
+        "assets/editor/icons/RibbonWatch.png",
+        "assets/editor/icons/provenance.json",
+        "assets/editor_layout.json",
+        "assets/fonts/FiraMono-LICENSE.txt",
+        "assets/fonts/FiraMono-Regular.ttf",
+        "assets/fonts/README.md",
+        "assets/fonts/SourceSansPro-LICENSE.txt",
+        "assets/fonts/SourceSansPro-Regular.ttf",
+        "assets/fonts/SourceSansPro-Semibold.ttf",
+        "engine/editor/EditorCommands.cpp",
+        "engine/editor/EditorCommands.h",
+        "engine/editor/EditorIcons.cpp",
+        "engine/editor/EditorIcons.h",
+        "engine/editor/EditorRibbon.cpp",
+        "engine/editor/EditorRibbon.h",
+        "engine/editor/EditorTheme.cpp",
+        "engine/editor/EditorTheme.h",
+        "engine/game/GameplayCommands.cpp",
+        "tests/EditorCommandTests.cpp"
+      ],
+      "full_file_inventory": "git-snapshot.json / files[].feature_tags contains ribbon",
+      "working_tree_paths_truncated": false
+    },
+    {
+      "id": "atomic",
+      "title": "AtomicFile и сохранения",
+      "actual": "Новая core служба: exclusive temp sibling, flush/replace, sidecar/hardlink safety; scripts/scenes/layout.",
+      "evidence": [
+        {
+          "path": "engine/core/AtomicFile.cpp",
+          "line": 43,
+          "anchor": "bool writeFileAtomically(",
+          "excerpt": "bool writeFileAtomically(const std::filesystem::path& target, const std::string& contents,"
+        },
+        {
+          "path": "engine/editor/ScriptWorkspace.cpp",
+          "line": 146,
+          "anchor": "core::writeFileAtomically(*path",
+          "excerpt": "if (!core::writeFileAtomically(*path, text, detail)) { status = \"Script save failed; original preserved. \" + detail; return false; }"
+        }
+      ],
+      "tests": [
+        "engine_atomic_file_tests",
+        "engine_gameplay_state_tests"
+      ],
+      "limits": [
+        "Локальная FS/OS; disk conflicts требуют Reload Disk."
+      ],
+      "path_prefixes": [
+        "engine/core/AtomicFile",
+        "tests/AtomicFileTests.cpp"
+      ],
+      "working_tree_file_count": 3,
+      "working_tree_paths": [
+        "engine/core/AtomicFile.cpp",
+        "engine/core/AtomicFile.h",
+        "tests/AtomicFileTests.cpp"
+      ],
+      "full_file_inventory": "git-snapshot.json / files[].feature_tags contains atomic",
+      "working_tree_paths_truncated": false
+    },
+    {
+      "id": "culling",
+      "title": "Mesh bounds/frustum culling",
+      "actual": "Изменённые loaders/mesh/render prep + новый conservative AABB clip-frustum helper.",
+      "evidence": [
+        {
+          "path": "engine/ecs/frustum.h",
+          "line": 6,
+          "anchor": "inline bool intersectsFrustum(",
+          "excerpt": "inline bool intersectsFrustum(const glm::mat4& mvp, const glm::vec3& minimum, const glm::vec3& maximum) {"
+        },
+        {
+          "path": "engine/ecs/render_system.cpp",
+          "line": 57,
+          "anchor": "!intersectsFrustum(",
+          "excerpt": "!intersectsFrustum(viewProjectionMatrix * modelMatrix, meshRenderer.mesh->boundsMinimum, meshRenderer.mesh->boundsMaximum)) { ++m_culled; continue; }"
+        },
+        {
+          "path": "engine/resources/mesh.h",
+          "line": 36,
+          "anchor": "boundsMinimum",
+          "excerpt": "glm::vec3 boundsMinimum{0.0F}, boundsMaximum{0.0F};"
+        }
+      ],
+      "tests": [
+        "engine_transform_batch_tests"
+      ],
+      "limits": [
+        "Новых FPS измерений нет; не occlusion culling."
+      ],
+      "path_prefixes": [
+        "engine/ecs/frustum.h",
+        "engine/ecs/render_system",
+        "engine/resources/mesh.h",
+        "engine/resources/loaders",
+        "tests/TransformBatchTests.cpp"
+      ],
+      "working_tree_file_count": 7,
+      "working_tree_paths": [
+        "engine/ecs/frustum.h",
+        "engine/ecs/render_system.cpp",
+        "engine/ecs/render_system.h",
+        "engine/resources/loaders.cpp",
+        "engine/resources/loaders.h",
+        "engine/resources/mesh.h",
+        "tests/TransformBatchTests.cpp"
+      ],
+      "full_file_inventory": "git-snapshot.json / files[].feature_tags contains culling",
+      "working_tree_paths_truncated": false
+    },
+    {
+      "id": "resources_gpu",
+      "title": "Texture safety/UI image GPU lifetime",
+      "actual": "Изменены decode preflight/limits, cache reservations, borrowed SRV pinning и RHI Canvas support.",
+      "evidence": [
+        {
+          "path": "engine/resources/loaders.cpp",
+          "line": 303,
+          "anchor": "bool loadTextureDataRgba8(",
+          "excerpt": "bool loadTextureDataRgba8(const std::string& path, TextureData& outTextureData, std::string* errorMessage) {"
+        },
+        {
+          "path": "engine/renderer/Renderer.cpp",
+          "line": 1421,
+          "anchor": "bool Renderer::reserveUiImageBytes(",
+          "excerpt": "bool Renderer::reserveUiImageBytes(const std::uint64_t bytes, const std::string& protectedKey, const bool newEntry) {"
+        },
+        {
+          "path": "engine/renderer/Renderer.cpp",
+          "line": 1498,
+          "anchor": "Renderer::UiImage Renderer::resolveUiImagePath(",
+          "excerpt": "Renderer::UiImage Renderer::resolveUiImagePath(const std::string& path) {"
+        }
+      ],
+      "tests": [
+        "engine_texture_loader_tests",
+        "engine_project_asset_tests",
+        "engine_canvas_gpu_tests"
+      ],
+      "limits": [
+        "Базовая upload queue уже в commit c8e3967; весь pipeline не новая ЛР2."
+      ],
+      "path_prefixes": [
+        "engine/renderer/Renderer",
+        "engine/resources/loaders",
+        "engine/rhi/Resources.h",
+        "engine/rhi_diligent/DiligentDevice.cpp"
+      ],
+      "working_tree_file_count": 6,
+      "working_tree_paths": [
+        "engine/renderer/Renderer.cpp",
+        "engine/renderer/Renderer.h",
+        "engine/resources/loaders.cpp",
+        "engine/resources/loaders.h",
+        "engine/rhi/Resources.h",
+        "engine/rhi_diligent/DiligentDevice.cpp"
+      ],
+      "full_file_inventory": "git-snapshot.json / files[].feature_tags contains resources_gpu",
+      "working_tree_paths_truncated": false
+    },
+    {
+      "id": "frame_crash",
+      "title": "Frame catch-up/native diagnostics",
+      "actual": "Ограничены4 interactive fixed steps; crash-last с категорией/module offset; native input additions.",
+      "evidence": [
+        {
+          "path": "engine/core/Application.cpp",
+          "line": 444,
+          "anchor": "const unsigned maxSteps =",
+          "excerpt": "const unsigned maxSteps = m_labOptions.active() ? 16U : 4U;"
+        },
+        {
+          "path": "app/main.cpp",
+          "line": 31,
+          "anchor": "logs/crash-last.txt",
+          "excerpt": "fopen_s(&file, \"logs/crash-last.txt\", \"w\");"
+        },
+        {
+          "path": "engine/platform/WindowGLFW.cpp",
+          "line": 18,
+          "anchor": "KeyCode mapKey(",
+          "excerpt": "KeyCode mapKey(int glfwKey) {"
+        }
+      ],
+      "tests": [
+        "engine_gameplay_state_tests"
+      ],
+      "limits": [
+        "Не recovery native faults/доказательство отсутствия крашей."
+      ],
+      "path_prefixes": [
+        "engine/core/Application",
+        "app/main.cpp",
+        "engine/platform/",
+        "docs/crash-diagnostics.md"
+      ],
+      "working_tree_file_count": 6,
+      "working_tree_paths": [
+        "app/main.cpp",
+        "docs/crash-diagnostics.md",
+        "engine/core/Application.cpp",
+        "engine/core/Application.h",
+        "engine/platform/Events.h",
+        "engine/platform/WindowGLFW.cpp"
+      ],
+      "full_file_inventory": "git-snapshot.json / files[].feature_tags contains frame_crash",
+      "working_tree_paths_truncated": false
+    },
+    {
+      "id": "rea",
+      "title": "Локальные REA/Ghidra tools",
+      "actual": "Pinned REA6.5.0 setup/registration + ignored research evidence; отдельно от runtime/CMake.",
+      "evidence": [
+        {
+          "path": "tools/rea/package.json",
+          "line": 6,
+          "anchor": "\"rea-agents\"",
+          "excerpt": "\"rea-agents\": \"6.5.0\""
+        },
+        {
+          "path": "tools/rea/README.md",
+          "line": 4,
+          "anchor": "Не участвует в CMake",
+          "excerpt": "Не участвует в CMake и не изменяет глобальную конфигурацию Codex."
+        }
+      ],
+      "tests": [],
+      "limits": [
+        "tools/rea/local и node_modules ignored; исследования не попадут в clone без отдельной передачи."
+      ],
+      "path_prefixes": [
+        "tools/rea/"
+      ],
+      "working_tree_file_count": 6,
+      "working_tree_paths": [
+        "tools/rea/README.md",
+        "tools/rea/package-lock.json",
+        "tools/rea/package.json",
+        "tools/rea/rea.mjs",
+        "tools/rea/setup.ps1",
+        "tools/rea/smoke-fixture.c"
+      ],
+      "full_file_inventory": "git-snapshot.json / files[].feature_tags contains rea",
+      "working_tree_paths_truncated": false
+    },
+    {
+      "id": "docs_tests",
+      "title": "Гайды, provenance, regression harnesses",
+      "actual": "Новые docs ЛР2/projects/UI и tests; README является claim, исполнение доказывают отдельные logs.",
+      "evidence": [
+        {
+          "path": "docs/lab2/README.md",
+          "line": 268,
+          "anchor": "## Сборка и проверка",
+          "excerpt": "## Сборка и проверка"
+        },
+        {
+          "path": "CMakeLists.txt",
+          "line": 576,
+          "anchor": "add_executable(engine_scripting_tests",
+          "excerpt": "add_executable(engine_scripting_tests tests/ScriptingSystemTests.cpp)"
+        }
+      ],
+      "tests": [],
+      "limits": [
+        "Даты/названия docs могут отставать; старые результаты ЛР1 не ЛР2."
+      ],
+      "path_prefixes": [
+        "docs/",
+        "README.md",
+        "AGENTS.md",
+        "CMakeLists.txt",
+        "tests/",
+        ".gitignore"
+      ],
+      "working_tree_file_count": 63,
+      "working_tree_paths": [
+        ".gitignore",
+        "AGENTS.md",
+        "CMakeLists.txt",
+        "README.md",
+        "docs/canvas-groups.md",
+        "docs/crash-diagnostics.md",
+        "docs/lab2/README.md",
+        "docs/lab2/defense/.gitignore",
+        "docs/lab2/defense/README.md",
+        "docs/lab2/defense/artifact-review.json",
+        "docs/lab2/defense/content.json",
+        "docs/lab2/defense/defense-notes.md",
+        "docs/lab2/defense/evidence/clion-profiler-unavailable.jpg",
+        "docs/lab2/defense/evidence/collectathon-native.jpg",
+        "docs/lab2/defense/evidence/game-ecs-complete.jpg",
+        "docs/lab2/defense/evidence/game-overview.jpg",
+        "docs/lab2/defense/evidence/game-quiz-complete.jpg",
+        "docs/lab2/defense/evidence/game-real-ecs.jpg",
+        "docs/lab2/defense/evidence/game-reload-complete.jpg",
+        "docs/lab2/defense/git-snapshot.json",
+        "docs/lab2/defense/implementation-evidence.json",
+        "docs/lab2/defense/memory-linux/local-assets/summary.json",
+        "docs/lab2/defense/memory-linux/post-fix/instrumentation.json",
+        "docs/lab2/defense/memory-linux/post-fix/lifecycle.json",
+        "docs/lab2/defense/memory-linux/post-fix/results-brief.json",
+        "docs/lab2/defense/memory-linux/post-fix/runner-used.py.txt",
+        "docs/lab2/defense/memory-linux/post-fix/summary.json",
+        "docs/lab2/defense/memory-linux/summary.json",
+        "docs/lab2/defense/memory-report.md",
+        "docs/lab2/defense/memory-windows-run1/samples.csv",
+        "docs/lab2/defense/memory-windows-run1/summary.json",
+        "docs/lab2/defense/memory-windows-run2/samples.csv",
+        "docs/lab2/defense/memory-windows-run2/summary.json",
+        "docs/lab2/defense/output/TurboGameEngine-Lab2-report.pdf",
+        "docs/lab2/defense/output/TurboGameEngine-Lab2-slides.pdf",
+        "docs/lab2/defense/output/TurboGameEngine-Lab2.pptx",
+        "docs/lab2/defense/presentation-validation.json",
+        "docs/lab2/defense/profiling-capabilities.json",
+        "docs/lab2/defense/technical-report.md",
+        "docs/lab2/defense/verification.json",
+        "docs/live-reload-performance.md",
+        "docs/projects.md",
+        "docs/roblox-ui-compatibility.md",
+        "docs/roblox-ui-visuals.md",
+        "docs/tween-service.md",
+        "tests/AtomicFileTests.cpp",
+        "tests/CanvasGpuTests.cpp",
+        "tests/CanvasGroupTests.luau",
+        "tests/CodexAssistantTests.cpp",
+        "tests/EditorCommandTests.cpp",
+        "tests/GameplayStateTests.cpp",
+        "tests/LiveFileWatcherTests.cpp",
+        "tests/ProjectAssetTests.cpp",
+        "tests/ProjectLauncherTests.cpp",
+        "tests/ProjectManagerTests.cpp",
+        "tests/ReactRuntimeTests.cpp",
+        "tests/ReactRuntimeTests.luau",
+        "tests/ScriptEditorTests.cpp",
+        "tests/ScriptFormatterTests.cpp",
+        "tests/ScriptWorkspaceCommandTests.cpp",
+        "tests/ScriptingSystemTests.cpp",
+        "tests/TransformBatchTests.cpp",
+        "tests/TweenServiceTests.luau"
+      ],
+      "full_file_inventory": "git-snapshot.json / files[].feature_tags contains docs_tests",
+      "working_tree_paths_truncated": false
+    },
+    {
+      "id": "lab2_defense_game",
+      "title": "Интерактивная защита как отдельный Luau/React project",
+      "actual": "8 тем, quiz, настоящий ECS prefab/Transform и dependency OnReload с counter/Init checkpoint;3 ключа в native GUI.",
+      "evidence": [
+        {
+          "path": "demos/lab2-defense/assets/scripts/Defense.luau",
+          "line": 342,
+          "anchor": "function Behavior:OnReload()",
+          "excerpt": "function Behavior:OnReload()"
+        },
+        {
+          "path": "demos/lab2-defense/README.md",
+          "line": 79,
+          "anchor": "Headless fixture использует",
+          "excerpt": "Headless fixture использует настоящий vendored React/RobloxUI и отправляет"
+        }
+      ],
+      "tests": [
+        "demos/lab2-defense/check.py",
+        "native GUI screenshots/runtime log"
+      ],
+      "limits": [
+        "Headless Engine — test double, OnReload fixture вызывается напрямую; это отдельно от native GUI evidence.",
+        "Не Roblox platform runtime."
+      ],
+      "path_prefixes": [
+        "demos/lab2-defense/"
+      ],
+      "full_file_inventory": "git-snapshot.json / files[].feature_tags contains lab2_defense_game",
+      "working_tree_file_count": 18,
+      "working_tree_paths": [
+        "demos/lab2-defense/.gitignore",
+        "demos/lab2-defense/.tge/editor_layout.json",
+        "demos/lab2-defense/Lab2Defense.tgeproj",
+        "demos/lab2-defense/README.md",
+        "demos/lab2-defense/assets/prefabs/marker.json",
+        "demos/lab2-defense/assets/scenes/defense.scene.json",
+        "demos/lab2-defense/assets/scripts/Defense.luau",
+        "demos/lab2-defense/assets/scripts/DefenseContent.luau",
+        "demos/lab2-defense/assets/scripts/DefenseQuiz.luau",
+        "demos/lab2-defense/assets/scripts/Marker.luau",
+        "demos/lab2-defense/assets/scripts/ReloadRules.luau",
+        "demos/lab2-defense/assets/shaders_hlsl/textured.frag.hlsl",
+        "demos/lab2-defense/assets/shaders_hlsl/textured.shader.json",
+        "demos/lab2-defense/assets/shaders_hlsl/textured.vert.hlsl",
+        "demos/lab2-defense/assets/textures/white.ppm",
+        "demos/lab2-defense/check.py",
+        "demos/lab2-defense/sync_content.py",
+        "demos/lab2-defense/tests/smoke.luau"
+      ],
+      "working_tree_paths_truncated": false
+    },
+    {
+      "id": "collectathon_demo_project",
+      "title": "Отдельный Collectathon project для живой защиты",
+      "actual": "Самостоятельные .tgeproj/scene/scripts/prefabs/shaders/textures без изменения пользовательского проекта.",
+      "evidence": [
+        {
+          "path": "demos/lab2-collectathon/README.md",
+          "line": 1,
+          "anchor": "#",
+          "excerpt": "# ЛР 2: отдельный Collectathon"
+        }
+      ],
+      "tests": [
+        "demos/lab2-collectathon/verify.py",
+        "post-fix native30s scene/HUD clean-shutdown smoke"
+      ],
+      "limits": [
+        "Movement/pickup не повторялись в финальном GUI smoke."
+      ],
+      "path_prefixes": [
+        "demos/lab2-collectathon/"
+      ],
+      "working_tree_file_count": 18,
+      "working_tree_paths": [
+        "demos/lab2-collectathon/.gitignore",
+        "demos/lab2-collectathon/.tge/editor_layout.json",
+        "demos/lab2-collectathon/Lab2Collectathon.tgeproj",
+        "demos/lab2-collectathon/README.md",
+        "demos/lab2-collectathon/assets/prefabs/collectathon_controller.json",
+        "demos/lab2-collectathon/assets/prefabs/collectathon_player.json",
+        "demos/lab2-collectathon/assets/prefabs/collectible.json",
+        "demos/lab2-collectathon/assets/prefabs/react_ui.json",
+        "demos/lab2-collectathon/assets/scenes/collectathon.scene.json",
+        "demos/lab2-collectathon/assets/scripts/Collectathon.luau",
+        "demos/lab2-collectathon/assets/scripts/Collectible.luau",
+        "demos/lab2-collectathon/assets/scripts/ui/demo_ui.luau",
+        "demos/lab2-collectathon/assets/shaders_hlsl/textured.frag.hlsl",
+        "demos/lab2-collectathon/assets/shaders_hlsl/textured.shader.json",
+        "demos/lab2-collectathon/assets/shaders_hlsl/textured.vert.hlsl",
+        "demos/lab2-collectathon/assets/textures/arena_floor.ppm",
+        "demos/lab2-collectathon/assets/textures/arena_wall.ppm",
+        "demos/lab2-collectathon/verify.py"
+      ],
+      "working_tree_paths_truncated": false,
+      "full_file_inventory": "git-snapshot.json / files[].feature_tags contains collectathon_demo_project"
+    },
+    {
+      "id": "memory_verification_tooling",
+      "title": "Воспроизводимая stability verification",
+      "actual": "Isolated Windows process counters/fixture runner, Linux ASan/UBSan/LSan headless build+sameVM lifecycle, summaries with raw negative/positive evidence.",
+      "evidence": [
+        {
+          "path": "tools/run_lab2_stability.py",
+          "line": 32,
+          "anchor": "def create_fixture(",
+          "excerpt": "def create_fixture(root: Path) -> Path:"
+        },
+        {
+          "path": "tools/verify_lab2_memory/MemoryLifecycle.cpp",
+          "line": 143,
+          "anchor": "int main(",
+          "excerpt": "int main() {"
+        }
+      ],
+      "tests": [
+        "Windows300s+Linux11 processes and240 lifecycle cycles; see verification.json"
+      ],
+      "limits": [
+        "Инструменты проверки не runtime engine features; GPU/driver не покрыты Linux sanitizers."
+      ],
+      "path_prefixes": [
+        "tools/run_lab2_stability.py",
+        "tools/verify_lab2_memory/",
+        "tools/summarize_lab2_verification.py",
+        "docs/lab2/defense/memory-"
+      ],
+      "working_tree_file_count": 18,
+      "working_tree_paths": [
+        "docs/lab2/defense/memory-linux/local-assets/summary.json",
+        "docs/lab2/defense/memory-linux/post-fix/instrumentation.json",
+        "docs/lab2/defense/memory-linux/post-fix/lifecycle.json",
+        "docs/lab2/defense/memory-linux/post-fix/results-brief.json",
+        "docs/lab2/defense/memory-linux/post-fix/runner-used.py.txt",
+        "docs/lab2/defense/memory-linux/post-fix/summary.json",
+        "docs/lab2/defense/memory-linux/summary.json",
+        "docs/lab2/defense/memory-report.md",
+        "docs/lab2/defense/memory-windows-run1/samples.csv",
+        "docs/lab2/defense/memory-windows-run1/summary.json",
+        "docs/lab2/defense/memory-windows-run2/samples.csv",
+        "docs/lab2/defense/memory-windows-run2/summary.json",
+        "tools/run_lab2_stability.py",
+        "tools/summarize_lab2_verification.py",
+        "tools/verify_lab2_memory/CMakeLists.txt",
+        "tools/verify_lab2_memory/MemoryLifecycle.cpp",
+        "tools/verify_lab2_memory/README.md",
+        "tools/verify_lab2_memory/run.py"
+      ],
+      "working_tree_paths_truncated": false,
+      "full_file_inventory": "git-snapshot.json / files[].feature_tags contains memory_verification_tooling"
+    },
+    {
+      "id": "defense_deliverables",
+      "title": "Презентация/доклад/отчёт и генераторы",
+      "actual": "13 редактируемых PPTX слайдов, PDF слайдов и технический PDF, speaker/source notes и общие content/evidence данные.",
+      "evidence": [
+        {
+          "path": "docs/lab2/defense/README.md",
+          "line": 5,
+          "anchor": "Резерв:",
+          "excerpt": "Резерв: [13 слайдов PPTX](output/TurboGameEngine-Lab2.pptx), [слайды PDF](output/TurboGameEngine-Lab2-slides.pdf), [технический отчёт PDF](output/TurboGameEngine-Lab2-report.pdf). В PPTX редактируются текст, таблицы и график с вложенной таблицей данных; speaker notes содержат источники. PDF слайдов собран из проверенных рендеров, PDF отчёта содержит выделяемый текст."
+        }
+      ],
+      "tests": [
+        "PPTX zip13slide XML count read directly; final PDF/slide render verification owned by parent"
+      ],
+      "limits": [
+        "Публичные пути финальны; parent перегенерирует существующий report PDF после Git counts, поэтому content hashes этих mutable output здесь не фиксируются."
+      ],
+      "path_prefixes": [
+        "tools/build_lab2_deck.mjs",
+        "tools/build_lab2_report.py",
+        "docs/lab2/defense/output/",
+        "docs/lab2/defense/content.json",
+        "docs/lab2/defense/defense-notes.md",
+        "docs/lab2/defense/technical-report.md"
+      ],
+      "working_tree_file_count": 8,
+      "working_tree_paths": [
+        "docs/lab2/defense/content.json",
+        "docs/lab2/defense/defense-notes.md",
+        "docs/lab2/defense/output/TurboGameEngine-Lab2-report.pdf",
+        "docs/lab2/defense/output/TurboGameEngine-Lab2-slides.pdf",
+        "docs/lab2/defense/output/TurboGameEngine-Lab2.pptx",
+        "docs/lab2/defense/technical-report.md",
+        "tools/build_lab2_deck.mjs",
+        "tools/build_lab2_report.py"
+      ],
+      "working_tree_paths_truncated": false,
+      "full_file_inventory": "git-snapshot.json / files[].feature_tags contains defense_deliverables"
+    }
+  ],
+  "test_catalog": {
+    "runtimeAndReload": {
+      "path": "tests/ScriptingSystemTests.cpp",
+      "line": 37,
+      "anchor": "void runtimeAndReload()",
+      "excerpt": "void runtimeAndReload() {",
+      "target": "engine_scripting_tests",
+      "execution": "post_fix_windows_debug_ctest_pass_existing_log",
+      "execution_log": "docs/lab2/defense/ctest-final.log",
+      "additional_linux_validation": "docs\\lab2\\defense\\memory-linux\\post-fix\\summary.json",
+      "linux_scope": "5 repeated CPU sanitizer runs of corresponding harness; React batch budget adaptation documented in summary."
+    },
+    "gameplayDemoAndReact": {
+      "path": "tests/ScriptingSystemTests.cpp",
+      "line": 180,
+      "anchor": "void gameplayDemoAndReact()",
+      "excerpt": "void gameplayDemoAndReact() {",
+      "target": "engine_scripting_tests",
+      "execution": "post_fix_windows_debug_ctest_pass_existing_log",
+      "execution_log": "docs/lab2/defense/ctest-final.log",
+      "additional_linux_validation": "docs\\lab2\\defense\\memory-linux\\post-fix\\summary.json",
+      "linux_scope": "5 repeated CPU sanitizer runs of corresponding harness; React batch budget adaptation documented in summary."
+    },
+    "hostileBehaviorTables": {
+      "path": "tests/ScriptingSystemTests.cpp",
+      "line": 275,
+      "anchor": "void hostileBehaviorTables()",
+      "excerpt": "void hostileBehaviorTables() {",
+      "target": "engine_scripting_tests",
+      "execution": "post_fix_windows_debug_ctest_pass_existing_log",
+      "execution_log": "docs/lab2/defense/ctest-final.log",
+      "additional_linux_validation": "docs\\lab2\\defense\\memory-linux\\post-fix\\summary.json",
+      "linux_scope": "5 repeated CPU sanitizer runs of corresponding harness; React batch budget adaptation documented in summary."
+    },
+    "automaticDependencyReload": {
+      "path": "tests/ScriptingSystemTests.cpp",
+      "line": 317,
+      "anchor": "void automaticDependencyReload()",
+      "excerpt": "void automaticDependencyReload() {",
+      "target": "engine_scripting_tests",
+      "execution": "post_fix_windows_debug_ctest_pass_existing_log",
+      "execution_log": "docs/lab2/defense/ctest-final.log",
+      "additional_linux_validation": "docs\\lab2\\defense\\memory-linux\\post-fix\\summary.json",
+      "linux_scope": "5 repeated CPU sanitizer runs of corresponding harness; React batch budget adaptation documented in summary."
+    },
+    "malformedFields": {
+      "path": "tests/ScriptingSystemTests.cpp",
+      "line": 106,
+      "anchor": "scripts.registerModule(\"MalformedFields\"",
+      "excerpt": "scripts.registerModule(\"MalformedFields\", R\"(",
+      "target": "engine_scripting_tests",
+      "execution": "post_fix_windows_debug_ctest_pass_existing_log",
+      "execution_log": "docs/lab2/defense/ctest-final.log",
+      "additional_linux_validation": "docs\\lab2\\defense\\memory-linux\\post-fix\\summary.json",
+      "linux_scope": "5 repeated CPU sanitizer runs of corresponding harness; React batch budget adaptation documented in summary."
+    },
+    "runtimeDeleteAndRestore": {
+      "path": "tests/GameplayStateTests.cpp",
+      "line": 326,
+      "anchor": "static void runtimeDeleteAndRestore",
+      "excerpt": "static void runtimeDeleteAndRestore(core::JobSystem& jobs) {",
+      "target": "engine_gameplay_state_tests",
+      "execution": "post_fix_windows_debug_ctest_pass_existing_log",
+      "execution_log": "docs/lab2/defense/ctest-final.log"
+    },
+    "scriptDemoLifecycleAndSceneHistory": {
+      "path": "tests/GameplayStateTests.cpp",
+      "line": 1193,
+      "anchor": "static void scriptDemoLifecycleAndSceneHistory",
+      "excerpt": "static void scriptDemoLifecycleAndSceneHistory(core::JobSystem& jobs) {",
+      "target": "engine_gameplay_state_tests",
+      "execution": "post_fix_windows_debug_ctest_pass_existing_log",
+      "execution_log": "docs/lab2/defense/ctest-final.log"
+    },
+    "projectsHaveIndependentScenesAndScripts": {
+      "path": "tests/GameplayStateTests.cpp",
+      "line": 119,
+      "anchor": "static void projectsHaveIndependentScenesAndScripts",
+      "excerpt": "static void projectsHaveIndependentScenesAndScripts(core::JobSystem& jobs) {",
+      "target": "engine_gameplay_state_tests",
+      "execution": "post_fix_windows_debug_ctest_pass_existing_log",
+      "execution_log": "docs/lab2/defense/ctest-final.log"
+    },
+    "renderedPanelsPreserveWidgetHistory": {
+      "path": "tests/GameplayStateTests.cpp",
+      "line": 1513,
+      "anchor": "static void renderedPanelsPreserveWidgetHistory",
+      "excerpt": "static void renderedPanelsPreserveWidgetHistory(core::JobSystem& jobs) {",
+      "target": "engine_gameplay_state_tests",
+      "execution": "post_fix_windows_debug_ctest_pass_existing_log",
+      "execution_log": "docs/lab2/defense/ctest-final.log"
+    },
+    "liveScenesPreservePlay": {
+      "path": "tests/GameplayStateTests.cpp",
+      "line": 38,
+      "anchor": "static void liveScenesPreservePlay",
+      "excerpt": "static void liveScenesPreservePlay(core::JobSystem& jobs) {",
+      "target": "engine_gameplay_state_tests",
+      "execution": "post_fix_windows_debug_ctest_pass_existing_log",
+      "execution_log": "docs/lab2/defense/ctest-final.log"
+    },
+    "liveFileWatcher": {
+      "path": "tests/LiveFileWatcherTests.cpp",
+      "line": 8,
+      "anchor": "int main()",
+      "excerpt": "int main() {",
+      "target": "engine_live_file_watcher_tests",
+      "execution": "post_fix_windows_debug_ctest_pass_existing_log",
+      "execution_log": "docs/lab2/defense/ctest-final.log"
+    },
+    "scriptEditor": {
+      "path": "tests/ScriptEditorTests.cpp",
+      "line": 27,
+      "anchor": "int main(",
+      "excerpt": "int main(int argc, char** argv) {",
+      "target": "engine_script_editor_tests",
+      "execution": "post_fix_windows_debug_ctest_pass_existing_log",
+      "execution_log": "docs/lab2/defense/ctest-final.log"
+    },
+    "scriptFormatter": {
+      "path": "tests/ScriptFormatterTests.cpp",
+      "line": 22,
+      "anchor": "int main(",
+      "excerpt": "int main(const int argc, char** argv) {",
+      "target": "engine_script_formatter_tests",
+      "execution": "post_fix_windows_debug_ctest_pass_existing_log",
+      "execution_log": "docs/lab2/defense/ctest-final.log"
+    },
+    "scriptWorkspace": {
+      "path": "tests/ScriptWorkspaceCommandTests.cpp",
+      "line": 55,
+      "anchor": "int main()",
+      "excerpt": "int main() {",
+      "target": "engine_script_workspace_command_tests",
+      "execution": "post_fix_windows_debug_ctest_pass_existing_log",
+      "execution_log": "docs/lab2/defense/ctest-final.log"
+    },
+    "updateDestructionKeepsPrefabRespawnsBounded": {
+      "path": "tests/ScriptingSystemTests.cpp",
+      "line": 219,
+      "anchor": "void updateDestructionKeepsPrefabRespawnsBounded()",
+      "excerpt": "void updateDestructionKeepsPrefabRespawnsBounded() {",
+      "target": "engine_scripting_tests",
+      "execution": "post_fix_windows_debug_ctest_pass_existing_log",
+      "execution_log": "docs/lab2/defense/ctest-final.log",
+      "additional_execution_log": "docs/lab2/defense/regression-scripting.log",
+      "additional_linux_validation": "docs\\lab2\\defense\\memory-linux\\post-fix\\summary.json",
+      "linux_scope": "5 repeated CPU sanitizer runs of corresponding harness; React batch budget adaptation documented in summary."
+    }
+  },
+  "documentation_claim_audit": [
+    {
+      "claim": "Luau/React работают без Roblox Studio",
+      "status": "supported_with_scope",
+      "actual": "Статический Luau + upstream React + собственный UI host; assets/package/DLL нужны, Studio нет.",
+      "evidence": [
+        {
+          "path": "CMakeLists.txt",
+          "line": 352,
+          "anchor": "target_link_libraries(engine_scripting PUBLIC",
+          "excerpt": "target_link_libraries(engine_scripting PUBLIC engine_ecs engine_platform Luau.VM Luau.Compiler)"
+        }
+      ]
+    },
+    {
+      "claim": "Save Scene → assets/scenes/editor_scene.json в docs/lab2",
+      "status": "legacy_path_in_documentation",
+      "actual": "Project.scenePath определяется .tgeproj; Blank использует assets/scenes/main.scene.json.",
+      "evidence": [
+        {
+          "path": "docs/lab2/README.md",
+          "line": 23,
+          "anchor": "**Save Scene**",
+          "excerpt": "7. **Save Scene** сохраняет поля поведения в `assets/scenes/editor_scene.json`."
+        },
+        {
+          "path": "engine/game/GameplayState.cpp",
+          "line": 1166,
+          "anchor": "std::filesystem::path GameplayState::editorScenePath()",
+          "excerpt": "std::filesystem::path GameplayState::editorScenePath() const {"
+        },
+        {
+          "path": "engine/core/ProjectManager.cpp",
+          "line": 226,
+          "anchor": "\"startupScene\", \"assets/scenes/main.scene.json\"",
+          "excerpt": "const Json manifest{{\"version\", 1}, {\"name\", name}, {\"assets\", \"assets\"}, {\"startupScene\", \"assets/scenes/main.scene.json\"}};"
+        }
+      ]
+    },
+    {
+      "claim": "Watch/Call Stack в docs",
+      "status": "stale_labels_and_limited_debugging",
+      "actual": "Фактические State/Errors: runtime JSON и последний traceback. Нет suspended VM stack/locals/breakpoints.",
+      "evidence": [
+        {
+          "path": "docs/lab2/README.md",
+          "line": 211,
+          "anchor": "Watch, Call Stack",
+          "excerpt": "Format через StyLua, Output, Command, Watch, Call Stack, Script Activity и"
+        },
+        {
+          "path": "engine/editor/ScriptWorkspace.cpp",
+          "line": 78,
+          "anchor": "enum class ToolTab",
+          "excerpt": "enum class ToolTab { Output, Command, State, Errors, Activity };"
+        },
+        {
+          "path": "engine/editor/ScriptWorkspace.cpp",
+          "line": 604,
+          "anchor": "Latest recorded script error and traceback.",
+          "excerpt": "ImGui::TextDisabled(\"Latest recorded script error and traceback.\");"
+        }
+      ]
+    },
+    {
+      "claim": "Check проверяет скрипт",
+      "status": "compile_only",
+      "actual": "Luau compilation/syntax, не Luau.Analysis/LSP.",
+      "evidence": [
+        {
+          "path": "engine/scripting/ScriptingSystem.cpp",
+          "line": 1053,
+          "anchor": "bool ScriptingSystem::analyze(",
+          "excerpt": "bool ScriptingSystem::analyze(const std::string& source, const std::string& chunkName) {"
+        }
+      ]
+    },
+    {
+      "claim": "Savegame/debugger/полный Roblox runtime",
+      "status": "not_implemented_do_not_claim",
+      "actual": "Scene fields, simulation tick и UI facade ограниченного подмножества. Self.state не сериализуется в savegame.",
+      "evidence": [
+        {
+          "path": "engine/game/GameplayState.cpp",
+          "line": 2258,
+          "anchor": "entityJson[\"script\"] =",
+          "excerpt": "entityJson[\"script\"] = {{\"path\", script.path}, {\"enabled\", script.enabled}, {\"fields\", script.fields}};"
+        },
+        {
+          "path": "tests/ReactRuntimeTests.luau",
+          "line": 14,
+          "anchor": "UI facade must not pretend",
+          "excerpt": "assert(not pcall(Instance.new, \"Part\") and not pcall(function() game:GetService(\"Workspace\") end), \"UI facade must not pretend to implement non-UI Roblox APIs\")"
+        }
+      ]
+    },
+    {
+      "claim": "Reload сохраняет state",
+      "status": "supported_with_limits",
+      "actual": "Behavior self.state сохраняется, Init не повторяется; serialized fields важнее defaults; React hooks identity migration не универсальна.",
+      "evidence": [
+        {
+          "path": "engine/scripting/ScriptingSystem.cpp",
+          "line": 1019,
+          "anchor": "Preserve self.state and update the method table",
+          "excerpt": "// Preserve self.state and update the method table; declared scene fields remain data-owned."
+        }
+      ]
+    },
+    {
+      "claim": "Assistant model catalog/settings",
+      "status": "protocol_not_inference_proof",
+      "actual": "Реализован app-server catalog/session protocol; tests не вызывают платный inference/login.",
+      "evidence": [
+        {
+          "path": "engine/editor/CodexAssistant.cpp",
+          "line": 332,
+          "anchor": "request(\"model/list\"",
+          "excerpt": "if (!request(\"model/list\", Json{{\"limit\", 100}, {\"includeHidden\", true}})) catalogLoading = false;"
+        },
+        {
+          "path": "tests/CodexAssistantTests.cpp",
+          "line": 457,
+          "anchor": "No process, login, or model calls were made.",
+          "excerpt": "std::cout << \"Codex assistant protocol tests passed. No process, login, or model calls were made.\\n\";"
+        }
+      ]
+    }
+  ],
+  "existing_test_execution_evidence": [
+    {
+      "path": "tools/rea/local/investigations/roblox-studio-9b554450/panel-comparison/ctest.log",
+      "sha256": "15855c81c5c31fd479380b5f0b2c6b5d7e652a7d8ca2d6a88c1fc24c7779fa22",
+      "last_write_utc": "2026-10-16T02:39:31.236299+00:00",
+      "scope": "existing_log_read_only",
+      "passed_targets": [
+        "engine_gameplay_state_tests",
+        "engine_editor_command_tests",
+        "engine_script_workspace_command_tests",
+        "engine_codex_assistant_tests",
+        "engine_script_formatter_tests",
+        "engine_script_editor_tests"
+      ],
+      "summary": "100% tests passed,0 tests failed out of6",
+      "limitation": "Лог существовал до аудита. Аудит не запускал build/tests/GUI. Остальные source-present targets не считаются выполненными."
+    },
+    {
+      "path": "docs/lab2/defense/ctest-final.log",
+      "sha256": "258405629dcf5f3f864e6c88554a33737eab8417a686ebec4875b2863d1884f1",
+      "last_write_utc": "2026-10-16T12:32:19.663666+00:00",
+      "scope": "post_fix_windows_debug_existing_log",
+      "passed_targets": [
+        "engine_physics_tests",
+        "engine_job_system_tests",
+        "engine_async_load_tests",
+        "engine_world_tests",
+        "engine_transform_batch_tests",
+        "engine_texture_loader_tests",
+        "engine_gameplay_state_tests",
+        "engine_editor_command_tests",
+        "engine_script_workspace_command_tests",
+        "engine_live_file_watcher_tests",
+        "engine_scripting_tests",
+        "engine_react_runtime_tests",
+        "engine_codex_assistant_tests",
+        "engine_script_formatter_tests",
+        "engine_script_editor_tests",
+        "engine_project_manager_tests",
+        "engine_atomic_file_tests",
+        "engine_project_asset_tests",
+        "engine_project_launcher_tests"
+      ],
+      "summary": "19/19 Windows Debug CTest PASS,35.12 s",
+      "limitation": "Read existing parent-run Windows logs; this update did not launch tests. Does not claim Linux sanitizer, optimized Release rebuild or post-fix native long-soak completion."
+    },
+    {
+      "path": "docs/lab2/defense/regression-scripting.log",
+      "sha256": "7d20ec9da77ee75dad144810d0d2a99c9692a7d883aae9020eea4049ee31f9f9",
+      "last_write_utc": "2026-10-16T12:30:53.409016+00:00",
+      "scope": "post_fix_windows_scripting_regression_existing_log",
+      "passed_targets": [
+        "engine_scripting_tests"
+      ],
+      "summary": "Scripting regression binary printed success; exit0 reported by parent",
+      "limitation": "Read existing parent-run Windows logs; this update did not launch tests. Does not claim Linux sanitizer, optimized Release rebuild or post-fix native long-soak completion."
+    }
+  ],
+  "open_issues": [
+    {
+      "id": "LAB2-STABILITY-REACT-RESPAWN-OOM",
+      "status": "resolved_for_verified_bounded_scenarios",
+      "reported_by": "parent agent /root, actual Release Windows soak",
+      "path": "docs/lab2/defense/memory-windows-run1/runtime.log",
+      "reproducer": "tools/run_lab2_stability.py",
+      "description": "Actual Release/D3D12 before-fix soak: repeated destroy/respawn actual Collectathon/HUD every3s, reload driver every10s; first OOM15:23:44.405 after process start15:21:15.616 (~149s).",
+      "verification": "Deferred-destruction intent repair passes Windows Debug19/19 tests, actual prefab/HUD regression, Linux ASan/UBSan/LSan11/11 exercised processes +240 same-VM respawn cycles, and post-fix Windows Release/D3D12 requested300s soak (303.141s,exit0,0 Luau/OOM errors,30 applied reload batches). Original failure preserved.",
+      "root_cause": "update detects scripted victims in pendingDestroy as not alive, calls forgetEntity, which erased pendingDestroy. ECS entities survived and their ScriptComponents re-initialized/spawned more controller/player/token/HUD objects next frame.",
+      "repair": "forgetEntity releases VM references without cancelling queued ECS destruction; flushDestroy owns the destruction boundary.",
+      "fix_evidence": {
+        "path": "engine/scripting/ScriptingSystem.cpp",
+        "line": 845,
+        "anchor": "Releasing the behavior must not cancel",
+        "excerpt": "// Releasing the behavior must not cancel an already requested ECS destroy."
+      },
+      "regression_test": "updateDestructionKeepsPrefabRespawnsBounded",
+      "log_evidence": {
+        "path": "docs/lab2/defense/memory-windows-run1/runtime.log",
+        "line": 271,
+        "excerpt": "[2026-10-16 15:23:44.405] [error] [engine] Luau: not enough memory",
+        "binary_version": "before_stability_fix"
+      },
+      "windows_validation": [
+        "docs/lab2/defense/ctest-final.log",
+        "docs/lab2/defense/regression-scripting.log"
+      ],
+      "linux_validation": "docs\\lab2\\defense\\memory-linux\\post-fix\\summary.json",
+      "lifecycle_validation": "docs\\lab2\\defense\\memory-linux\\post-fix\\lifecycle.json",
+      "closed_at_utc": "2026-10-16T12:49:32.369070+00:00",
+      "windows_native_validation": "docs/lab2/defense/memory-windows-run2/summary.json",
+      "closure_limits": "Closed for the verified bounded scenarios. This is not a universal no-leak/no-race claim for all engine/GPU/driver paths."
+    }
+  ],
+  "committed_foundation_not_new_lab2": [
+    {
+      "commit": "76c2386",
+      "subject": "Migrate ECS to EnTT and optimize Inspector undo snapshots"
+    },
+    {
+      "commit": "c8e3967",
+      "subject": "Add GPU upload queue, fix resource uploads, and benchmark 4 vs24 workers"
+    },
+    {
+      "commit": "9782dea",
+      "subject": "Add shared job system, Tracy measurements, and Lab1 defense package"
+    }
+  ],
+  "three_minute_demo_plan": [
+    {
+      "seconds": "0–25",
+      "show": "Collectathon Controller fields + script и JSON prefab",
+      "proof": "2.1,2.2,2.5,2.6"
+    },
+    {
+      "seconds": "25–65",
+      "show": "Play: WASD/стрелки, pickup, HUD score/time, prefab tokens",
+      "proof": "2.4,2.5"
+    },
+    {
+      "seconds": "65–110",
+      "show": "Правило score += pointsPerToken → pointsPerToken*2, Save+Reload; следующий pickup даёт2, прежние score/time остаются",
+      "proof": "2.3,4.jobs,4.play_reload_L2"
+    },
+    {
+      "seconds": "110–140",
+      "show": "Syntax error + reload: Output/Errors файл:строка, last-good жив; исправить и reload",
+      "proof": "3.stability"
+    },
+    {
+      "seconds": "140–180",
+      "show": "Stop authored restore, изменить/сохранить scene fields, следующий Play применяет баланс; State и граница C++/Luau",
+      "proof": "2.6"
+    }
+  ],
+  "demo_limits": [
+    "План не является записью уже выполненной демонстрации.",
+    "Использовать отдельный project.",
+    "Менять script rule, не только fields.default: явные serialized fields имеют приоритет.",
+    "Не называть Step Tick debugger, Scene Save savegame, UI facade полным Roblox.",
+    "Исходный OOM устранён; финальные bounded evidence в verification.json. Не выводить отсутствие всех утечек из этих прогонов."
+  ],
+  "rotation_question_facts": [
+    {
+      "question": "Кто владеет VM?",
+      "answer": "ScriptingSystem; GameplayState initialize/shutdown. Shutdown ждёт reload jobs и закрывает VM.",
+      "evidence": [
+        {
+          "path": "engine/scripting/ScriptingSystem.cpp",
+          "line": 752,
+          "anchor": "void ScriptingSystem::shutdown()",
+          "excerpt": "void ScriptingSystem::shutdown() {"
+        }
+      ]
+    },
+    {
+      "question": "Почему нет висячих pointers?",
+      "answer": "Versioned EnTT handle + liveness; VM refs вне ECS; deferred destroy.",
+      "evidence": [
+        {
+          "path": "engine/scripting/ScriptingSystem.cpp",
+          "line": 409,
+          "anchor": "bool alive(const ecs::EntityId",
+          "excerpt": "bool alive(const ecs::EntityId entity) const { return world != nullptr && world->isAlive(entity) && !pendingDestroy.contains(entity); }"
+        },
+        {
+          "path": "engine/scripting/ScriptComponent.h",
+          "line": 9,
+          "anchor": "struct ScriptComponent final",
+          "excerpt": "struct ScriptComponent final {"
+        }
+      ]
+    },
+    {
+      "question": "Что делает job при reload?",
+      "answer": "Read/compile; owner thread completion/join и VM/ECS apply.",
+      "evidence": [
+        {
+          "path": "engine/scripting/ScriptingSystem.cpp",
+          "line": 905,
+          "anchor": "self.jobs->dispatch(compile",
+          "excerpt": "if (self.jobs != nullptr) { self.reloadJob = self.jobs->dispatch(compile, core::JobSystem::Priority::Low); }"
+        }
+      ]
+    },
+    {
+      "question": "Почему сломанный reload оставляет игру?",
+      "answer": "Compile/evaluation batch failure сохраняет previous refs/dependencies; protected callbacks дают traceback/quotas.",
+      "evidence": [
+        {
+          "path": "engine/scripting/ScriptingSystem.cpp",
+          "line": 952,
+          "anchor": "self.modules = previous;",
+          "excerpt": "self.modules = previous; self.dependencies = previousDependencies; self.failedModules = previousFailed;"
+        }
+      ]
+    },
+    {
+      "question": "Как сохраняются поля?",
+      "answer": "ScriptComponent fields в scene JSON; self.state не savegame.",
+      "evidence": [
+        {
+          "path": "engine/game/GameplayState.cpp",
+          "line": 2258,
+          "anchor": "entityJson[\"script\"] =",
+          "excerpt": "entityJson[\"script\"] = {{\"path\", script.path}, {\"enabled\", script.enabled}, {\"fields\", script.fields}};"
+        }
+      ]
+    },
+    {
+      "question": "Что в C++/скрипте?",
+      "answer": "C++ — ECS/input/physics/render/prefab/query; Collectathon.luau — игровые decisions/state.",
+      "evidence": [
+        {
+          "path": "assets/scripts/Collectathon.luau",
+          "line": 50,
+          "anchor": "function Behavior:Update(",
+          "excerpt": "function Behavior:Update(dt: number)"
+        }
+      ]
+    },
+    {
+      "question": "React настоящий?",
+      "answer": "Hooks/reconciliation upstream; ReactTurbo/ReactRoblox — synchronous LegacyRoot UI host на ImGui.",
+      "evidence": [
+        {
+          "path": "third_party/react-luau/upstream.json",
+          "line": 3,
+          "anchor": "\"react-luau\"",
+          "excerpt": "\"react-luau\": ["
+        },
+        {
+          "path": "third_party/react-luau/adapters/ReactTurbo.luau",
+          "line": 181,
+          "anchor": "Reconciler.ReactRootTags.LegacyRoot",
+          "excerpt": "local fiber = Reconciler.createContainer(container, Reconciler.ReactRootTags.LegacyRoot, false, nil)"
+        }
+      ]
+    },
+    {
+      "question": "Step Tick debugger?",
+      "answer": "Нет:1/60 simulation tick, Errors traceback, State diagnostic JSON; breakpoints/locals нет.",
+      "evidence": [
+        {
+          "path": "engine/game/GameplayCommands.cpp",
+          "line": 157,
+          "anchor": "case Command::StepTick: m_stepScriptTick",
+          "excerpt": "case Command::StepTick: m_stepScriptTick = true; break;"
+        }
+      ]
+    },
+    {
+      "question": "Что на пользовательской машине?",
+      "answer": "App/DLL/assets/React package; Luau linked statically. Studio/Python/Codex для игры не нужны.",
+      "evidence": [
+        {
+          "path": "CMakeLists.txt",
+          "line": 352,
+          "anchor": "target_link_libraries(engine_scripting PUBLIC",
+          "excerpt": "target_link_libraries(engine_scripting PUBLIC engine_ecs engine_platform Luau.VM Luau.Compiler)"
+        }
+      ]
+    }
+  ],
+  "artifact_validation": {
+    "json_parse": "passed",
+    "source_and_test_references_refreshed": 169,
+    "reference_files": 44,
+    "windows_logs_read_only": [
+      "docs/lab2/defense/ctest-final.log",
+      "docs/lab2/defense/regression-scripting.log"
+    ],
+    "git_snapshot": "final_complete_index_plus_nonignored_untracked_paths",
+    "new_validation_json_read_only": [
+      "docs\\lab2\\defense\\memory-linux\\post-fix\\summary.json",
+      "docs\\lab2\\defense\\memory-linux\\post-fix\\lifecycle.json"
+    ],
+    "native_screenshot_read_directly": "docs/lab2/defense/evidence/game-reload-complete.jpg",
+    "source_and_log_anchors_refreshed": 178,
+    "source_and_log_reference_files": 51,
+    "windows_native_raw_log_checked_zero_luau_errors": true
+  },
+  "updated_at_utc": "2026-10-16T12:54:35.549088+00:00",
+  "post_fix_additional_validation": {
+    "linux_cpu_sanitizers": {
+      "path": "docs/lab2/defense/memory-linux/post-fix/summary.json",
+      "sha256": "afb0321652952dbfae55410e006f6c2831ce237ef38ff13bd817f7ac2addea48",
+      "last_write_utc": "2026-10-16T12:39:47.804147+00:00",
+      "size_bytes": 13067,
+      "scope": "post_fix_linux_cpu_ASan_UBSan_LSan_existing_results",
+      "passed_runs": 11,
+      "runs_by_target": {
+        "lab2_lifecycle_memory": 1,
+        "lab2_react_memory": 5,
+        "lab2_scripting_memory": 5
+      },
+      "sanitizer_diagnostics_found": false,
+      "suppression_files": [],
+      "source_sha256_match_current": {
+        "engine/scripting/ScriptingSystem.cpp": true,
+        "tests/ScriptingSystemTests.cpp": true,
+        "engine/scripting/react/ReactRuntime.cpp": true
+      },
+      "adaptations": [
+        "React test driver copy sets general batch callback budget1000ms for sanitizer overhead; explicit hostile-callback5ms check is unchanged. Original engine/tests are not edited.",
+        "Byte-identical scripts/prefabs copied to Linux-local storage to avoid WSL NTFS latency."
+      ],
+      "lifecycle_file": {
+        "path": "docs/lab2/defense/memory-linux/post-fix/lifecycle.json",
+        "sha256": "a78728ffcebc9e503d1f055d91ebf8cbc994405749cdc5bd256cc391a0415d67",
+        "last_write_utc": "2026-10-16T12:39:47.798797+00:00",
+        "size_bytes": 48394
+      },
+      "lifecycle_cycles": 240,
+      "lifecycle_phases": [
+        {
+          "phase": "normal_gc_pacing",
+          "cycles": 120,
+          "forced_gc_during_cycles": false,
+          "wall_seconds": 50.322304364,
+          "settled_alive_entities": 16,
+          "settled_roots": 1,
+          "settled_queued_events": 0,
+          "baseline_vm_bytes": 3476060,
+          "end_before_full_gc_vm_bytes": 6814692,
+          "end_after_full_gc_vm_bytes": 3527060,
+          "after_stop_reset_full_gc_vm_bytes": 3427204,
+          "vm_bytes_after_shutdown": 0
+        },
+        {
+          "phase": "full_gc_each_cycle",
+          "cycles": 120,
+          "forced_gc_during_cycles": true,
+          "wall_seconds": 49.062587071,
+          "settled_alive_entities": 16,
+          "settled_roots": 1,
+          "settled_queued_events": 0,
+          "baseline_vm_bytes": 3476060,
+          "end_before_full_gc_vm_bytes": 3739396,
+          "end_after_full_gc_vm_bytes": 3739396,
+          "after_stop_reset_full_gc_vm_bytes": 3608692,
+          "vm_bytes_after_shutdown": 0
+        }
+      ],
+      "limits": [
+        "Not Windows D3D12/editor/GPU coverage or CLion Profiler output.",
+        "A clean run only describes exercised paths and sanitizer detection limits.",
+        "Lifecycle test uses actual controller/prefabs/demo_ui in same VM, without GPU or hot reload. No blanket absence-of-leaks claim."
+      ]
+    },
+    "native_gui_defense_game": {
+      "scope": "actual_native_windows_gui_observed_by_parent_existing_capture",
+      "outcome": "quiz_key+real_ECS_prefab_key+actual_dependency_OnReload_key:3/3",
+      "screenshot": {
+        "path": "docs/lab2/defense/evidence/game-reload-complete.jpg",
+        "sha256": "e9728747c6bda695e9b744c8262559e765b6ee8f2d8034ad3b0660be12397285",
+        "last_write_utc": "2026-10-16T12:36:07.474348+00:00",
+        "size_bytes": 91379
+      },
+      "other_screenshots": [
+        {
+          "path": "docs/lab2/defense/evidence/game-quiz-complete.jpg",
+          "sha256": "b32a49a6eb631f57a0e745e9be572ffc8a0efef28cef698b25345eae66036212",
+          "last_write_utc": "2026-10-16T12:32:10.728807+00:00",
+          "size_bytes": 88918
+        },
+        {
+          "path": "docs/lab2/defense/evidence/game-ecs-complete.jpg",
+          "sha256": "91c43966f8319457df5edf5afc1592390682b0bc36b73396a33fce17a0f5c6ab",
+          "last_write_utc": "2026-10-16T12:34:01.630033+00:00",
+          "size_bytes": 92250
+        },
+        {
+          "path": "docs/lab2/defense/evidence/game-real-ecs.jpg",
+          "sha256": "12311591dbe343b7a88a0559197fd4312bc3a37f5b52768b1d775cb96dc203c6",
+          "last_write_utc": "2026-10-16T12:34:12.907344+00:00",
+          "size_bytes": 37789
+        }
+      ],
+      "runtime_log": {
+        "path": "docs/lab2/defense/native-game-corrected.log",
+        "sha256": "08663ba64388c1e218684535a3f5d07acc76761eb8f7bb508cad086f2d5adbc6",
+        "last_write_utc": "2026-10-16T12:36:07.932869+00:00",
+        "size_bytes": 52494
+      },
+      "reload_log_evidence": [
+        {
+          "path": "docs/lab2/defense/native-game-corrected.log",
+          "line": 413,
+          "anchor": "Reloaded scripts/ReloadRules.luau",
+          "excerpt": "[2026-10-16 15:35:37.980] [info] [engine] Luau live: Reloaded scripts/ReloadRules.luau (runtime state preserved)"
+        },
+        {
+          "path": "docs/lab2/defense/native-game-corrected.log",
+          "line": 414,
+          "anchor": "Reloaded scripts/Defense.luau",
+          "excerpt": "[2026-10-16 15:35:37.980] [info] [engine] Luau live: Reloaded scripts/Defense.luau (runtime state preserved)"
+        }
+      ],
+      "observed_screen_values": {
+        "keys": "3/3",
+        "counter": 1,
+        "init": 1,
+        "on_reload": 1,
+        "rules_version": "B"
+      },
+      "behavior_evidence": {
+        "path": "demos/lab2-defense/assets/scripts/Defense.luau",
+        "line": 342,
+        "anchor": "function Behavior:OnReload()",
+        "excerpt": "function Behavior:OnReload()"
+      },
+      "limits": [
+        "Screenshot was read directly; parent drove native GUI. Audit did not automate the app.",
+        "GUI capture15:36 precedes the separate post-fix Release rebuild15:37; no assertion that this captured process used the subsequently rebuilt binary.",
+        "This GUI success is separate from the separately recorded post-fix Windows300s memory soak."
+      ]
+    },
+    "optimized_release_build": {
+      "scope": "post_fix_optimized_windows_release_build",
+      "result": "app linked and runtime assets copied",
+      "build_log": {
+        "path": "docs/lab2/defense/release-build.log",
+        "sha256": "cc37ffef06067ec7358e406e2bf38aa4b9159951b7b7be9206977edd42a6cc90",
+        "last_write_utc": "2026-10-16T12:37:09.195973+00:00",
+        "size_bytes": 10458
+      },
+      "binary": {
+        "path": "C:/tge/profile/Release/app.exe",
+        "sha256": "3aa5e325e85fff0ff5dc16e074dd4adc69065dc136efd47758bb05e3f0d36cba",
+        "last_write_utc": "2026-10-16T12:37:08.611270+00:00",
+        "size_bytes": 24473600
+      },
+      "configuration": "Release / MSVC / Diligent app",
+      "limits": [
+        "Release build success and native bounded run are separately recorded; neither proves all paths leak-free."
+      ]
+    },
+    "windows_native_300s_soak": {
+      "scope": "post_fix_actual_windows_release_D3D12_bounded_soak",
+      "result": "passed_exercised_scenario",
+      "summary": {
+        "path": "C:/Users/rocco/CLionProjects/TurboGameEngine/docs/lab2/defense/memory-windows-run2/summary.json",
+        "sha256": "b06ecde12566d2d32167b8d48c0aaf59612b364511cf5a2dadb0067b2ebfbb5c",
+        "last_write_utc": "2026-10-16T12:42:25.558970+00:00"
+      },
+      "runtime_log": {
+        "path": "C:/Users/rocco/CLionProjects/TurboGameEngine/docs/lab2/defense/memory-windows-run2/runtime.log",
+        "sha256": "f6b0f1794a7111f6e05d3f99d15fd22626446bc54a8075d70f2909d0ac94149d",
+        "last_write_utc": "2026-10-16T12:42:25.017212+00:00"
+      },
+      "process_samples": {
+        "path": "C:/Users/rocco/CLionProjects/TurboGameEngine/docs/lab2/defense/memory-windows-run2/samples.csv",
+        "sha256": "858936564e80bf0527acc516eabcd68e591bdbf239bfcd6e5dfaa6fcb7be3563",
+        "last_write_utc": "2026-10-16T12:42:25.534454+00:00"
+      },
+      "configuration": "Release / D3D12 / 1280x720 / vsync",
+      "app_sha256": "3aa5e325e85fff0ff5dc16e074dd4adc69065dc136efd47758bb05e3f0d36cba",
+      "requested_seconds": 300,
+      "elapsed_seconds": 303.141,
+      "exit_code": 0,
+      "samples": 303,
+      "script_error_lines": 0,
+      "oom_errors": 0,
+      "reload_requests": 29,
+      "applied_reload_batches": 30,
+      "spawn_reset_interval_seconds": 3,
+      "post_warmup_private_mib_range": [
+        628.54296875,
+        630.03125
+      ],
+      "post_warmup_private_mib_per_minute": 0.21857797156584666,
+      "handle_range": [
+        734,
+        751
+      ],
+      "sampled_entity_range": [
+        5,
+        18
+      ],
+      "sampled_luau_mib_range": [
+        3.14,
+        7.65
+      ],
+      "limits": [
+        "Process counters show this bounded scenario; not heap allocation stacks or proof of no GPU/native leaks.",
+        "No reset/callback count is inferred from script print: print is internal editor Output, not stdout.",
+        "Second run enables frame diagnostics/status counters; no FPS/CPU timing performance comparison claimed.",
+        "One-second samples can miss short transient states."
+      ]
+    },
+    "native_collectathon_smoke": {
+      "scope": "post_fix_release_native_collectathon_render_and_clean_shutdown",
+      "result": "passed_exercised_scope",
+      "runtime_log": {
+        "path": "C:/Users/rocco/CLionProjects/TurboGameEngine/docs/lab2/defense/collectathon-native.log",
+        "sha256": "f6585b185e20504bc3e27a709faf90153b68dc27c3b572f25388b69ec8db6fa8",
+        "last_write_utc": "2026-10-16T12:43:26.945730+00:00"
+      },
+      "screenshot": {
+        "path": "C:/Users/rocco/CLionProjects/TurboGameEngine/docs/lab2/defense/evidence/collectathon-native.jpg",
+        "sha256": "6c74b47698c0d841de1c08dd299153db25c378ce6547d97c52b520f745ad3557",
+        "last_write_utc": "2026-10-16T12:43:32.133305+00:00"
+      },
+      "expected_demo_seconds": 30,
+      "source": "verification.json/nativeCollectathon + parent native execution",
+      "limits": [
+        "Movement/pickup were not replayed in this GUI smoke.",
+        "Screenshot shows actual rendered player/tokens/React HUD; gameplay logic also has separate integration tests."
+      ]
+    },
+    "final_verification_manifest": "docs/lab2/defense/verification.json",
+    "defense_deliverables": {
+      "slide_count": 13,
+      "paths": [
+        "docs/lab2/defense/output/TurboGameEngine-Lab2.pptx",
+        "docs/lab2/defense/output/TurboGameEngine-Lab2-slides.pdf",
+        "docs/lab2/defense/output/TurboGameEngine-Lab2-report.pdf"
+      ],
+      "content_hashes": "not_frozen_parent_regenerates_existing_report_after_final_counts",
+      "preferred_pptx": "docs/lab2/defense/output/TurboGameEngine-Lab2.pptx",
+      "previous_exports_ignored": "docs/lab2/defense/.build/revisions/"
+    }
+  },
+  "final_git_snapshot": {
+    "path": "docs/lab2/defense/git-snapshot.json",
+    "generated_at_utc": "2026-10-16T12:54:35.549088+00:00",
+    "counts": {
+      "index_paths": 541,
+      "untracked_paths": 470,
+      "inventory_paths": 1011,
+      "changed_paths": 496,
+      "staged_paths": 0,
+      "unstaged_tracked_paths": 26,
+      "by_status": {
+        "  ": 515,
+        " M": 25,
+        "??": 470,
+        " D": 1
+      },
+      "changed_by_category": {
+        "build_guidance_or_configuration": 4,
+        "application_entry": 1,
+        "native_ui_asset_or_provenance": 61,
+        "engine_asset": 11,
+        "prefab_asset": 4,
+        "gameplay_or_ui_script_asset": 15,
+        "collectathon_demo_project": 18,
+        "interactive_defense_demo_project": 18,
+        "documentation": 8,
+        "defense_document_or_manifest": 11,
+        "defense_visual_evidence": 7,
+        "memory_verification_evidence": 12,
+        "public_defense_deliverable": 3,
+        "core_service_or_frame_loop": 10,
+        "ecs_physics_or_render_preparation": 3,
+        "optional_ai_assistant": 2,
+        "native_editor_ui": 8,
+        "project_launcher": 2,
+        "script_workspace_or_formatter": 4,
+        "gameplay_editor_play_integration": 4,
+        "platform_input_window": 2,
+        "renderer_resources_gpu": 11,
+        "luau_scripting_runtime": 3,
+        "native_react_ui_host": 4,
+        "historical_report_or_media": 1,
+        "test_harness_or_fixture": 18,
+        "vendored_script_editor": 4,
+        "formatter_license": 2,
+        "vendored_react_luau": 225,
+        "engine_ui_adapter": 4,
+        "defense_generation_tooling": 2,
+        "local_reverse_engineering_tooling": 6,
+        "memory_verification_tooling": 6,
+        "developer_tooling": 2
+      }
+    },
+    "branch": {
+      "name": "main",
+      "head": "76c2386e44c4a82cbb16f17ea9f4d20492845353",
+      "upstream": "origin/main",
+      "ahead": 0,
+      "behind": 0,
+      "comparison": "local remote-tracking refs only",
+      "network_fetch_performed": false,
+      "current_remote_server_state": "unknown_without_fetch",
+      "unpushed_commits": []
+    }
+  }
+}
