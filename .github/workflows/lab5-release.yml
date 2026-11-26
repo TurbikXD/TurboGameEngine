@@ -114,7 +114,7 @@ jobs:
           symbols="TurboGameEngine-Lab5-${BUILD_ID}-symbols.zip"
           test -s "packages/$game"
           test -s "packages/$symbols"
-          tag_ref=$(jq -rn --arg tag "tags/$GITHUB_REF_NAME" '$tag | @uri')
+          tag_ref=$(jq -rn --arg ref "refs/tags/$GITHUB_REF_NAME" '$ref | @uri')
           tag_commit=$(gh api "repos/$GITHUB_REPOSITORY/commits/$tag_ref" --jq .sha)
           test "$tag_commit" = "$COMMIT_SHA"
           if gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
