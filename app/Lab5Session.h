@@ -11,7 +11,7 @@ namespace engine::core {
 
 class Lab5Session final {
 public:
-    static constexpr int revision = 1;
+    static constexpr int revision = 2;
     static bool acceptsVerification(std::string_view name);
 
     explicit Lab5Session(std::string verification);
