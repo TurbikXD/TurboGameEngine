@@ -1,7 +1,9 @@
 #include "engine/core/LiveFileWatcher.h"
 
+#include <array>
 #include <fstream>
 #include <map>
+#include <stdexcept>
 #include <utility>
 
 namespace engine::core {
@@ -9,11 +11,19 @@ namespace {
 LiveFileWatcher::Change read(const std::filesystem::path& path) {
     LiveFileWatcher::Change result{path, {}, {}};
     try {
-        if (std::filesystem::file_size(path) > 8U * 1024U * 1024U) throw std::runtime_error("Live file exceeds 8 MiB");
+        constexpr std::size_t limit = 8U * 1024U * 1024U;
+        if (std::filesystem::file_size(path) > limit) throw std::runtime_error("Live file exceeds 8 MiB");
         std::ifstream stream(path, std::ios::binary);
         if (!stream) throw std::runtime_error("Cannot read live file");
-        result.contents.assign(std::istreambuf_iterator<char>(stream), {});
-        if (stream.bad()) throw std::runtime_error("Live file read failed");
+        std::array<char, 65536> buffer;
+        for (;;) {
+            stream.read(buffer.data(), static_cast<std::streamsize>(buffer.size()));
+            const auto count = static_cast<std::size_t>(stream.gcount());
+            if (count > limit - result.contents.size()) throw std::runtime_error("Live file exceeds 8 MiB");
+            result.contents.append(buffer.data(), count);
+            if (stream.bad() || (stream.fail() && !stream.eof())) throw std::runtime_error("Live file read failed");
+            if (stream.eof()) break;
+        }
     } catch (const std::exception& error) { result.error = error.what(); result.contents.clear(); }
     return result;
 }

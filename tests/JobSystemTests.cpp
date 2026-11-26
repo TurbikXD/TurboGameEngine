@@ -3,6 +3,7 @@
 #include <iostream>
 #include <future>
 #include <latch>
+#include <memory>
 #include <stdexcept>
 #include <thread>
 #include <vector>
@@ -214,12 +215,154 @@ bool runShutdownAndStressTest() {
     return expect(total == 1101, "destructor lost fire-and-forget jobs");
 }
 
-} // namespace
+bool runAncestorDrainRejectionTest() {
+    using Jobs = engine::core::JobSystem;
+    Jobs outer(false);
+    Jobs inner(false);
+    bool waitRejected = false;
+    bool shutdownRejected = false;
+    const auto parent = outer.dispatch([&] {
+        const auto child = inner.dispatch([&] {
+            try { outer.waitAll(); }
+            catch (const std::logic_error&) { waitRejected = true; }
+            try { outer.shutdown(); }
+            catch (const std::logic_error&) { shutdownRejected = true; }
+        });
+        inner.wait(child);
+    });
+    outer.wait(parent);
+    if (!expect(waitRejected && shutdownRejected, "A nested foreign task drained its executing ancestor JobSystem")) return false;
+    bool usable = false;
+    outer.wait(outer.dispatch([&] { usable = true; }));
+    outer.waitAll();
+    return expect(usable && outer.stats().pending == 0U, "Ancestor drain rejection left the JobSystem unusable");
+}
+
+bool runCapturedCleanupContinuationTest() {
+    using Jobs = engine::core::JobSystem;
+    Jobs jobs(true, 1U);
+    Jobs::Handle parent;
+    std::atomic_size_t released{0}, cleaned{0};
+    std::atomic_bool dispatchFailed{false};
+    struct Payload final {
+        Jobs& jobs;
+        const Jobs::Handle& parent;
+        std::atomic_size_t& released;
+        std::atomic_size_t& cleaned;
+        std::atomic_bool& dispatchFailed;
+        ~Payload() {
+            released.fetch_add(1U, std::memory_order_relaxed);
+            try {
+                jobs.dispatchAfter({parent}, [&counter = cleaned] { counter.fetch_add(1U, std::memory_order_relaxed); });
+            } catch (...) {
+                dispatchFailed.store(true, std::memory_order_relaxed);
+            }
+        }
+    };
+    auto payload = std::make_shared<Payload>(jobs, parent, released, cleaned, dispatchFailed);
+    std::latch finishParent(1);
+    parent = jobs.dispatch([hold = payload, &finishParent] { finishParent.wait(); });
+    payload.reset();
+    finishParent.count_down();
+    jobs.wait(parent);
+    jobs.waitAll();
+    const auto stats = jobs.stats();
+    return expect(released == 1U && cleaned == 1U && !dispatchFailed && stats.submitted == 2U &&
+                  stats.completed == 2U && stats.pending == 0U && stats.queueDepth == 0U,
+                  "Captured task cleanup could not enqueue a continuation depending on its parent");
+}
+
+bool runNestedWorkerSchedulerRejectionTest() {
+    using Jobs = engine::core::JobSystem;
+    Jobs jobs(true, 1U);
+    std::promise<bool> checked;
+    auto result = checked.get_future();
+    const auto parent = jobs.dispatch([&] {
+        try {
+            bool rejected = false;
+            try { Jobs nested(true, 1U); }
+            catch (const std::logic_error&) { rejected = true; }
+            if (!rejected) {
+                checked.set_value(false);
+                return;
+            }
+            std::atomic_bool childRan{false};
+            const auto child = jobs.dispatch([&] { childRan = true; });
+            jobs.wait(child);
+            checked.set_value(childRan.load(std::memory_order_relaxed));
+        } catch (...) {
+            checked.set_exception(std::current_exception());
+        }
+    });
+    bool valid = false;
+    try { valid = result.get(); }
+    catch (...) { valid = false; }
+    jobs.wait(parent);
+    return expect(valid && jobs.stats().pending == 0U,
+        "Worker-created scheduler replaced its outer native worker registration or damaged nested dispatch");
+}
+
+bool runNestedDisabledWorkerAdmissionTest() {
+    using Jobs = engine::core::JobSystem;
+    for (const bool shutdown : {false, true}) {
+        Jobs jobs(true, 1U);
+        Jobs::Handle parent;
+        std::promise<void> workerStarted;
+        auto started = workerStarted.get_future();
+        std::promise<bool> checked;
+        auto result = checked.get_future();
+        std::latch beginNested(1);
+        parent = jobs.dispatch([&] {
+            workerStarted.set_value();
+            beginNested.wait();
+            try {
+                Jobs nested(false);
+                bool valid = false;
+                const auto callback = nested.dispatch([&] {
+                    std::atomic_bool childRan{false};
+                    const auto child = jobs.dispatch([&] { childRan = true; });
+                    jobs.wait(child);
+                    bool ancestorRejected = false;
+                    try { jobs.wait(parent); }
+                    catch (const std::logic_error&) { ancestorRejected = true; }
+                    std::atomic_size_t visited{0};
+                    jobs.parallelFor(23U, 3U, [&](const std::size_t begin, const std::size_t end) {
+                        visited.fetch_add(end - begin, std::memory_order_relaxed);
+                    });
+                    valid = childRan && ancestorRejected && visited == 23U;
+                });
+                nested.wait(callback);
+                checked.set_value(valid);
+            } catch (...) {
+                checked.set_exception(std::current_exception());
+            }
+        });
+        started.wait();
+        if (shutdown) {
+            jobs.dispatch([&] { beginNested.count_down(); });
+            jobs.shutdown();
+        } else {
+            beginNested.count_down();
+        }
+        bool valid = false;
+        try { valid = result.get(); }
+        catch (...) { valid = false; }
+        jobs.wait(parent);
+        jobs.waitAll();
+        if (!expect(valid && jobs.stats().pending == 0U,
+            "Nested disabled callback lost outer worker admission or could not submit while shutdown drained")) return false;
+    }
+    return true;
+}
+
+}
 
 int main() {
     if (!runWorkerCountOptionTest() || !runParallelForTest() || !runDispatchAndWaitTest() || !runDisabledAndExceptionTest()
         || !runNestedAndDependencyTest() || !runExceptionAndBoundaryTest()
-        || !runPriorityIsolationTest() || !runShutdownAndStressTest()) {
+        || !runPriorityIsolationTest() || !runShutdownAndStressTest()
+        || !runAncestorDrainRejectionTest() || !runCapturedCleanupContinuationTest()
+        || !runNestedWorkerSchedulerRejectionTest() || !runNestedDisabledWorkerAdmissionTest()) {
         return EXIT_FAILURE;
     }
     std::cout << "JobSystem tests passed\n";

@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <array>
+#include <charconv>
 #include <cctype>
 #include <cmath>
 #include <chrono>
@@ -30,20 +31,35 @@
 #include <glm/ext/matrix_transform.hpp>
 #include <glm/vec4.hpp>
 
+#include "app/Lab5Session.h"
 #include "engine/core/Log.h"
+#include "engine/core/AtomicFile.h"
+#include "engine/core/CrashReport.h"
 #include "engine/core/Profiling.h"
 #include "engine/core/Time.h"
 #include "engine/ecs/components.h"
 #include "engine/editor/ProjectLauncher.h"
 #include "engine/game/GameplayState.h"
 #include "engine/game/MenuState.h"
+#include "engine/game/NetworkArena.h"
 #include "engine/game/PauseState.h"
+#include "engine/network/NetworkSession.h"
+#include "engine/network/SteamTransport.h"
 #include "engine/platform/Input.h"
 #include "engine/platform/Window.h"
 #include "engine/rhi/RHI.h"
 #include "third_party/DiligentEngine/DiligentTools/ThirdParty/imgui/imgui.h"
 
 namespace {
+
+std::optional<std::uint64_t> parseSteamUserId(std::string_view text) {
+    if (text.empty()) return {};
+    std::uint64_t id{};
+    const auto* end = text.data() + text.size();
+    const auto [position, error] = std::from_chars(text.data(), end, id);
+    if (error != std::errc{} || position != end || !engine::net::validSteamUserId(id)) return {};
+    return id;
+}
 
 std::string toLowerCopy(std::string value) {
     std::transform(value.begin(), value.end(), value.begin(), [](const unsigned char c) {
@@ -232,12 +248,14 @@ bool launchDetachedProcess(
 }
 #endif
 
-} // namespace
+}
 
 namespace engine::core {
 
-Application::Application(rhi::BackendType backend, std::optional<PlayLaunch> standalone)
+Application::Application(rhi::BackendType backend, std::optional<PlayLaunch> standalone,
+                         std::optional<net::Endpoint> networkArena, Lab5Session* lab5)
     : m_backend(backend), m_labOptions(LabOptions::fromEnvironment()), m_standalone(std::move(standalone)),
+      m_networkArena(networkArena), m_lab5(lab5),
       m_jobs(true, m_labOptions.jobWorkers) {}
 
 Application::~Application() {
@@ -251,15 +269,41 @@ bool Application::init() {
     ENGINE_LOG_INFO("Application init started");
 
     m_config = Config::load("config.json");
+    const bool networkClient = m_standalone && m_standalone->networkRole == SceneNetworkRole::Client;
     if (m_standalone) {
         m_labOptions.scene.clear(); m_labOptions.stressScene = false; m_labOptions.waitForTracy = false;
+        if (m_lab5) m_labOptions.durationSeconds = 0.0;
         m_config.width = m_standalone->width; m_config.height = m_standalone->height;
         m_config.vsync = m_standalone->vsync; m_config.diligentDevice = m_standalone->device;
         m_config.title = m_standalone->project.name + " - Play";
+        if (networkClient) {
+            m_config.title = m_standalone->project.name + " - Client";
+            if (m_standalone->networkClientIndex) {
+                m_config.title += " " + std::to_string(m_standalone->networkClientIndex);
+            }
+            m_labOptions.durationSeconds = 0.0;
+            if (m_standalone->networkSteam) {
+                m_steamRuntime = std::make_unique<net::SteamInvites>();
+                std::string error;
+                if (!m_steamRuntime->start(error)) {
+                    ENGINE_LOG_ERROR("Steam initialization failed: {}", error);
+                    return false;
+                }
+                m_standalone->steamRuntime = m_steamRuntime.get();
+            }
+            m_stateStack.setSceneNetworkLaunch(&*m_standalone);
+        }
         m_activeProject = m_standalone->project;
         m_stateStack.setStandalone(true);
         m_stateStack.setProject(&*m_activeProject);
         m_renderer.setProjectAssetRoot(m_activeProject->assetRoot);
+    }
+    if (m_networkArena) {
+        m_labOptions.scene.clear();
+        m_labOptions.stressScene = false;
+        m_labOptions.waitForTracy = false;
+        m_config.title = "TurboGameEngine - Relay Arena";
+        m_config.clearColor = {0.025F, 0.039F, 0.062F, 1.0F};
     }
     m_stateStack.setServices(&m_jobs, &m_labOptions);
     m_renderer.setJobSystem(&m_jobs);
@@ -267,7 +311,6 @@ bool Application::init() {
     m_renderer.setGpuUploadEnabled(m_labOptions.gpuUpload);
     m_renderer.setUploadBudget(m_labOptions.uploadsPerFrame, m_labOptions.uploadBudgetMilliseconds);
     m_renderer.setAssetInFlightLimit(m_labOptions.assetInFlightLimit);
-    // Instrumentation alone must not change the normal editor's scene/config.
     if (m_labOptions.active() || m_labOptions.stressActive()) {
         m_config.width = 1280;
         m_config.height = 720;
@@ -308,23 +351,48 @@ bool Application::init() {
     }
 
     m_stateStack.setProjectSelectorCallback([this] { m_projectSelectorRequested = true; });
-    m_stateStack.setPlayWindowCallbacks(
-        [this](const std::string& scene, const std::filesystem::path& assets, std::string& error) {
-            PlayLaunch options;
-            if (m_activeProject) options.project = *m_activeProject;
-            else { options.project.name = "Engine Demo"; options.project.root = assets.parent_path(); }
-            options.project.assetRoot = std::filesystem::absolute(assets);
-            options.width = std::max(320, m_window->width()); options.height = std::max(200, m_window->height());
-            options.vsync = m_config.vsync; options.device = m_config.diligentDevice;
 #if defined(_WIN32)
-            const auto executable = getExecutableDirectory() / "app.exe";
+    const auto executable = getExecutableDirectory() / "app.exe";
 #else
-            const auto executable = getExecutableDirectory() / "app";
+    const auto executable = getExecutableDirectory() / "app";
 #endif
-            return m_playSession.start(executable, scene, options, error);
+    m_stateStack.setPlayWindowCallbacks(
+        [this, executable](const std::string& scene, const std::filesystem::path& assets, std::string& error) {
+            return m_playSession.start(executable, scene, playLaunchOptions(assets), error);
         }, [this] { m_playSession.stop(); }, [this] { return m_playSession.running(); });
-    m_projectSelectorVisible = !m_standalone && !m_labOptions.active() && !m_labOptions.stressActive();
-    if (m_projectSelectorVisible) {
+    m_stateStack.setNetworkPlayCallbacks(
+        [this, executable](const std::string& scene, const std::filesystem::path& assets,
+                           const net::NetworkTestOptions& networkOptions, std::string& error) {
+            auto options = playLaunchOptions(assets);
+            options.networkOptions = networkOptions;
+            return m_networkPlaySession.startNetwork(executable, scene, options, error);
+        }, [this] { m_networkPlaySession.stop(); }, [this] { return m_networkPlaySession.running(); },
+        [this]() -> std::string_view { return m_networkPlaySession.networkError(); });
+    m_stateStack.setOnlinePlayCallbacks({
+        [this, executable](SceneNetworkRole role, bool steam, std::string_view address, unsigned maxPeers,
+                           std::string& error) {
+            return startOnlinePlay(executable, role, steam, address, maxPeers, error);
+        },
+        [this](SceneNetworkRole role) { onlinePlay(role).stop(); },
+        [this](SceneNetworkRole role) -> const OnlinePlayStatus& { return onlinePlay(role).onlineStatus(); },
+        [this](std::uint64_t friendId, std::string& error) { return m_onlineServer.inviteOnlineFriend(friendId, error); },
+        [this](std::uint64_t friendId) { return m_onlineServer.steamFriendAvatar(friendId); }
+    });
+    m_stateStack.setNetworkTestControlCallbacks(
+        [this] { return m_networkPlaySession.networkTestClients(); },
+        [this](unsigned index, net::NetworkTestConditions conditions, std::string& error) {
+            return m_networkPlaySession.setNetworkTestConditions(index, conditions, error);
+        },
+        [this](unsigned index) { return m_networkPlaySession.networkTestHistory(index); },
+        [this] { return m_networkPlaySession.hasNetworkTestHistory(); },
+        [this](const std::filesystem::path& path, std::string& error) {
+            return m_networkPlaySession.exportNetworkTestHistory(path, error);
+        });
+    m_projectSelectorVisible = !m_networkArena && !m_standalone && !m_labOptions.active() && !m_labOptions.stressActive();
+    const game::GameplayState* networkState = nullptr;
+    if (m_networkArena) {
+        m_stateStack.push(game::makeNetworkArena(m_stateStack, *m_networkArena));
+    } else if (m_projectSelectorVisible) {
         m_projectLauncher = std::make_unique<editor::ProjectLauncher>(m_projects,
             [this](Project project) {
                 m_pendingProject = std::move(project);
@@ -333,11 +401,27 @@ bool Application::init() {
             [this] { m_pendingProject.reset(); m_projectLaunchRequested = true; });
         m_window->setTitle(m_config.title + " - Projects");
     } else {
-        m_stateStack.push(std::make_unique<game::GameplayState>(m_stateStack));
+        auto gameplay = std::make_unique<game::GameplayState>(m_stateStack);
+        if (networkClient) networkState = gameplay.get();
+        if (m_lab5) m_lab5->attach(*gameplay);
+        m_stateStack.push(std::move(gameplay));
     }
     m_stateStack.applyPendingChanges();
+    if (networkState && !networkState->networkSceneReady()) {
+        const auto error = networkState->networkSceneError();
+        ENGINE_LOG_ERROR("Network Play client: {}", error.empty() ? "Could not initialize the scene." : error);
+        return false;
+    }
+    if (networkState && !m_standalone->networkReadyPath.empty()) {
+        std::string error;
+        if (!writeFileAtomically(m_standalone->networkReadyPath,
+                std::to_string(m_standalone->networkEndpoint.port) + "\n", error)) {
+            ENGINE_LOG_ERROR("Could not report that the multiplayer window is ready: {}", error);
+            return false;
+        }
+    }
     m_selectedSampleBackendMode = modeIndexFromString(m_config.diligentDevice);
-    discoverDiligentSamples();
+    if (!m_networkArena) discoverDiligentSamples();
 
     m_running = true;
     m_initialized = true;
@@ -345,11 +429,85 @@ bool Application::init() {
     return true;
 }
 
+PlayLaunch Application::playLaunchOptions(const std::filesystem::path& assets) const {
+    PlayLaunch options;
+    if (m_activeProject) options.project = *m_activeProject;
+    else { options.project.name = "Engine Demo"; options.project.root = assets.parent_path(); }
+    options.project.assetRoot = std::filesystem::absolute(assets);
+    options.width = std::max(320, m_window->width());
+    options.height = std::max(200, m_window->height());
+    options.vsync = m_config.vsync;
+    options.device = m_config.diligentDevice;
+    return options;
+}
+
+PlaySession& Application::onlinePlay(SceneNetworkRole role) {
+    return role == SceneNetworkRole::Server ? m_onlineServer : m_onlineClient;
+}
+
+bool Application::startOnlinePlay(const std::filesystem::path& executable, SceneNetworkRole role, bool steam,
+                                  std::string_view address, unsigned maxPeers, std::string& error) {
+    if (!m_activeProject || m_activeProject->manifestPath.empty()) {
+        error = "Open a saved project before starting multiplayer.";
+        return false;
+    }
+    const bool hosting = role == SceneNetworkRole::Server;
+    if (hosting && (maxPeers == 0 || maxPeers > net::MaxPeers)) {
+        error = "Player limit must be between 1 and " + std::to_string(net::MaxPeers) + ".";
+        return false;
+    }
+    auto options = playLaunchOptions(m_activeProject->assetRoot);
+    options.networkRole = role;
+    options.networkSteam = steam;
+    options.networkMaxPeers = hosting ? maxPeers : static_cast<unsigned>(net::MaxPeers);
+    if (steam) {
+        options.networkEndpoint = {0, net::SteamVirtualPort};
+        if (!hosting && !address.empty()) {
+            const auto id = parseSteamUserId(address);
+            if (!id) { error = "Enter a host SteamID64 or leave it empty to wait for an invitation."; return false; }
+            options.networkEndpoint.steamId = *id;
+        }
+    } else if (hosting) {
+        const auto endpoint = net::parseEndpoint(address, net::DefaultPort);
+        if (!endpoint || !endpoint->port || endpoint->address >= 0xe0000000U) {
+            error = "Enter a local IPv4 bind address and a UDP port from 1 to 65535.";
+            return false;
+        }
+        options.networkEndpoint = *endpoint;
+    } else {
+        if (address.empty() || address.size() > 259) {
+            error = "Enter a server IPv4 address or DNS hostname with an optional port.";
+            return false;
+        }
+        options.networkHost = address;
+    }
+    std::string scene;
+    auto project = ProjectManager::load(m_activeProject->manifestPath, error, &options.networkCompatibility, &scene);
+    if (!project) return false;
+    if (project->scenePath != m_activeProject->scenePath || project->assetRoot != m_activeProject->assetRoot) {
+        error = "Reopen the project to apply the changed startup scene or asset directory.";
+        return false;
+    }
+    options.project = std::move(*project);
+    if (!hosting && !steam) {
+        const auto& server = m_onlineServer.onlineStatus();
+        const auto endpoint = net::parseEndpoint(address, net::DefaultPort);
+        if (server.ready && server.compatibility == options.networkCompatibility && !server.endpoint.steamId &&
+            endpoint && (endpoint->address >> 24) == 127 && endpoint->port == server.endpoint.port &&
+            (!server.endpoint.address || endpoint->address == server.endpoint.address)) {
+            options.networkHostControlDirectory = m_onlineServer.directory();
+        }
+    }
+    return onlinePlay(role).startOnline(executable, scene, std::move(options), error);
+}
+
 void Application::applyProjectSelection() {
     if (!m_projectLaunchRequested && !m_projectSelectorRequested) { return; }
     m_playSession.stop();
-    // UI callbacks only queue this transition. Dispose the old ECS, VM and
-    // documents before assigning new roots or submitting another scene.
+    m_networkPlaySession.stop();
+    m_onlineServer.stop();
+    m_onlineClient.stop();
+    m_networkPlaySession.clearNetworkTestHistory();
     m_stateStack.clear();
     m_stateStack.applyPendingChanges();
     m_stateStack.setProject(nullptr);
@@ -359,6 +517,8 @@ void Application::applyProjectSelection() {
     m_tutorial03Shader.reset();
     m_workspaceMode = WorkspaceMode::EngineStates;
     if (m_projectSelectorRequested) {
+        CrashReport::setScene({});
+        CrashReport::setAction("project-selector");
         m_renderer.setProjectAssetRoot({});
         m_projectSelectorVisible = true;
         m_projects.refresh();
@@ -410,10 +570,19 @@ int Application::run() {
     std::array<double, 5> stageMs{};
     unsigned diagnosticFrames = 0, updateSteps = 0;
     double discardedSimulationMs = 0.0;
+    int exitCode = m_lab5 && m_lab5->verifying() ? 1 : 0;
 
     while (m_running && m_window && !m_window->shouldClose()) {
         ENGINE_PROFILE_ZONE("Main Frame");
         applyProjectSelection();
+        m_onlineServer.pollOnline();
+        m_onlineClient.pollOnline();
+        if (m_networkPlaySession.running()) {
+            m_networkPlaySession.pollNetwork();
+            if (!m_networkPlaySession.running() && !m_networkPlaySession.networkError().empty()) {
+                ENGINE_LOG_ERROR("{}", m_networkPlaySession.networkError());
+            }
+        }
         const double elapsed = std::chrono::duration<double>(std::chrono::steady_clock::now() - runStart).count();
         m_stateStack.setLabElapsedSeconds(elapsed);
         if (m_labOptions.durationSeconds > 0.0 && elapsed >= m_labOptions.durationSeconds) {
@@ -429,7 +598,7 @@ int Application::run() {
             ENGINE_PROFILE_ZONE("Input and Hot Reload");
             platform::InputManager::beginFrame();
             m_window->pollEvents();
-            if (!m_labOptions.active()) { pollRuntimeHotReload(); }
+            if (!m_labOptions.active() && !m_networkArena) { pollRuntimeHotReload(); }
         }
         measureStage(0);
 
@@ -445,12 +614,13 @@ int Application::run() {
             const auto updateStart = std::chrono::steady_clock::now();
             while (accumulator >= fixedDt && frameSteps < maxSteps) {
                 ENGINE_PROFILE_ZONE("State Update Step");
+                platform::InputManager::beginFixedTick();
                 m_stateStack.update(fixedDt);
                 m_stateStack.applyPendingChanges();
+                platform::InputManager::endFixedTick();
                 ++updateSteps;
                 ++frameSteps;
                 accumulator -= fixedDt;
-                // A slow script must not multiply its cost by a frame's entire backlog.
                 if (!m_labOptions.active() && std::chrono::steady_clock::now() - updateStart >= std::chrono::milliseconds(8)) break;
             }
             if (accumulator >= fixedDt) {
@@ -458,6 +628,7 @@ int Application::run() {
                 discardedSimulationMs += (accumulator - remainder)*1000.0;
                 accumulator = remainder;
             }
+            m_stateStack.setRenderInterpolationFraction(static_cast<float>(accumulator / fixedDt));
         }
         measureStage(1);
 
@@ -474,6 +645,12 @@ int Application::run() {
             m_renderer.renderImGui();
             m_renderer.endFrame();
             measureStage(4);
+        }
+        if (m_lab5) {
+            if (const auto result = m_lab5->afterFrame()) {
+                exitCode = *result;
+                break;
+            }
         }
 
         stats.sample(rawFrameDt);
@@ -506,7 +683,7 @@ int Application::run() {
     }
 
     shutdown();
-    return 0;
+    return exitCode;
 }
 
 void Application::shutdown() {
@@ -519,11 +696,18 @@ void Application::shutdown() {
     }
     m_running = false;
     m_playSession.stop();
+    m_networkPlaySession.stop();
+    m_onlineServer.stop();
+    m_onlineClient.stop();
     m_stateStack.setPlayWindowCallbacks({}, {}, {});
+    m_stateStack.setNetworkPlayCallbacks({}, {}, {}, {});
+    m_stateStack.setOnlinePlayCallbacks({});
+    m_stateStack.setNetworkTestControlCallbacks({}, {});
     m_stateStack.clear();
     m_stateStack.applyPendingChanges();
     m_stateStack.setWindow(nullptr);
     m_stateStack.setProject(nullptr);
+    m_stateStack.setSceneNetworkLaunch(nullptr);
     m_stateStack.setProjectSelectorCallback({});
     m_projectLauncher.reset();
     m_activeProject.reset();
@@ -533,6 +717,7 @@ void Application::shutdown() {
     const auto loads = m_renderer.assetLoadingStats();
     ENGINE_LOG_INFO("LAB_SHUTDOWN pending_cpu={} pending_uploads={}", loads.pendingCpu, loads.pendingUploads);
     m_renderer.shutdown();
+    m_steamRuntime.reset();
     m_jobs.shutdown();
     m_stateStack.setServices(nullptr, nullptr);
     m_window.reset();
@@ -926,8 +1111,15 @@ void Application::onEvent(const platform::Event& event) {
     platform::InputManager::onEvent(event);
     m_renderer.onEvent(event);
     platform::InputManager::setCaptureState(m_renderer.wantsKeyboardCapture(), m_renderer.wantsMouseCapture());
-    if (m_standalone && event.type == platform::EventType::KeyPressed && event.key == platform::KeyCode::Escape) {
-        m_window->requestClose(); return;
+    if ((m_standalone || m_networkArena) &&
+        event.type == platform::EventType::KeyPressed && event.key == platform::KeyCode::Escape) {
+        if (event.repeat) return;
+        if (m_standalone && m_window->cursorMode() == platform::CursorMode::Disabled) {
+            m_stateStack.handleEvent(event);
+        } else {
+            m_window->requestClose();
+        }
+        return;
     }
 
     if (event.type == platform::EventType::Quit) {
@@ -945,7 +1137,8 @@ void Application::onEvent(const platform::Event& event) {
                               event.type == platform::EventType::MouseButtonReleased;
     const bool gameplayLookOverride =
         m_workspaceMode == WorkspaceMode::EngineStates &&
-        platform::InputManager::isMouseButtonDownRaw(platform::MouseButton::Right);
+        (m_window->cursorMode() == platform::CursorMode::Disabled ||
+            platform::InputManager::isMouseButtonDownRaw(platform::MouseButton::Right));
     const bool consumedByImGui =
         !gameplayLookOverride &&
         ((isKeyboardEvent && m_renderer.wantsKeyboardCapture()) || (isMouseEvent && m_renderer.wantsMouseCapture()));
@@ -956,4 +1149,4 @@ void Application::onEvent(const platform::Event& event) {
     }
 }
 
-} // namespace engine::core
+}

@@ -1,8 +1,5 @@
 cmake_minimum_required(VERSION 3.24)
 
-# CLion reload and Visual Studio ZERO_CHECK can configure the same tree at
-# once. Diligent's legacy try_compile checks share CMakeTmp; racing processes
-# can erase each other's ATL probe and silently disable Direct3D support.
 file(LOCK "${CMAKE_BINARY_DIR}/tge-configure.lock" GUARD PROCESS TIMEOUT 120)
 
 project(TurboGameEngine VERSION 0.1.0 LANGUAGES C CXX)
@@ -22,16 +19,27 @@ option(ENGINE_BUILD_DILIGENT_SAMPLES "Build DiligentEngine samples/tutorials" ON
 option(ENGINE_BUILD_APP_LAUNCHER_SAMPLES "Build selected standalone Diligent samples alongside app" OFF)
 option(ENGINE_ENABLE_DILIGENT_WEBGPU "Build WebGPU backend in Diligent" OFF)
 option(ENGINE_ENABLE_TRACY "Enable Tracy instrumentation in engine targets" OFF)
+option(ENGINE_PACKAGED_RUNTIME "Resolve runtime assets from the distribution" OFF)
+set(ENGINE_BUILD_ID "local" CACHE STRING "Identifier embedded in the application and its crash reports")
+set(ENGINE_BUILD_COMMIT "unknown" CACHE STRING "Source commit embedded in the application and its crash reports")
+string(LENGTH "${ENGINE_BUILD_ID}" engine_build_id_length)
+string(LENGTH "${ENGINE_BUILD_COMMIT}" engine_build_commit_length)
+if(NOT ENGINE_BUILD_ID MATCHES "^[A-Za-z0-9][A-Za-z0-9._-]*$" OR engine_build_id_length GREATER 80)
+    message(FATAL_ERROR "ENGINE_BUILD_ID must be a filename-safe identifier of at most 80 characters")
+endif()
+if(NOT ENGINE_BUILD_COMMIT STREQUAL "unknown" AND
+   (NOT ENGINE_BUILD_COMMIT MATCHES "^[0-9a-f]+$" OR NOT engine_build_commit_length EQUAL 40))
+    message(FATAL_ERROR "ENGINE_BUILD_COMMIT must be a full lowercase Git SHA or unknown")
+endif()
+set(ENGINE_STEAMWORKS_SDK "" CACHE PATH "Optional Steamworks SDK directory containing public and redistributable_bin")
+set(ENGINE_STEAMWORKS_DLL "" CACHE FILEPATH "Override steam_api64.dll path for a split Steamworks SDK install")
 set(DILIGENT_SAMPLE_MODE "d3d12" CACHE STRING "Runtime backend mode for Diligent sample launch targets")
 set_property(CACHE DILIGENT_SAMPLE_MODE PROPERTY STRINGS d3d11 d3d12 vk gl webgpu)
-
-string(TOLOWER "${ENGINE_BACKEND}" ENGINE_BACKEND_NORMALIZED)
 
 include(FetchContent)
 set(FETCHCONTENT_UPDATES_DISCONNECTED ON CACHE BOOL "Disable remote updates for already populated dependencies" FORCE)
 set(FETCHCONTENT_UPDATES_DISCONNECTED ON)
 
-# enkiTS v1.12: library-managed work stealing and priority queues.
 set(ENKITS_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
 set(ENKITS_BUILD_C_INTERFACE OFF CACHE BOOL "" FORCE)
 set(ENKITS_BUILD_SHARED OFF CACHE BOOL "" FORCE)
@@ -46,7 +54,6 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(enkits)
 
 if(ENGINE_ENABLE_TRACY)
-    # Keep this tag identical to the Tracy GUI version used to open captures.
     set(TRACY_ENABLE ON CACHE BOOL "" FORCE)
     set(TRACY_ON_DEMAND ON CACHE BOOL "" FORCE)
     set(TRACY_ONLY_LOCALHOST ON CACHE BOOL "" FORCE)
@@ -65,7 +72,6 @@ function(enable_engine_tracy target_name)
         target_link_libraries(${target_name} PRIVATE Tracy::TracyClient)
         target_compile_definitions(${target_name} PRIVATE ENGINE_TRACY_PROFILE=1)
         if(MSVC)
-            # Keep the lab's Release optimizations and emit symbols for Tracy.
             target_compile_options(${target_name} PRIVATE "$<$<CONFIG:Release>:/Zi>")
             target_link_options(${target_name} PRIVATE "$<$<CONFIG:Release>:/DEBUG>")
         endif()
@@ -83,6 +89,22 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(glfw)
 
+if(WIN32)
+    find_package(Git REQUIRED)
+    set(glfw_win32_patch "${CMAKE_CURRENT_SOURCE_DIR}/third_party/patches/glfw-win32-active-window.patch")
+    execute_process(
+        COMMAND "${GIT_EXECUTABLE}" -C "${glfw_SOURCE_DIR}" apply --reverse --check "${glfw_win32_patch}"
+        RESULT_VARIABLE glfw_win32_patch_applied
+        OUTPUT_QUIET ERROR_QUIET
+    )
+    if(NOT glfw_win32_patch_applied EQUAL 0)
+        execute_process(
+            COMMAND "${GIT_EXECUTABLE}" -C "${glfw_SOURCE_DIR}" apply "${glfw_win32_patch}"
+            COMMAND_ERROR_IS_FATAL ANY
+        )
+    endif()
+endif()
+
 FetchContent_Declare(
     glm
     GIT_REPOSITORY https://github.com/g-truc/glm.git
@@ -91,7 +113,6 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(glm)
 
-# EnTT owns entity generations and paged sparse-set component storage.
 FetchContent_Declare(
     entt
     GIT_REPOSITORY https://github.com/skypjack/entt.git
@@ -100,7 +121,6 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(entt)
 
-# Roblox's embeddable dialect: ship the compiler and VM in the executable.
 set(LUAU_BUILD_CLI OFF CACHE BOOL "" FORCE)
 set(LUAU_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 set(LUAU_BUILD_WEB OFF CACHE BOOL "" FORCE)
@@ -111,7 +131,6 @@ FetchContent_Declare(luau
 )
 FetchContent_MakeAvailable(luau)
 
-# Portable Luau-aware formatter, without changing the user's system PATH.
 if(WIN32)
     FetchContent_Declare(stylua_runtime
         URL https://github.com/JohnnyMorganz/StyLua/releases/download/v2.5.2/stylua-windows-x86_64.zip
@@ -220,9 +239,6 @@ add_subdirectory("${DILIGENT_ENGINE_DIR}")
 set(ENGINE_SPIRV_TOOLS_SOURCE_DIR
     "${DILIGENT_ENGINE_DIR}/DiligentCore/ThirdParty/SPIRV-Tools/source")
 
-# CLion probes compiler flags using temp files outside the original source tree.
-# SPIRV-Tools relies on relative /FI precompiled-header includes, so expose the
-# corresponding source folders explicitly to keep IDE reloads from failing.
 function(engine_fix_spirv_tools_pch_includes target_name)
     if(TARGET ${target_name})
         target_include_directories(${target_name} PRIVATE ${ARGN})
@@ -311,10 +327,13 @@ file(TO_CMAKE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/engine/game/ImGuizmoCompat.h" EN
 
 add_library(engine_core STATIC
     engine/core/Log.cpp
+    engine/core/CrashReport.cpp
     engine/core/Time.cpp
     engine/core/Config.cpp
     engine/core/ProjectManager.cpp
     engine/core/AtomicFile.cpp
+    engine/core/NetworkTestControl.cpp
+    engine/core/NetworkTestCsv.cpp
     engine/core/PlaySession.cpp
     engine/core/LiveFileWatcher.cpp
     engine/core/JobSystem.cpp
@@ -330,7 +349,6 @@ enable_engine_tracy(engine_core)
 add_library(engine_ecs STATIC engine/ecs/world.cpp)
 target_include_directories(engine_ecs PUBLIC "${ENGINE_ROOT_INCLUDE_DIR}")
 target_link_libraries(engine_ecs PUBLIC engine_core glm::glm EnTT::EnTT)
-# World's T& / T* API also supports empty marker components.
 target_compile_definitions(engine_ecs PUBLIC ENTT_NO_ETO)
 set_engine_warnings(engine_ecs)
 enable_engine_tracy(engine_ecs)
@@ -345,12 +363,20 @@ target_link_libraries(engine_platform PUBLIC engine_core glfw)
 set_engine_warnings(engine_platform)
 
 add_library(engine_scripting STATIC
+    engine/scripting/ScriptAudio.cpp
     engine/scripting/ScriptingSystem.cpp
     engine/scripting/react/ReactRuntime.cpp
 )
 target_include_directories(engine_scripting PUBLIC "${ENGINE_ROOT_INCLUDE_DIR}")
 target_link_libraries(engine_scripting PUBLIC engine_ecs engine_platform Luau.VM Luau.Compiler)
-target_compile_definitions(engine_scripting PRIVATE ENGINE_REACT_PACKAGE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/third_party/react-luau")
+if(WIN32)
+    target_link_libraries(engine_scripting PRIVATE xaudio2 ole32)
+endif()
+if(ENGINE_PACKAGED_RUNTIME)
+    target_compile_definitions(engine_scripting PRIVATE ENGINE_PACKAGED_RUNTIME=1)
+else()
+    target_compile_definitions(engine_scripting PRIVATE ENGINE_REACT_PACKAGE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/third_party/react-luau")
+endif()
 set_engine_warnings(engine_scripting)
 enable_engine_tracy(engine_scripting)
 
@@ -389,10 +415,7 @@ PRIVATE
     glfw
     ${DILIGENT_RHI_LIBS}
 )
-target_compile_definitions(engine_rhi_diligent PRIVATE ENGINE_ENABLE_DILIGENT_BACKEND=1)
 if(MSVC)
-    # Diligent-BuildSettings disables RTTI in optimized builds, while this
-    # adapter intentionally uses dynamic_cast to validate RHI object types.
     set_property(SOURCE engine/rhi_diligent/DiligentDevice.cpp APPEND PROPERTY COMPILE_OPTIONS /GR)
 endif()
 set_engine_warnings(engine_rhi_diligent)
@@ -402,7 +425,6 @@ add_library(engine_rhi STATIC
     engine/rhi/RHI.cpp
 )
 target_include_directories(engine_rhi PUBLIC "${ENGINE_ROOT_INCLUDE_DIR}")
-target_compile_definitions(engine_rhi PRIVATE ENGINE_ENABLE_DILIGENT_BACKEND=1)
 target_link_libraries(engine_rhi PUBLIC engine_core PRIVATE engine_rhi_diligent)
 set_engine_warnings(engine_rhi)
 
@@ -414,6 +436,8 @@ add_library(engine_renderer STATIC
     engine/resources/async_load_queue.cpp
     engine/resources/image_mips.cpp
     engine/resources/loaders.cpp
+    engine/resources/material.cpp
+    engine/resources/material_graph.cpp
     engine/ecs/render_system.cpp
     engine/ecs/transform_utils.cpp
     engine/ecs/transform_batch.cpp
@@ -422,6 +446,9 @@ add_library(engine_renderer STATIC
 target_include_directories(engine_renderer PUBLIC "${ENGINE_ROOT_INCLUDE_DIR}")
 target_include_directories(engine_renderer PRIVATE "${stb_SOURCE_DIR}")
 target_compile_definitions(engine_renderer PUBLIC ENGINE_SOURCE_ROOT="${ENGINE_SOURCE_ROOT_CMAKE_PATH}")
+if(ENGINE_PACKAGED_RUNTIME)
+    target_compile_definitions(engine_renderer PRIVATE ENGINE_PACKAGED_RUNTIME=1)
+endif()
 target_link_libraries(
     engine_renderer
     PUBLIC
@@ -471,14 +498,50 @@ else()
 endif()
 set_engine_warnings(imguizmo)
 
+find_package(Threads REQUIRED)
+add_library(engine_network STATIC
+    engine/network/DatagramTransport.cpp
+    engine/network/NetworkClient.cpp
+    engine/network/NetworkServer.cpp
+    engine/network/SteamTransport.cpp
+)
+target_include_directories(engine_network PUBLIC "${ENGINE_ROOT_INCLUDE_DIR}")
+target_link_libraries(engine_network PRIVATE Threads::Threads)
+if(WIN32)
+    target_link_libraries(engine_network PRIVATE ws2_32)
+endif()
+if(ENGINE_STEAMWORKS_SDK)
+    if(NOT WIN32 OR NOT MSVC OR NOT CMAKE_SIZEOF_VOID_P EQUAL 8)
+        message(FATAL_ERROR "Steamworks support requires a Windows x64 MSVC build")
+    endif()
+    set(steamworks_include "${ENGINE_STEAMWORKS_SDK}/public")
+    set(steamworks_library "${ENGINE_STEAMWORKS_SDK}/redistributable_bin/win64/steam_api64.lib")
+    set(steamworks_runtime "${ENGINE_STEAMWORKS_SDK}/redistributable_bin/win64/steam_api64.dll")
+    if(ENGINE_STEAMWORKS_DLL)
+        set(steamworks_runtime "${ENGINE_STEAMWORKS_DLL}")
+    endif()
+    if(NOT EXISTS "${steamworks_include}/steam/steam_api.h" OR
+       NOT EXISTS "${steamworks_library}" OR NOT EXISTS "${steamworks_runtime}")
+        message(FATAL_ERROR "Steamworks SDK headers, steam_api64.lib or steam_api64.dll are missing")
+    endif()
+    target_include_directories(engine_network SYSTEM PRIVATE "${steamworks_include}")
+    target_compile_definitions(engine_network PRIVATE ENGINE_ENABLE_STEAMWORKS=1)
+    target_link_libraries(engine_network PRIVATE "${steamworks_library}" delayimp)
+    target_link_options(engine_network INTERFACE "/DELAYLOAD:steam_api64.dll")
+endif()
+set_engine_warnings(engine_network)
+
 add_library(engine_game STATIC
     engine/editor/EditorCommands.cpp
     engine/editor/EditorRibbon.cpp
+    engine/editor/NetworkChartPng.cpp
     engine/editor/EditorIcons.cpp
     engine/editor/ScriptWorkspace.cpp
     engine/editor/ProjectLauncher.cpp
     engine/editor/CodexAssistant.cpp
     engine/editor/ScriptFormatter.cpp
+    engine/editor/MaterialInspector.cpp
+    engine/editor/MaterialGraphEditor.cpp
     engine/scripting/react/ReactUI.cpp
     engine/ecs/physics_system.cpp
     engine/ecs/debug_render_system.cpp
@@ -487,6 +550,11 @@ add_library(engine_game STATIC
     engine/game/MenuState.cpp
     engine/game/GameplayState.cpp
     engine/game/GameplayCommands.cpp
+    engine/game/NetworkArena.cpp
+    engine/game/NetworkArenaRules.cpp
+    engine/game/SceneNetwork.cpp
+    engine/game/SceneSteam.cpp
+    engine/game/SceneNetworkServer.cpp
     engine/game/PauseState.cpp
     "${DILIGENT_ENGINE_DIR}/DiligentTools/ThirdParty/imgui/misc/cpp/imgui_stdlib.cpp"
 )
@@ -498,9 +566,9 @@ target_include_directories(
         "${DILIGENT_ENGINE_DIR}/DiligentTools/ThirdParty/imgui"
         "${DILIGENT_ENGINE_DIR}/DiligentTools/ThirdParty/imgui/misc/cpp"
 )
-target_link_libraries(engine_game PUBLIC engine_core engine_platform engine_renderer engine_scripting PRIVATE imguizmo engine_text_editor)
+target_link_libraries(engine_game PUBLIC engine_core engine_platform engine_renderer engine_scripting engine_network PRIVATE imguizmo engine_text_editor)
 if(WIN32)
-    target_link_libraries(engine_game PRIVATE shell32 ole32 uuid)
+    target_link_libraries(engine_game PRIVATE shell32 ole32 uuid gdiplus)
     target_compile_definitions(engine_game PRIVATE ENGINE_STYLUA_EXECUTABLE="${stylua_runtime_SOURCE_DIR}/stylua.exe")
 endif()
 set_engine_warnings(engine_game)
@@ -508,14 +576,35 @@ enable_engine_tracy(engine_game)
 
 add_executable(app
     app/main.cpp
+    app/Lab5Session.cpp
     engine/core/Application.cpp
 )
 target_include_directories(app PRIVATE "${ENGINE_ROOT_INCLUDE_DIR}")
-target_compile_definitions(app PRIVATE ENGINE_BACKEND_NAME="diligent")
+target_compile_definitions(app PRIVATE
+    ENGINE_BACKEND_NAME="diligent"
+    ENGINE_BUILD_ID="${ENGINE_BUILD_ID}"
+    ENGINE_BUILD_COMMIT="${ENGINE_BUILD_COMMIT}"
+)
 target_link_libraries(app PRIVATE engine_core engine_platform engine_renderer engine_game)
+if(ENGINE_PACKAGED_RUNTIME AND MSVC)
+    target_link_options(app PRIVATE /DEBUG:FULL /INCREMENTAL:NO /PDBALTPATH:app.pdb)
+endif()
 set_engine_warnings(app)
 enable_engine_tracy(app)
 copy_pix_runtime_dll(app)
+if(ENGINE_STEAMWORKS_SDK)
+    add_custom_command(TARGET app POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${steamworks_runtime}" "$<TARGET_FILE_DIR:app>/steam_api64.dll"
+        VERBATIM
+    )
+endif()
+
+add_executable(engine_network_tests tests/NetworkSessionTests.cpp)
+target_link_libraries(engine_network_tests PRIVATE engine_network)
+set_engine_warnings(engine_network_tests)
+add_test(NAME engine_network_tests COMMAND engine_network_tests)
+set_tests_properties(engine_network_tests PROPERTIES TIMEOUT 60)
 
 add_executable(engine_physics_tests
     tests/PhysicsSystemTests.cpp
@@ -552,6 +641,33 @@ add_executable(engine_texture_loader_tests tests/TextureLoaderTests.cpp)
 target_link_libraries(engine_texture_loader_tests PRIVATE engine_renderer)
 set_engine_warnings(engine_texture_loader_tests)
 add_test(NAME engine_texture_loader_tests COMMAND engine_texture_loader_tests)
+
+add_executable(engine_material_tests tests/MaterialTests.cpp)
+target_link_libraries(engine_material_tests PRIVATE engine_renderer)
+set_engine_warnings(engine_material_tests)
+add_test(NAME engine_material_tests COMMAND engine_material_tests)
+set_tests_properties(engine_material_tests PROPERTIES TIMEOUT 60)
+
+add_executable(engine_material_graph_tests tests/MaterialGraphTests.cpp)
+target_link_libraries(engine_material_graph_tests PRIVATE engine_renderer)
+set_engine_warnings(engine_material_graph_tests)
+add_test(NAME engine_material_graph_tests COMMAND engine_material_graph_tests)
+set_tests_properties(engine_material_graph_tests PROPERTIES TIMEOUT 60)
+
+add_executable(engine_material_gpu_tests tests/MaterialGpuTests.cpp)
+target_link_libraries(engine_material_gpu_tests PRIVATE engine_renderer engine_platform engine_rhi_diligent glfw)
+if(WIN32)
+    target_link_libraries(engine_material_gpu_tests PRIVATE Psapi)
+endif()
+set_engine_warnings(engine_material_gpu_tests)
+copy_pix_runtime_dll(engine_material_gpu_tests)
+
+add_executable(engine_lab3_demo_tests tests/Lab3DemoTests.cpp)
+target_link_libraries(engine_lab3_demo_tests PRIVATE engine_scripting)
+target_compile_definitions(engine_lab3_demo_tests PRIVATE ENGINE_LAB3_DEMO_ROOT="${CMAKE_CURRENT_SOURCE_DIR}/demos/lab3-materials")
+set_engine_warnings(engine_lab3_demo_tests)
+add_test(NAME engine_lab3_demo_tests COMMAND engine_lab3_demo_tests)
+set_tests_properties(engine_lab3_demo_tests PROPERTIES TIMEOUT 60)
 
 add_executable(engine_gameplay_state_tests tests/GameplayStateTests.cpp)
 target_include_directories(engine_gameplay_state_tests PRIVATE "${DILIGENT_ENGINE_DIR}/DiligentTools/ThirdParty/imgui")
@@ -635,7 +751,6 @@ set_engine_warnings(engine_project_launcher_tests)
 add_test(NAME engine_project_launcher_tests COMMAND engine_project_launcher_tests)
 set_tests_properties(engine_project_launcher_tests PROPERTIES TIMEOUT 60)
 
-# Explicit hardware integration test; not a default CTest on headless CI.
 add_executable(engine_gpu_upload_tests tests/GpuUploadTests.cpp)
 target_link_libraries(engine_gpu_upload_tests PRIVATE engine_renderer engine_platform engine_rhi_diligent glfw)
 set_engine_warnings(engine_gpu_upload_tests)

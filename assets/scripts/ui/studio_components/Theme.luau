@@ -1,6 +1,3 @@
--- TurboGameEngine adapter for the imported MIT StudioComponents examples.
--- Studio's theme service is replaced by ordinary React context. This module
--- intentionally provides only the colors consumed by LoadingDots/ProgressBar.
 local React = require("React")
 local fallback = {
 	accent = Color3.fromRGB(90, 220, 210),

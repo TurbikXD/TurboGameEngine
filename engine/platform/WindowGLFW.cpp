@@ -6,7 +6,7 @@
 
 #include <GLFW/glfw3.h>
 
-#include "engine/core/Log.h"
+#include "engine/platform/Input.h"
 
 namespace engine::platform {
 
@@ -51,6 +51,12 @@ KeyCode mapKey(int glfwKey) {
             return KeyCode::E;
         case GLFW_KEY_F:
             return KeyCode::F;
+        case GLFW_KEY_G:
+            return KeyCode::G;
+        case GLFW_KEY_1:
+            return KeyCode::Digit1;
+        case GLFW_KEY_2:
+            return KeyCode::Digit2;
         case GLFW_KEY_N:
             return KeyCode::N;
         case GLFW_KEY_O:
@@ -101,7 +107,7 @@ MouseButton mapMouseButton(int glfwButton) {
     }
 }
 
-} // namespace
+}
 
 void WindowGLFW::ensureGlfwInitialized() {
     if (g_glfwInitialized.load()) {
@@ -158,6 +164,15 @@ WindowGLFW::WindowGLFW(const WindowDesc& desc) : m_width(desc.width), m_height(d
         if (self != nullptr) {
             Event event{};
             event.type = EventType::Quit;
+            self->dispatch(event);
+        }
+    });
+
+    glfwSetWindowFocusCallback(m_window, [](GLFWwindow* window, int focused) {
+        auto* self = static_cast<WindowGLFW*>(glfwGetWindowUserPointer(window));
+        if (self != nullptr) {
+            Event event{};
+            event.type = focused == GLFW_TRUE ? EventType::FocusGained : EventType::FocusLost;
             self->dispatch(event);
         }
     });
@@ -299,7 +314,7 @@ void WindowGLFW::setVSync(bool enabled) {
 }
 
 void WindowGLFW::setCursorMode(const CursorMode mode) {
-    if (m_window == nullptr) {
+    if (m_window == nullptr || m_cursorMode == mode) {
         return;
     }
 
@@ -317,11 +332,19 @@ void WindowGLFW::setCursorMode(const CursorMode mode) {
     }
 
     glfwSetInputMode(m_window, GLFW_CURSOR, glfwCursorMode);
+    if (glfwRawMouseMotionSupported()) {
+        glfwSetInputMode(m_window, GLFW_RAW_MOUSE_MOTION, mode == CursorMode::Disabled ? GLFW_TRUE : GLFW_FALSE);
+    }
     m_cursorMode = mode;
+    InputManager::resetMouseDelta();
 }
 
 CursorMode WindowGLFW::cursorMode() const {
     return m_cursorMode;
+}
+
+bool WindowGLFW::focused() const {
+    return m_window != nullptr && glfwGetWindowAttrib(m_window, GLFW_FOCUSED) == GLFW_TRUE;
 }
 
 bool WindowGLFW::hasOpenGLContext() const {
@@ -338,4 +361,4 @@ void WindowGLFW::dispatch(const Event& event) const {
     }
 }
 
-} // namespace engine::platform
+}

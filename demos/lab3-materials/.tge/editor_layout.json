@@ -1,0 +1,50 @@
+{
+  "dockSlots": {
+    "hierarchy": "left_top",
+    "inspector": "right_top",
+    "project": "left_bottom",
+    "stats": "right_bottom",
+    "status": "bottom",
+    "toolbar": "top",
+    "viewport": "center"
+  },
+  "locked": false,
+  "materialGraph": {
+    "dockBesideViewport": true,
+    "split": 0.44489091634750366
+  },
+  "ribbon": {
+    "compact": false,
+    "createCommand": 7,
+    "localSpace": true,
+    "moveSnap": 0.5,
+    "networkTest": {
+      "clientCount": 2,
+      "latencyMs": 0,
+      "lossPercent": 0
+    },
+    "playCommand": 29,
+    "rotateSnap": 15.0,
+    "scaleSnap": 0.10000000149011612,
+    "showLabels": true,
+    "snap": false,
+    "tab": 0
+  },
+  "sizing": {
+    "leftSplit": 0.6499999761581421,
+    "leftWidth": 344.0,
+    "rightSplit": 0.8199999928474426,
+    "rightWidth": 465.0
+  },
+  "version": 1,
+  "visibility": {
+    "assistant": true,
+    "hierarchy": true,
+    "inspector": true,
+    "project": true,
+    "stats": true,
+    "status": true,
+    "toolbar": true,
+    "viewport": true
+  }
+}

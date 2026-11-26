@@ -215,7 +215,7 @@ void testCyrillicFiles(const Fixtures& fixtures) {
                source.vertexPath == vertex && source.fragmentPath == fragment,
            "Shader manifest lost UTF-8 directory or source filenames");
 }
-} // namespace
+}
 
 int main() {
     try {

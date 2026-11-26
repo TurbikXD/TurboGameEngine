@@ -16,4 +16,4 @@ std::unique_ptr<IDevice> createDevice(
 BackendType backendFromString(std::string_view value);
 const char* toString(BackendType backend);
 
-} // namespace engine::rhi
+}

@@ -40,6 +40,9 @@ enum class KeyCode : std::uint16_t {
     C,
     V,
     X,
+    G,
+    Digit1,
+    Digit2,
     Count
 };
 
@@ -60,7 +63,9 @@ enum class EventType : std::uint8_t {
     MouseMoved,
     MouseScrolled,
     TextInput,
-    Resize
+    Resize,
+    FocusGained,
+    FocusLost
 };
 
 struct Event final {
@@ -77,4 +82,4 @@ struct Event final {
     int height{0};
 };
 
-} // namespace engine::platform
+}

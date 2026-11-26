@@ -43,9 +43,10 @@ public:
     virtual void setVSync(bool enabled) = 0;
     virtual void setCursorMode(CursorMode mode) = 0;
     [[nodiscard]] virtual CursorMode cursorMode() const = 0;
+    [[nodiscard]] virtual bool focused() const = 0;
     virtual bool hasOpenGLContext() const = 0;
 
     virtual void setEventCallback(EventCallback callback) = 0;
 };
 
-} // namespace engine::platform
+}

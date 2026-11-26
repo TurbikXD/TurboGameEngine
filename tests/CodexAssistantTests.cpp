@@ -40,8 +40,6 @@ void testPromptClipboard() {
     ImVec2 dockSize(360.0F, 760.0F);
     auto frame = [&] {
         ImGui::NewFrame();
-        // Production owns the flush dock geometry. Supply the same host contract
-        // here instead of relying on ImGui's first-window auto-fit dimensions.
         ImGui::SetNextWindowPos(ImVec2(0.0F, 0.0F), ImGuiCond_Always);
         ImGui::SetNextWindowSize(dockSize, ImGuiCond_Always);
         assistant.render();
@@ -52,9 +50,6 @@ void testPromptClipboard() {
         const auto* assistantWindow = ImGui::FindWindowByName("Assistant");
         ImGuiWindow* result = nullptr;
         for (auto* window : ImGui::GetCurrentContext()->Windows) {
-            // Multiline InputText creates its own child under the composer.
-            // Follow ancestry so inserting a presentation wrapper does not turn
-            // this real input regression into a hardcoded window-path test.
             if (!window->Active || std::string_view(window->Name).find("/##Prompt") == std::string_view::npos) continue;
             for (auto* parent = window->ParentWindow; parent; parent = parent->ParentWindow) {
                 if (parent != assistantWindow) continue;
@@ -311,7 +306,6 @@ void testUnicodeRequestsAndInvalidEncoding() {
     assistant.setProjectRoot(root);
     const auto bytes = root.generic_u8string();
     const std::string expectedRoot(reinterpret_cast<const char*>(bytes.data()), bytes.size());
-    // The limit lands inside a multibyte symbol, which previously broke JSON serialization.
     assistant.setContext(std::string(16383U, 'a') + "😀tail");
     Access::submit(assistant, "Привет, создай интерфейс");
     outgoing = Access::takeOutgoing(assistant);
@@ -416,7 +410,7 @@ void testTranscriptBoundsAndDiffs() {
     Access::receive(assistant, R"({"method":"turn/completed","params":{"turn":{"status":"interrupted"}}})");
     require(Access::approvalCount(assistant) == 0U, "interruption should clear stale approval controls");
 }
-} // namespace
+}
 
 int main(const int argc, char** argv) {
     try {
@@ -428,7 +422,6 @@ int main(const int argc, char** argv) {
                 std::this_thread::sleep_for(std::chrono::milliseconds(10));
             }
             require(assistant.connected(), "native client initialize timed out");
-            // Read the selected runtime's catalog; never start authentication or inference.
             for (int attempt = 0; attempt < 1000; ++attempt) {
                 assistant.update();
                 if (Access::hasModel(assistant, "gpt-6.1-sol") && Access::selectModel(assistant, "gpt-6.1-sol")) break;

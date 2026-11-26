@@ -51,4 +51,4 @@ EngineConfig Config::load(std::string_view path) {
     return config;
 }
 
-} // namespace engine::core
+}

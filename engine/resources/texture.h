@@ -41,4 +41,4 @@ private:
     std::atomic<ResourceLoadState> m_loadState{ResourceLoadState::Unloaded};
 };
 
-} // namespace engine::resources
+}

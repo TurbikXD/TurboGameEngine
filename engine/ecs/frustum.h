@@ -2,7 +2,6 @@
 #include <glm/glm.hpp>
 
 namespace engine::ecs {
-// Conservative local AABB against the six RH_ZO clip planes (D3D/Vulkan).
 inline bool intersectsFrustum(const glm::mat4& mvp, const glm::vec3& minimum, const glm::vec3& maximum) {
     const glm::vec3 center = (minimum + maximum) * 0.5F, extent = (maximum - minimum) * 0.5F;
     const glm::vec4 x(mvp[0][0], mvp[1][0], mvp[2][0], mvp[3][0]);

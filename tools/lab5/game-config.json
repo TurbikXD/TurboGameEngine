@@ -1,0 +1,8 @@
+{
+    "title": "Lab 5 - Beacon",
+    "width": 1280,
+    "height": 720,
+    "diligentDevice": "d3d11",
+    "vsync": true,
+    "clearColor": [0.024, 0.036, 0.065, 1.0]
+}

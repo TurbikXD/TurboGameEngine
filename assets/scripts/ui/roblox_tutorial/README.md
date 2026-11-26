@@ -11,6 +11,9 @@ The project accompanies the author's [How To: React + Roblox](https://devforum.r
 Port changes: replace the two Roblox package-location lines with
 `local React = require("React")`; export only the selected components. No
 component logic, Roblox datatype, Enum property, event or host name was changed.
+Explanatory comments live in Markdown; the Luau strict-checking directive stays
+in the port. The `useToggleState` pattern is credited to
+[boyned's React notes](https://blog.boyned.com/articles/things-i-learned-using-react/).
 The original file contains additional examples requiring unsupported Roblox
 services/hosts; they are deliberately excluded from the executable module.
 

@@ -10,13 +10,14 @@
 
 namespace {
 void require(const bool valid, const char* message) { if (!valid) { throw std::runtime_error(message); } }
-void drawEditor(TextEditor& editor) {
+void drawEditor(TextEditor& editor, const bool focused = false) {
     auto& io = ImGui::GetIO();
     io.DisplaySize = {1280.0F, 720.0F};
     io.DeltaTime = 1.0F / 60.0F;
     ImGui::NewFrame();
     ImGui::SetNextWindowPos({0.0F, 0.0F});
     ImGui::SetNextWindowSize({1280.0F, 720.0F});
+    if (focused) ImGui::SetNextWindowFocus();
     ImGui::Begin("Script editor regression");
     editor.Render("Luau Source", {1200.0F, 640.0F}, true);
     ImGui::End();
@@ -59,6 +60,38 @@ int main(int argc, char** argv) {
         editor.ReplaceSelection("local count: number = 3\n");
         editor.Undo();
         require(editor.GetText() == "--local value = 3\nreturn value\n", "Formatter undo lost source");
+        editor.SetText("ab");
+        editor.SetTabSize(0);
+        require(editor.GetTabSize() == 1, "Zero tab width was accepted despite column arithmetic dividing by tab size");
+        editor.SetTabSize(4);
+        editor.SetSelection({0, 1}, {0, 1});
+        editor.SetCursorPosition({0, 1});
+        editor.ReplaceSelection("\t");
+        require(editor.GetText() == "a\tb" && editor.GetCursorPosition().mColumn == 4,
+                "Tab insertion left the cursor inside its visual column span");
+        editor.Undo();
+        require(editor.GetText() == "ab", "Undo did not remove the inserted tab");
+        editor.Redo();
+        require(editor.GetText() == "a\tb" && editor.GetCursorPosition().mColumn == 4,
+                "Redo did not restore the tab and its cursor position");
+        editor.SetImGuiChildIgnored(true);
+        editor.SetText("\tvalue");
+        editor.SetSelection({0, 4}, {0, 4});
+        editor.SetCursorPosition({0, 4});
+        drawEditor(editor, true);
+        ImGui::GetIO().AddKeyEvent(ImGuiKey_Backspace, true);
+        drawEditor(editor, true);
+        ImGui::GetIO().AddKeyEvent(ImGuiKey_Backspace, false);
+        drawEditor(editor, true);
+        require(editor.GetText() == "value" && editor.GetCursorPosition().mColumn == 0,
+                "Backspace did not return to the removed tab's real starting column");
+        editor.Undo();
+        require(editor.GetText() == "\tvalue" && editor.GetCursorPosition().mColumn == 4,
+                "Undo moved a removed tab after the following text");
+        editor.Redo();
+        require(editor.GetText() == "value" && editor.GetCursorPosition().mColumn == 0,
+                "Redo after tab Backspace corrupted text or cursor position");
+        editor.SetImGuiChildIgnored(false);
         editor.SetText("");
         require(editor.GetText().empty(), "Empty file gained a newline");
         editor.SetLanguageDefinition(TextEditor::LanguageDefinition::Lua());

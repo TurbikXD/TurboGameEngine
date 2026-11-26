@@ -11,7 +11,6 @@ namespace engine::scripting { class ScriptingSystem; }
 namespace engine::core { class JobSystem; }
 namespace engine::editor {
 
-// Editor documents are separate from the VM: unsaved edits never affect Play.
 class ScriptWorkspace final {
 public:
     struct Actions {
@@ -28,8 +27,6 @@ public:
     std::string assistantContext() const;
     bool saveActive();
     bool saveAll();
-    // Commands edit the document buffer; its TextEditor undo history remains
-    // independent from scene Undo/Redo. Popup requests are consumed by render().
     CommandState commandState(EditorCommandId command) const;
     bool executeCommand(EditorCommandId command);
     void setCommandRegistry(EditorCommandRegistry* registry);
@@ -37,4 +34,4 @@ private:
     struct Impl;
     std::unique_ptr<Impl> m_impl;
 };
-} // namespace engine::editor
+}

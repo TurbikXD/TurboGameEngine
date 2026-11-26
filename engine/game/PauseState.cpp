@@ -30,4 +30,4 @@ void PauseState::render(renderer::Renderer& renderer) {
     (void)renderer;
 }
 
-} // namespace engine::game
+}

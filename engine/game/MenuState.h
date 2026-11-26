@@ -22,4 +22,4 @@ private:
     std::string m_sampleMode;
 };
 
-} // namespace engine::game
+}

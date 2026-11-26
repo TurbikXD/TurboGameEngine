@@ -8,7 +8,7 @@
 
 namespace engine::ecs {
 void prepareWorldMatrices(const World& world, const std::span<const EntityId> entities,
-                          const std::span<glm::mat4> matrices, core::JobSystem* const jobs) {
+                          const std::span<glm::mat4> matrices, core::JobSystem* const jobs, float renderFraction) {
     ENGINE_PROFILE_ZONE("Render Prepare Transforms");
     if (entities.size() != matrices.size()) {
         throw std::invalid_argument("Transform batch input/output sizes differ");
@@ -17,7 +17,7 @@ void prepareWorldMatrices(const World& world, const std::span<const EntityId> en
     const auto range = [&](const std::size_t begin, const std::size_t end) {
         ENGINE_PROFILE_ZONE("Job Render Transforms");
         for (std::size_t index = begin; index < end; ++index) {
-            matrices[index] = computeWorldMatrix(world, entities[index]);
+            matrices[index] = computeWorldMatrix(world, entities[index], renderFraction);
         }
     };
     if (jobs != nullptr && entities.size() >= 1024U) {

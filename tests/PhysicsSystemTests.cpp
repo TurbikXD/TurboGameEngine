@@ -1,7 +1,9 @@
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <cstdlib>
 #include <iostream>
+#include <limits>
 #include <string>
 #include <vector>
 
@@ -11,6 +13,7 @@
 #include "engine/core/JobSystem.h"
 #include "engine/ecs/components.h"
 #include "engine/ecs/physics_system.h"
+#include "engine/ecs/transform_utils.h"
 #include "engine/ecs/world.h"
 
 namespace {
@@ -123,6 +126,189 @@ bool runFloorCollisionTest() {
     return expect(exitCount > 0, "collision exit event was not emitted");
 }
 
+bool runContainedAabbTest() {
+    using namespace engine;
+    ecs::WorldColliderShape outer, inner;
+    outer.aabb = {glm::vec3(-5), glm::vec3(5)};
+    inner.aabb = {glm::vec3(-0.5F), glm::vec3(0.5F)};
+    ecs::CollisionContact contact;
+    if (!expect(ecs::intersectColliders(1, outer, 2, inner, contact) &&
+        std::abs(contact.penetrationDepth - 5.5F) < 1e-6F,
+        "Contained AABB penetration was measured as overlap length")) return false;
+    inner.aabb.min.x += 1;
+    inner.aabb.max.x += 1;
+    ecs::CollisionContact reverse;
+    if (!expect(ecs::intersectColliders(1, outer, 2, inner, contact) &&
+        ecs::intersectColliders(2, inner, 1, outer, reverse) &&
+        std::abs(contact.penetrationDepth - 4.5F) < 1e-6F &&
+        contact.penetrationDepth == reverse.penetrationDepth && contact.normal == -reverse.normal,
+        "Contained AABB contact lost the nearest separating face or pair symmetry")) return false;
+    ecs::World world;
+    core::EventBus events;
+    ecs::PhysicsSystem physics;
+    auto settings = physics.settings();
+    settings.gravity = glm::vec3(0);
+    settings.solverIterations = 1;
+    physics.setSettings(settings);
+    spawnBox(world, glm::vec3(0), glm::vec3(10), true, 1);
+    const auto enclosed = spawnBox(world, glm::vec3(0), glm::vec3(0.1F), false, 1);
+    physics.update(world, 1.0 / 60.0, events);
+    return expect(std::abs(glm::length(world.getComponent<ecs::Transform>(enclosed)->position) - 0.119F) < 1e-5F,
+        "Contained AABB solver used the small object's width as correction depth");
+}
+
+bool runInvalidTimestepPreservationTest() {
+    using namespace engine;
+    ecs::World world;
+    core::EventBus events;
+    ecs::PhysicsSystem physics;
+    auto settings = physics.settings();
+    settings.gravity = glm::vec3(0);
+    physics.setSettings(settings);
+    spawnBox(world, glm::vec3(0), glm::vec3(2), true, 1);
+    const auto entity = spawnBox(world, glm::vec3(0.9F, 0, 0), glm::vec3(1), false, 1);
+    int enters = 0, stays = 0, exits = 0;
+    events.subscribe<ecs::CollisionEnterEvent>([&](const auto&) { ++enters; });
+    events.subscribe<ecs::CollisionStayEvent>([&](const auto&) { ++stays; });
+    events.subscribe<ecs::CollisionExitEvent>([&](const auto&) { ++exits; });
+    physics.update(world, 1.0 / 60.0, events);
+    auto& transform = *world.getComponent<ecs::Transform>(entity);
+    auto& body = *world.getComponent<ecs::Rigidbody>(entity);
+    const auto position = transform.position;
+    const auto rotation = transform.rotationEulerRadians;
+    body.velocity = {1, 2, 3};
+    body.angularVelocity = {2, 1, 3};
+    body.accumulatedForce = {4, 5, 6};
+    body.accumulatedTorque = {3, 2, 1};
+    body.sleepTimer = 0.25F;
+    const auto previousBodies = physics.bodyCount();
+    const auto previousPairs = physics.broadphasePairCount();
+    const auto previousContacts = physics.activeCollisionCount();
+    const std::array timesteps{0.0, -1.0, std::numeric_limits<double>::quiet_NaN(),
+        std::numeric_limits<double>::infinity(), -std::numeric_limits<double>::infinity(),
+        std::numeric_limits<double>::max(), std::numeric_limits<double>::denorm_min()};
+    for (const double dt : timesteps) {
+        physics.update(world, dt, events);
+        if (!expect(transform.position == position && transform.rotationEulerRadians == rotation &&
+            body.velocity == glm::vec3(1, 2, 3) && body.angularVelocity == glm::vec3(2, 1, 3) &&
+            body.accumulatedForce == glm::vec3(4, 5, 6) && body.accumulatedTorque == glm::vec3(3, 2, 1) &&
+            body.sleepTimer == 0.25F && enters == 1 && stays == 0 && exits == 0 &&
+            physics.bodyCount() == previousBodies && physics.broadphasePairCount() == previousPairs &&
+            physics.activeCollisionCount() == previousContacts,
+            "Invalid timestep mutated physics state, cleared forces or dispatched contacts")) return false;
+    }
+    return true;
+}
+
+bool runColliderNumericBoundariesTest() {
+    using namespace engine;
+    ecs::WorldColliderShape first, second;
+    first.type = second.type = ecs::ColliderType::Sphere;
+    first.sphere = {glm::vec3(0), 1e20F};
+    second.sphere = {glm::vec3(0, 1e20F, 0), 1e20F};
+    ecs::CollisionContact contact;
+    if (!expect(ecs::intersectColliders(1, first, 2, second, contact) &&
+        glm::length(contact.normal - glm::vec3(0, 1, 0)) < 1e-6F &&
+        std::abs(contact.penetrationDepth / 1e20F - 1) < 1e-5F,
+        "Large finite spheres lost contact through squared-distance overflow")) return false;
+    first.sphere.radius = second.sphere.radius = 1e-10F;
+    second.sphere.center = {0, 1e-10F, 0};
+    if (!expect(ecs::intersectColliders(1, first, 2, second, contact) &&
+        glm::length(contact.normal - glm::vec3(0, 1, 0)) < 1e-6F,
+        "Small sphere contacts used a fixed-axis normal instead of their separation")) return false;
+    first.type = ecs::ColliderType::Aabb;
+    first.aabb = {glm::vec3(-1e20F), glm::vec3(1e20F)};
+    second.sphere = {glm::vec3(1.5e20F, 0, 0), 1e20F};
+    if (!expect(ecs::intersectColliders(1, first, 2, second, contact) &&
+        glm::length(contact.normal - glm::vec3(1, 0, 0)) < 1e-6F &&
+        std::abs(contact.penetrationDepth / 1e20F - 0.5F) < 1e-5F,
+        "Large finite AABB/sphere contact produced invalid depth or normal")) return false;
+    first.aabb = {glm::vec3(-1), glm::vec3(1)};
+    second.sphere = {glm::vec3(1.0001F, 1.0001F, 0), 0.1F};
+    if (!expect(ecs::intersectColliders(1, first, 2, second, contact) &&
+        glm::length(contact.normal - glm::normalize(glm::vec3(1, 1, 0))) < 1e-5F,
+        "Near-corner sphere contact was mistaken for a sphere inside the AABB")) return false;
+    contact.penetrationDepth = 123;
+    first.aabb.min.x = std::numeric_limits<float>::quiet_NaN();
+    if (!expect(!ecs::intersectColliders(1, first, 2, second, contact) && contact.penetrationDepth == 123,
+        "Invalid collider produced a contact or overwrote the previous destination")) return false;
+    ecs::World world;
+    const auto entity = spawnSphere(world, glm::vec3(0), 1e20F, true, 1);
+    ecs::WorldColliderShape transformed;
+    if (!expect(ecs::computeWorldColliderShape(world, entity, *world.getComponent<ecs::Collider>(entity), transformed) &&
+        std::isfinite(transformed.sphere.radius) && std::abs(transformed.sphere.radius / 1e20F - 0.5F) < 1e-5F,
+        "Finite large sphere scale overflowed during world-shape construction")) return false;
+    return true;
+}
+
+bool runInvalidColliderIsolationTest() {
+    using namespace engine;
+    ecs::World world;
+    core::EventBus events;
+    ecs::PhysicsSystem physics;
+    auto settings = physics.settings();
+    settings.gravity = glm::vec3(0);
+    physics.setSettings(settings);
+    const auto invalid = spawnBox(world, glm::vec3(0), glm::vec3(1), true, 1);
+    world.getComponent<ecs::Transform>(invalid)->position.x = std::numeric_limits<float>::quiet_NaN();
+    const auto healthy = spawnBox(world, glm::vec3(0), glm::vec3(1), false, 1);
+    auto& body = *world.getComponent<ecs::Rigidbody>(healthy);
+    body.velocity = {1, 2, 3};
+    body.linearDamping = 0;
+    body.canSleep = false;
+    physics.update(world, 0.01, events);
+    return expect(physics.bodyCount() == 1 && physics.activeCollisionCount() == 0 &&
+        glm::length(world.getComponent<ecs::Transform>(healthy)->position - glm::vec3(0.01F, 0.02F, 0.03F)) < 1e-6F &&
+        body.velocity == glm::vec3(1, 2, 3),
+        "An invalid collider contaminated a healthy body's position or velocity");
+}
+
+bool runBroadphaseExtremeBoundsTest() {
+    struct Fixture final {
+        float cellSize;
+        glm::vec3 position;
+        glm::vec3 staticScale;
+        glm::vec3 dynamicScale;
+    };
+    const std::array fixtures{
+        Fixture{2.6F, glm::vec3(0.0F), glm::vec3(1000000.0F), glm::vec3(1.0F)},
+        Fixture{2.6F, glm::vec3(0.0F), glm::vec3(1000000.0F), glm::vec3(1000000.0F)},
+        Fixture{std::numeric_limits<float>::denorm_min(), glm::vec3(0.0F), glm::vec3(1.0F), glm::vec3(1.0F)},
+        Fixture{1.0F, glm::vec3(10000000000.0F, 0.0F, 0.0F), glm::vec3(8192.0F), glm::vec3(8192.0F)},
+        Fixture{1.0F, glm::vec3(-10000000000.0F, 0.0F, 0.0F), glm::vec3(8192.0F), glm::vec3(8192.0F)},
+    };
+    for (const auto& fixture : fixtures) {
+        engine::ecs::World world;
+        engine::core::EventBus events;
+        engine::ecs::PhysicsSystem physics;
+        auto settings = physics.settings();
+        settings.gravity = glm::vec3(0.0F);
+        settings.broadphaseCellSize = fixture.cellSize;
+        settings.solverIterations = 1;
+        physics.setSettings(settings);
+        int entered = 0, stayed = 0, exited = 0;
+        events.subscribe<engine::ecs::CollisionEnterEvent>([&](const auto&) { ++entered; });
+        events.subscribe<engine::ecs::CollisionStayEvent>([&](const auto&) { ++stayed; });
+        events.subscribe<engine::ecs::CollisionExitEvent>([&](const auto&) { ++exited; });
+        spawnBox(world, fixture.position, fixture.staticScale, true, 1.0F);
+        const auto dynamic = spawnBox(world, fixture.position, fixture.dynamicScale, false, 1.0F);
+        spawnBox(world, fixture.position + glm::vec3(0.0F, 2000000.0F, 0.0F), glm::vec3(1.0F), true, 1.0F);
+        physics.update(world, 1.0 / 60.0, events);
+        if (!expect(entered == 1 && physics.activeCollisionCount() == 1U,
+                    "Extreme broadphase bounds lost or duplicated an overlapping collision")) { return false; }
+        if (!expect(physics.broadphasePairCount() <= 2U,
+                    "Extreme broadphase bounds duplicated a candidate pair")) { return false; }
+        physics.update(world, 1.0 / 60.0, events);
+        if (!expect(stayed == 1 && entered == 1,
+                    "Extreme broadphase bounds did not preserve collision stay")) { return false; }
+        world.getComponent<engine::ecs::Transform>(dynamic)->position.y = 4000000.0F;
+        physics.update(world, 1.0 / 60.0, events);
+        if (!expect(exited == 1 && physics.activeCollisionCount() == 0U,
+                    "Extreme broadphase bounds did not emit collision exit")) { return false; }
+    }
+    return true;
+}
+
 bool runDynamicMassResolutionTest() {
     engine::ecs::World world;
     engine::core::EventBus eventBus;
@@ -155,6 +341,61 @@ bool runDynamicMassResolutionTest() {
     return expect(lightDisplacement > heavyDisplacement, "lighter body should move more than heavier body");
 }
 
+bool runCollisionCallbackCleanupTest() {
+    for (const bool onEnter : {true, false}) {
+        engine::ecs::World world;
+        engine::core::EventBus events;
+        engine::ecs::PhysicsSystem physics;
+        auto settings = physics.settings();
+        settings.gravity = glm::vec3(0.0F);
+        settings.solverIterations = 1;
+        physics.setSettings(settings);
+        spawnBox(world, glm::vec3(0.0F), glm::vec3(1.0F), true, 1.0F);
+        const auto dynamic = spawnBox(world, glm::vec3(0.0F), glm::vec3(1.0F), false, 1.0F);
+        int entered = 0, stayed = 0, exited = 0;
+        const auto remove = [&]() {
+            physics.forgetEntity(dynamic, events);
+            world.destroyEntity(dynamic);
+        };
+        events.subscribe<engine::ecs::CollisionEnterEvent>([&](const auto&) {
+            ++entered;
+            if (onEnter) { remove(); }
+        });
+        events.subscribe<engine::ecs::CollisionStayEvent>([&](const auto&) {
+            ++stayed;
+            if (!onEnter) { remove(); }
+        });
+        events.subscribe<engine::ecs::CollisionExitEvent>([&](const auto&) { ++exited; });
+        physics.update(world, 1.0 / 60.0, events);
+        if (!onEnter) { physics.update(world, 1.0 / 60.0, events); }
+        if (!expect(entered == 1 && stayed == (onEnter ? 0 : 1) && exited == 1 &&
+                    !world.isAlive(dynamic) && physics.activeCollisionCount() == 0U,
+                    "Collision callback removal was lost or did not emit exactly one exit")) { return false; }
+        physics.update(world, 1.0 / 60.0, events);
+        if (!expect(exited == 1, "Collision callback removal emitted a duplicate exit on the next update")) { return false; }
+    }
+    engine::ecs::World world;
+    engine::core::EventBus events;
+    engine::ecs::PhysicsSystem physics;
+    auto settings = physics.settings();
+    settings.gravity = glm::vec3(0.0F);
+    physics.setSettings(settings);
+    std::array<engine::ecs::EntityId, 2> dynamic{};
+    for (std::size_t index = 0; index < dynamic.size(); ++index) {
+        const glm::vec3 position(static_cast<float>(index) * 10.0F, 0.0F, 0.0F);
+        spawnBox(world, position, glm::vec3(1.0F), true, 1.0F);
+        dynamic[index] = spawnBox(world, position, glm::vec3(1.0F), false, 1.0F);
+    }
+    physics.update(world, 1.0 / 60.0, events);
+    if (!expect(physics.activeCollisionCount() == 2U, "Collision exit cleanup fixture lacks two contacts")) { return false; }
+    int exited = 0;
+    events.subscribe<engine::ecs::CollisionExitEvent>([&](const auto&) { ++exited; physics.clear(); });
+    for (const auto entity : dynamic) { world.getComponent<engine::ecs::Transform>(entity)->position.y = 5.0F; }
+    physics.update(world, 1.0 / 60.0, events);
+    return expect(exited == 2 && physics.activeCollisionCount() == 0U,
+                  "Clearing physics in an exit callback invalidated collision dispatch");
+}
+
 bool runAngularCrashResponseTest() {
     engine::ecs::World world;
     engine::core::EventBus eventBus;
@@ -183,6 +424,42 @@ bool runAngularCrashResponseTest() {
         return false;
     }
     return expect(std::abs(targetBody->angularVelocity.z) > 0.01F, "offset impact should spin target");
+}
+
+bool runCollisionListenerMutationTest() {
+    for (const bool clearDuringPublish : {false, true}) {
+        engine::ecs::World world;
+        engine::core::EventBus events;
+        engine::ecs::PhysicsSystem physics;
+        auto settings = physics.settings();
+        settings.gravity = glm::vec3(0.0F);
+        settings.solverIterations = 1;
+        physics.setSettings(settings);
+        spawnBox(world, glm::vec3(0.0F), glm::vec3(1.0F), true, 1.0F);
+        spawnBox(world, glm::vec3(0.0F), glm::vec3(1.0F), false, 1.0F);
+        int first = 0, second = 0, added = 0, mutableTotal = 0;
+        events.subscribe<engine::ecs::CollisionEnterEvent>([&](const auto&) {
+            ++first;
+            if (first != 1) { return; }
+            if (clearDuringPublish) { events.clear(); }
+            for (int index = 0; index < 64; ++index) {
+                events.subscribe<engine::ecs::CollisionEnterEvent>([&](const auto&) { ++added; });
+            }
+        });
+        events.subscribe<engine::ecs::CollisionEnterEvent>([&](const auto&) { ++second; });
+        events.subscribe<engine::ecs::CollisionEnterEvent>([&, count = 0](const auto&) mutable {
+            mutableTotal += ++count;
+        });
+        physics.update(world, 1.0 / 60.0, events);
+        if (!expect(first == 1 && second == 1 && added == 0 && mutableTotal == 1,
+                    "Collision subscription or clear invalidated the current listener snapshot")) { return false; }
+        physics.clear();
+        physics.update(world, 1.0 / 60.0, events);
+        if (!expect(added == 64 && first == (clearDuringPublish ? 1 : 2) &&
+                    second == (clearDuringPublish ? 1 : 2) && mutableTotal == (clearDuringPublish ? 1 : 3),
+                    "Collision listener changes did not start at the next publish or lost mutable handler state")) { return false; }
+    }
+    return true;
 }
 
 bool runSphereRollingTest() {
@@ -407,16 +684,140 @@ bool runParallelCollisionHierarchyAndRecycleTest() {
     return true;
 }
 
-} // namespace
+bool runParentedWorldSpaceResponseTest() {
+    using namespace engine;
+    struct Fixture { glm::vec3 rotation, scale; };
+    const std::array fixtures{
+        Fixture{glm::vec3(0), glm::vec3(1)},
+        Fixture{glm::vec3(0, 0, glm::radians(90.0F)), glm::vec3(1)},
+        Fixture{glm::vec3(0.2F, -0.3F, 0.4F), glm::vec3(0.5F, 2, 1.5F)},
+        Fixture{glm::vec3(0), glm::vec3(100000, 1, 1)},
+    };
+    core::JobSystem jobs(true, 3);
+    for (const auto& fixture : fixtures) {
+        ecs::World reference, parented;
+        const auto referenceParent = reference.createEntity();
+        const auto parent = parented.createEntity();
+        reference.addComponent<ecs::Transform>(referenceParent);
+        ecs::Transform parentTransform;
+        parentTransform.position = {23, -7, 5};
+        parentTransform.rotationEulerRadians = fixture.rotation;
+        parentTransform.scale = fixture.scale;
+        parented.addComponent<ecs::Transform>(parent, parentTransform);
+        const auto inverse = glm::inverse(glm::dmat4(parentTransform.toMatrix()));
+        const float localDiameter = 1.0F / std::max({fixture.scale.x, fixture.scale.y, fixture.scale.z});
+        std::vector<ecs::EntityId> referenceIds, parentedIds;
+        for (int index = 0; index < 80; ++index) {
+            const glm::vec3 origin((index % 10) * 4.0F, (index / 10) * 4.0F, 0);
+            spawnBox(reference, origin + glm::vec3(0, -0.5F, 0), {2, 1, 2}, true, 1);
+            spawnBox(parented, origin + glm::vec3(0, -0.5F, 0), {2, 1, 2}, true, 1);
+            const auto worldPosition = origin + glm::vec3(0, 0.45F, 0);
+            const auto first = spawnSphere(reference, worldPosition, 1, false, 1);
+            const auto second = spawnSphere(parented, glm::vec3(inverse * glm::dvec4(worldPosition, 1)), localDiameter, false, 1);
+            parented.addComponent<ecs::Hierarchy>(second, ecs::Hierarchy{parent});
+            for (auto* body : {reference.getComponent<ecs::Rigidbody>(first), parented.getComponent<ecs::Rigidbody>(second)}) {
+                body->velocity = {0, -2, 0}; body->linearDamping = 0; body->angularDamping = 0;
+                body->friction = 0; body->restitution = 0; body->canSleep = false;
+            }
+            referenceIds.push_back(first); parentedIds.push_back(second);
+        }
+        core::EventBus firstEvents, secondEvents;
+        ecs::PhysicsSystem firstPhysics, secondPhysics;
+        secondPhysics.setJobSystem(&jobs);
+        auto settings = firstPhysics.settings();
+        settings.gravity = {0, -2, 0};
+        firstPhysics.setSettings(settings); secondPhysics.setSettings(settings);
+        for (int step = 0; step < 12; ++step) {
+            firstPhysics.update(reference, 1.0 / 60.0, firstEvents);
+            secondPhysics.update(parented, 1.0 / 60.0, secondEvents);
+            if (!expect(firstPhysics.activeCollisionCount() == secondPhysics.activeCollisionCount() &&
+                firstPhysics.activeCollisionCount() == referenceIds.size(), "Parented contact count differs in world space")) return false;
+            for (std::size_t index = 0; index < referenceIds.size(); ++index) {
+                const auto firstPosition = glm::vec3(ecs::computeWorldMatrix(reference, referenceIds[index])[3]);
+                const auto secondPosition = glm::vec3(ecs::computeWorldMatrix(parented, parentedIds[index])[3]);
+                const auto& firstBody = *reference.getComponent<ecs::Rigidbody>(referenceIds[index]);
+                const auto& secondBody = *parented.getComponent<ecs::Rigidbody>(parentedIds[index]);
+                if (!expect(glm::length(firstPosition - secondPosition) < 0.001F &&
+                    glm::length(firstBody.velocity - secondBody.velocity) < 0.001F &&
+                    glm::length(firstBody.angularVelocity - secondBody.angularVelocity) < 0.001F,
+                    "Parent translation/rotation/scale changed world-space gravity or contact response")) return false;
+            }
+        }
+    }
+    return expect(jobs.stats().submitted > 0, "Parented world-space fixture did not execute physics jobs");
+}
+
+bool runMovingParentPoseSnapshotTest() {
+    using namespace engine;
+    ecs::World world;
+    core::EventBus events;
+    core::JobSystem jobs(true, 3);
+    ecs::PhysicsSystem physics;
+    physics.setJobSystem(&jobs);
+    auto settings = physics.settings(); settings.gravity = {0, -2, 0}; physics.setSettings(settings);
+    const auto parent = world.createEntity();
+    ecs::Transform parentTransform; parentTransform.position = {3, 4, 5}; parentTransform.scale = {0.5F, 2, 1.5F};
+    world.addComponent<ecs::Transform>(parent, parentTransform);
+    ecs::Rigidbody parentBody; parentBody.velocity = {2, 1, -1}; parentBody.angularVelocity = {0, 0, 0.3F};
+    parentBody.useGravity = false; parentBody.linearDamping = 0; parentBody.angularDamping = 0; parentBody.canSleep = false;
+    world.addComponent<ecs::Rigidbody>(parent, parentBody);
+    std::vector<ecs::EntityId> children;
+    std::vector<glm::vec3> initial;
+    for (int index = 0; index < 96; ++index) {
+        const auto child = world.createEntity();
+        ecs::Transform transform; transform.position = {static_cast<float>(index), 3, 2};
+        transform.rotationEulerRadians = {0.1F, 0.2F, -0.3F};
+        world.addComponent<ecs::Transform>(child, transform);
+        ecs::Rigidbody body; body.velocity = {1, 0, 0}; body.linearDamping = 0; body.angularDamping = 0; body.canSleep = false;
+        world.addComponent<ecs::Rigidbody>(child, body);
+        world.addComponent<ecs::Hierarchy>(child, ecs::Hierarchy{parent});
+        children.push_back(child); initial.push_back(glm::vec3(ecs::computeWorldMatrix(world, child)[3]));
+    }
+    constexpr double dt = 1.0 / 60.0;
+    physics.update(world, dt, events);
+    for (std::size_t index = 0; index < children.size(); ++index) {
+        const auto actual = glm::vec3(ecs::computeWorldMatrix(world, children[index])[3]);
+        const auto expected = initial[index] + glm::vec3(static_cast<float>(dt), static_cast<float>(-2 * dt * dt), 0);
+        if (!expect(glm::length(actual - expected) < 0.0001F,
+            "Moving parent was double-applied to an independently integrated child")) return false;
+        const auto rotation = ecs::computeParentWorldRotation(world, children[index]) *
+            glm::mat3(ecs::Transform{{}, world.getComponent<ecs::Transform>(children[index])->rotationEulerRadians}.toMatrix());
+        const auto original = glm::mat3(ecs::Transform{{}, glm::vec3(0.1F, 0.2F, -0.3F)}.toMatrix());
+        for (int axis = 0; axis < 3; ++axis) if (!expect(glm::length(rotation[axis] - original[axis]) < 1e-5F,
+            "Moving parent changed a child's absolute physics orientation")) return false;
+    }
+    world.getComponent<ecs::Transform>(parent)->scale.x = 0;
+    const auto previous = world.getComponent<ecs::Transform>(children.front())->position;
+    world.getComponent<ecs::Rigidbody>(children.front())->accumulatedForce = {1, 2, 3};
+    physics.update(world, dt, events);
+    return expect(world.getComponent<ecs::Transform>(children.front())->position == previous &&
+        world.getComponent<ecs::Rigidbody>(children.front())->accumulatedForce == glm::vec3(1, 2, 3),
+        "Singular parent corrupted its child's local pose or consumed pending forces");
+}
+
+}
 
 int main() {
     if (!runFloorCollisionTest()) {
         return EXIT_FAILURE;
     }
+    if (!runBroadphaseExtremeBoundsTest()) {
+        return EXIT_FAILURE;
+    }
+    if (!runContainedAabbTest() || !runInvalidTimestepPreservationTest() ||
+        !runColliderNumericBoundariesTest() || !runInvalidColliderIsolationTest()) {
+        return EXIT_FAILURE;
+    }
     if (!runDynamicMassResolutionTest()) {
         return EXIT_FAILURE;
     }
+    if (!runCollisionCallbackCleanupTest()) {
+        return EXIT_FAILURE;
+    }
     if (!runAngularCrashResponseTest()) {
+        return EXIT_FAILURE;
+    }
+    if (!runCollisionListenerMutationTest()) {
         return EXIT_FAILURE;
     }
     if (!runSphereRollingTest()) {
@@ -428,6 +829,7 @@ int main() {
     if (!runParallelCollisionHierarchyAndRecycleTest()) {
         return EXIT_FAILURE;
     }
+    if (!runParentedWorldSpaceResponseTest() || !runMovingParentPoseSnapshotTest()) return EXIT_FAILURE;
 
     std::cout << "PhysicsSystem tests passed\n";
     return EXIT_SUCCESS;

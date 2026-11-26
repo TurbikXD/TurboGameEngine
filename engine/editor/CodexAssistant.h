@@ -11,7 +11,6 @@ namespace engine::editor {
 
 struct CodexAssistantTestAccess;
 
-// Local Codex app-server client. Credentials and global configuration remain owned by Codex.
 class CodexAssistant final {
 public:
     CodexAssistant();
@@ -34,7 +33,6 @@ private:
     std::unique_ptr<Impl> m_impl;
 };
 
-// Protocol-only regression hooks: never start a process, authenticate, or invoke a model.
 struct CodexAssistantTestAccess final {
     static bool connectLocalTransport(CodexAssistant& assistant);
     static void initialize(CodexAssistant& assistant);
@@ -56,4 +54,4 @@ struct CodexAssistantTestAccess final {
     static void decide(CodexAssistant& assistant, bool accept);
 };
 
-} // namespace engine::editor
+}

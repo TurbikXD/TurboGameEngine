@@ -35,7 +35,6 @@ struct Fixture final {
         require(fs::create_directory(root), "Could not exclusively create test fixture");
     }
     ~Fixture() {
-        // Only the exclusively created fixture is owned by this test.
         std::error_code ignored;
         fs::remove_all(root, ignored);
     }
@@ -91,7 +90,6 @@ void renderAndActions() {
     gui.click(launcher, Access::Action::EngineDemo);
     require(demos == 1 && opened == 0, "Engine Demo did not call its real rendered action");
 
-    // Keep UTF-8 bytes in the text fields, including non-ASCII project names.
     const auto bytes = std::u8string(u8"\u041c\u043e\u044f \u0418\u0433\u0440\u0430");
     const std::string name(reinterpret_cast<const char*>(bytes.data()), bytes.size());
     Access::fillCreateForm(launcher, name, utf8(fixture.root));
@@ -119,7 +117,6 @@ void renderAndActions() {
 
 void registryWarningDoesNotBlockOpening() {
     Fixture fixture;
-    // An existing directory cannot be replaced by the registry's file write.
     ProjectManager manager(fixture.root);
     int opened = 0;
     ProjectLauncher launcher(manager, [&](Project) { ++opened; }, [] {});
@@ -148,7 +145,7 @@ void callbackCanReplaceLauncher() {
     require(!launcher, "Engine Demo replacement callback was not dispatched");
     gui.frame(nullptr);
 }
-} // namespace
+}
 
 int main() {
     try {

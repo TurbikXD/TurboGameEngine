@@ -1,5 +1,6 @@
 #pragma once
 
+#include <atomic>
 #include <cstddef>
 #include <functional>
 #include <memory>
@@ -17,8 +18,6 @@
 
 namespace engine::ecs {
 
-// Structural changes belong to the creating thread. Workers can read a frozen
-// World and update disjoint components while a stable phase keeps storage fixed.
 class World final {
 public:
     World() = default;
@@ -40,11 +39,8 @@ public:
         friend class World;
         explicit StablePhase(const World& world, bool requireOwner = true);
         const World& m_world;
-        bool m_ownsPhase{false};
     };
 
-    // Keep this scope alive from pointer gathering until all jobs/users finish.
-    // It freezes structure, not component values, and must start/end on the owner.
     [[nodiscard]] StablePhase stablePhase() const;
 
     EntityId createEntity();
@@ -65,7 +61,6 @@ public:
     template <class T>
     const T* getComponent(EntityId entity) const;
 
-    // Iteration order is unspecified. Defer structural edits until after traversal.
     template <class... Components, class Func>
     void forEach(Func&& func);
     template <class... Components, class Func>
@@ -75,9 +70,6 @@ public:
     template <class Func>
     void forEachEntity(Func&& func) const;
 
-    // Owner gathers EnTT view pointers, then joins all ranges before returning.
-    // Callbacks may write their own components; shared data needs synchronization.
-    // A null/disabled JobSystem provides the same traversal synchronously.
     template <class... Components, class Func>
     void forEachParallel(core::JobSystem* jobs, std::size_t minimumItemsPerJob, Func&& func);
     template <class... Components, class Func>
@@ -91,6 +83,7 @@ private:
         return entt::to_integral(entity) + 1U;
     }
     void requireOwnerThread() const;
+    void requireReadAccess() const;
     void requireStructuralChange() const;
 
     template <class... Components, class Self, class Func>
@@ -98,7 +91,7 @@ private:
 
     entt::registry m_registry;
     const std::thread::id m_ownerThread{std::this_thread::get_id()};
-    mutable std::size_t m_stablePhases{0U};
+    mutable std::atomic_size_t m_stablePhases{0U};
 };
 
 template <class T, class... Args>
@@ -119,7 +112,6 @@ template <class T>
 void World::removeComponent(const EntityId entity) {
     requireStructuralChange();
     if (isAlive(entity)) {
-        // Missing-component lookups must not create a new pool.
         if (const auto* storage = std::as_const(m_registry).storage<T>(); storage != nullptr) {
             const_cast<entt::registry::storage_for_type<T>*>(storage)->remove(toNative(entity));
         }
@@ -128,7 +120,6 @@ void World::removeComponent(const EntityId entity) {
 
 template <class T>
 T* World::getComponent(const EntityId entity) {
-    // EnTT's mutable try_get delegates to the const lookup (no lazy allocation).
     return isAlive(entity) ? m_registry.try_get<T>(toNative(entity)) : nullptr;
 }
 
@@ -141,7 +132,6 @@ template <class... Components, class Func>
 void World::forEach(Func&& func) {
     static_assert(sizeof...(Components) > 0, "forEach requires component types");
     const auto phase = stablePhase();
-    // Bind existing pools only: even an empty query must not mutate the registry.
     entt::basic_view<entt::get_t<entt::registry::storage_for_type<Components>...>, entt::exclude_t<>> view;
     [&view](const auto*... storage) {
         ((storage ? view.storage(*const_cast<entt::registry::storage_for_type<Components>*>(storage)) : void()), ...);
@@ -154,7 +144,6 @@ void World::forEach(Func&& func) {
 template <class... Components, class Func>
 void World::forEach(Func&& func) const {
     static_assert(sizeof...(Components) > 0, "forEach requires component types");
-    // Concurrent const traversal is supported inside an owner-held stable phase.
     const StablePhase phase(*this, false);
     const auto view = m_registry.view<Components...>();
     for (const auto entity : view) {
@@ -210,4 +199,4 @@ void World::forEachParallel(core::JobSystem* jobs, std::size_t minimumItemsPerJo
     parallelEach<Components...>(*this, jobs, minimumItemsPerJob, std::forward<Func>(func));
 }
 
-} // namespace engine::ecs
+}

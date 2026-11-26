@@ -5,15 +5,19 @@
 #include <functional>
 #include <memory>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include <nlohmann/json.hpp>
 #include "engine/ecs/entity.h"
 #include "engine/scripting/ScriptComponent.h"
+#include "engine/scripting/ScriptNetwork.h"
+#include "engine/scripting/ScriptSteam.h"
 
 struct lua_State;
 namespace engine::core { class JobSystem; }
 namespace engine::ecs { class World; }
+namespace engine::platform { class Window; }
 
 namespace engine::scripting {
 
@@ -26,10 +30,14 @@ struct ScriptMessage final {
 struct ScriptField final {
     std::string name;
     std::string type;
-    bool integer{false}; // Canonical numeric schema with integral value semantics.
+    std::string label;
+    std::string description;
+    std::string category;
+    bool integer{false};
     nlohmann::json defaultValue;
     double minimum{-1000000.0};
     double maximum{1000000.0};
+    double step{0.1};
 };
 
 class ScriptingSystem final {
@@ -39,7 +47,6 @@ public:
 #if defined(NDEBUG)
         double callbackMilliseconds{25.0};
 #else
-        // Unoptimized host bindings and VM checks are much slower in Debug.
         double callbackMilliseconds{100.0};
 #endif
         std::size_t sourceBytes{2U * 1024U * 1024U};
@@ -50,15 +57,21 @@ public:
     ScriptingSystem(const ScriptingSystem&) = delete;
     ScriptingSystem& operator=(const ScriptingSystem&) = delete;
 
-    // Must be called and used on the World's owner thread. Jobs only read/compile.
     bool initialize(ecs::World& world, core::JobSystem* jobs,
                     std::filesystem::path assetRoot = "assets");
     void shutdown();
     void setLimits(Limits limits);
     Limits limits() const;
-    // Host gates gameplay focus; Raw input still works inside an ImGui viewport.
     void setInputEnabled(bool enabled);
+    void setPointerInputEnabled(bool enabled);
+    void setInputWindow(platform::Window* window);
+    [[nodiscard]] bool cursorLocked() const;
+    bool releaseCursorLock();
     void setDestroyCallback(std::function<void(ecs::EntityId)> callback);
+    void setNetwork(ScriptNetwork* network);
+    void setSteam(ScriptSteam* steam);
+    ScriptRpcReply invokeNetworkRpc(ecs::EntityId entity, uint32_t peer, uint8_t action, int32_t argument,
+                                    std::string_view text = {});
     void start();
     void stop();
     void update(double dt);
@@ -69,14 +82,13 @@ public:
     bool loadBehavior(const std::string& path);
     std::vector<ScriptField> fields(const std::string& path);
     void populateDefaults(ScriptComponent& component);
+    bool setField(ScriptComponent& component, const std::string& name, const nlohmann::json& value);
     bool requestReload(const std::string& path);
     void pollReload();
     bool reloadPending() const;
     bool analyze(const std::string& source, const std::string& chunkName);
     bool execute(const std::string& source, const std::string& chunkName = "=Command");
-    // Trusted host entry point: call an existing global without compiling a chunk per frame.
     bool callGlobal(const char* name, double argument = 0.0);
-    // Named modules are used by the real React Luau package adapter.
     void registerModule(std::string name, std::string source);
     lua_State* state();
 
@@ -93,4 +105,4 @@ private:
     std::unique_ptr<Impl> m_impl;
 };
 
-} // namespace engine::scripting
+}

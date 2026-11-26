@@ -1,5 +1,6 @@
 #include "engine/core/AtomicFile.h"
 
+#include <array>
 #include <chrono>
 #include <filesystem>
 #include <fstream>
@@ -17,7 +18,10 @@
 
 namespace {
 namespace fs = std::filesystem;
+using engine::core::NewFileContents;
 using engine::core::writeFileAtomically;
+using engine::core::writeNewFilePair;
+using engine::core::writeNewFiles;
 
 void require(const bool condition, const char* message) {
     if (!condition) throw std::runtime_error(message);
@@ -126,7 +130,57 @@ void binaryAndEmptyWrites() {
     require(!writeFileAtomically(fixture.root / "missing" / "scene.json", "data", error) && !error.empty(), "Missing parent must fail visibly");
     fixture.requireNoTemporaryFiles();
 }
-} // namespace
+
+void newFilePairPreservesExistingFiles() {
+    Fixture fixture;
+    const auto first = fixture.root / "report.v2.png";
+    const auto second = fixture.root / "report.v2.csv";
+    const std::string pixels("\x89PNG\0", 5);
+    std::string error;
+    write(second, "existing summary");
+    require(!writeNewFilePair(first, pixels, second, "new summary", error) && !error.empty() &&
+        !fs::exists(first) && read(second) == "existing summary", "Summary collision left a partial pair");
+    const auto freeSummary = fixture.root / "next.csv";
+    require(writeNewFilePair(first, pixels, freeSummary, "new summary", error) && error.empty() &&
+        read(first) == pixels && read(freeSummary) == "new summary", "Could not write both report files");
+    const auto missingSummary = fixture.root / "missing" / "report.csv";
+    require(!writeNewFilePair(first, "replacement", missingSummary, "data", error) && !error.empty() &&
+        read(first) == pixels && !fs::exists(missingSummary), "PNG collision changed the existing file");
+    const auto rollback = fixture.root / "rollback.png";
+    require(!writeNewFilePair(rollback, pixels, rollback, "data", error) && !error.empty() &&
+        !fs::exists(rollback), "Second publication failure left its first file behind");
+    require(!writeNewFilePair(rollback, pixels, missingSummary, "data", error) && !error.empty() &&
+        !fs::exists(rollback), "Second staging failure left its first file behind");
+    fixture.requireNoTemporaryFiles();
+}
+
+void batchReportsPublishTogether() {
+    Fixture fixture;
+    const auto first = fixture.root / "run-client-1.png";
+    const auto second = fixture.root / "run-client-1.csv";
+    const auto third = fixture.root / "run-client-2.png";
+    const auto fourth = fixture.root / "run-client-2.csv";
+    const std::array files{NewFileContents{first, "first chart"}, NewFileContents{second, "first summary"},
+        NewFileContents{third, "second chart"}, NewFileContents{fourth, "second summary"}};
+    std::string error;
+
+    const std::array failingPublish{files[0], files[1], NewFileContents{first, "collision"}, files[3]};
+    require(!writeNewFiles(failingPublish, error) && !error.empty() && !fs::exists(first) && !fs::exists(second) &&
+        !fs::exists(fourth), "Later publication failure left a partial batch");
+    fixture.requireNoTemporaryFiles();
+
+    write(fourth, "existing summary");
+    require(!writeNewFiles(files, error) && !error.empty() && !fs::exists(first) && !fs::exists(second) &&
+        !fs::exists(third) && read(fourth) == "existing summary", "Existing last target left a partial batch");
+    fixture.requireNoTemporaryFiles();
+
+    const std::array freeFiles{files[0], files[1], files[2], NewFileContents{fixture.root / "different.csv", "second summary"}};
+    require(writeNewFiles(freeFiles, error) && error.empty(), "Could not publish a complete report batch");
+    for (const auto& file : freeFiles) require(read(file.path) == file.contents, "Batch file contents changed");
+    require(read(fourth) == "existing summary", "Batch publication changed an existing summary");
+    fixture.requireNoTemporaryFiles();
+}
+}
 
 int main() {
     try {
@@ -134,6 +188,8 @@ int main() {
         existingSidecarRemainsUntouched();
         failedReplacementPreservesOriginal();
         binaryAndEmptyWrites();
+        newFilePairPreservesExistingFiles();
+        batchReportsPublishTogether();
         std::cout << "AtomicFile tests passed\n";
         return 0;
     } catch (const std::exception& error) {

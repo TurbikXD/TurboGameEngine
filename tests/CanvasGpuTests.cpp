@@ -105,8 +105,6 @@ std::unique_ptr<ImDrawList> drawList(void* white, const ImVec2 origin, const ImV
     return list;
 }
 void rectangle(ImDrawList& list, const ImVec2 minimum, const ImVec2 maximum, const ImU32 color) {
-    // The active 1x1 white SRV makes the font atlas' shared white-pixel UV valid
-    // without depending on font coverage, glyphs or CPU rasterization.
     list.AddRectFilled(minimum, maximum, color);
 }
 void wait(IDeviceContext* context, IFence* fence, const Uint64 value) {
@@ -189,7 +187,7 @@ void verify(IRenderDevice* device, IDeviceContext* context) {
     rectangle(*children, {origin.x + 16, origin.y}, {origin.x + 48, origin.y + 32}, IM_COL32(0, 0, 255, 255));
     rectangle(*children, {origin.x, origin.y + 40}, {origin.x + 16, origin.y + 56}, IM_COL32(255, 0, 0, 64));
     const auto layer = compositor.enqueue(nullptr, *children, origin.x, origin.y, 64, 64);
-    children.reset(); // enqueue must retain a snapshot, not borrow this buffer.
+    children.reset();
     ImGui::Render(); compositor.render(context);
     const auto straight = readback(device, context, layerTexture(layer), fence, sequence);
     pixel(straight.at(8, 8), {255, 0, 0, 255}, "Opaque first child changed during flattening");
@@ -226,8 +224,6 @@ void verify(IRenderDevice* device, IDeviceContext* context) {
     pixel(nestedPixels.at(16, 16), {0, 64, 64, 128}, "Nested opacity was not applied once at each group boundary");
     context->FinishFrame();
 
-    // Slots are reused only after actual GPU fence completion. A different
-    // geometry exercises target-size changes rather than a fresh compositor.
     expect(fence->GetCompletedValue() >= sequence, "Canvas frame slot reused before its fence");
     begin(compositor, renderer, 0);
     expect(!compositor.pending(), "Completed frame slot retained old canvas jobs");
@@ -271,9 +267,6 @@ void verify(IRenderDevice* device, IDeviceContext* context) {
     expect(!compositor.enqueue(nullptr, *limits, 0, 0, 16, 16).textureId, "Canvas exceeded its 32-layer frame limit");
     ImGui::Render(); compositor.render(context); wait(context, fence, ++sequence); context->FinishFrame();
 
-    // Release both completed slots before exhausting the shared target cache.
-    // Every 2048-square layer owns two RGBA8 targets: exactly 32 MiB. Earlier
-    // small targets must be evicted for two such layers to fit in 64 MiB.
     compositor.beginFrame(0); compositor.beginFrame(1);
     begin(compositor, renderer, 0);
     malformed->CmdBuffer[0].IdxOffset = std::numeric_limits<unsigned int>::max();
@@ -311,7 +304,7 @@ void verify(IRenderDevice* device, IDeviceContext* context) {
     pixel(recoveredPixels.at(8, 8), {255, 255, 255, 255}, "Canvas cache recovery returned stale target contents");
     context->FinishFrame();
 }
-} // namespace
+}
 
 int main(int argc, char** argv) {
     try {

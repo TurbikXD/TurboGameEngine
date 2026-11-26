@@ -22,7 +22,6 @@ TimeStatsAggregator::TimeStatsAggregator(double emitIntervalSeconds)
 
 void TimeStatsAggregator::sample(double deltaSeconds) {
     m_accumulatedSeconds += deltaSeconds;
-    m_sumDelta += deltaSeconds;
     m_samples += 1;
 
     if (m_samples == 1) {
@@ -36,13 +35,12 @@ void TimeStatsAggregator::sample(double deltaSeconds) {
     if (m_accumulatedSeconds >= m_emitIntervalSeconds) {
         m_cached.sampleCount = m_samples;
         m_cached.intervalSeconds = m_accumulatedSeconds;
-        m_cached.avgMs = (m_sumDelta / static_cast<double>(m_samples)) * 1000.0;
+        m_cached.avgMs = (m_accumulatedSeconds / static_cast<double>(m_samples)) * 1000.0;
         m_cached.minMs = m_minDelta * 1000.0;
         m_cached.maxMs = m_maxDelta * 1000.0;
         m_ready = true;
 
         m_accumulatedSeconds = 0.0;
-        m_sumDelta = 0.0;
         m_minDelta = 0.0;
         m_maxDelta = 0.0;
         m_samples = 0;
@@ -58,4 +56,4 @@ bool TimeStatsAggregator::consume(TimeStats& outStats) {
     return true;
 }
 
-} // namespace engine::core
+}

@@ -1,0 +1,6 @@
+{
+  "version": 1,
+  "name": "ЛР 5 — Маяк",
+  "assets": "assets",
+  "startupScene": "assets/scenes/beacon.scene.json"
+}

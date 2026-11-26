@@ -24,7 +24,6 @@ private:
     std::shared_ptr<Impl> m_impl;
 };
 
-// Test hooks expose input fields and rendered action geometry, never bypass button callbacks.
 struct ProjectLauncherTestAccess final {
     enum class Action { NewProject, EngineDemo, CreateProject, OpenSelected, EnterPath, OpenTyped };
     static void actionCenter(const ProjectLauncher& launcher, Action action, float& x, float& y);
@@ -33,4 +32,4 @@ struct ProjectLauncherTestAccess final {
     static std::string error(const ProjectLauncher& launcher);
 };
 
-} // namespace engine::editor
+}

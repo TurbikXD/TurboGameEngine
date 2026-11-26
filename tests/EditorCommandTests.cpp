@@ -23,6 +23,7 @@ using engine::editor::EditorCommandRegistry;
 using engine::editor::EditorRibbon;
 using engine::editor::EditorRibbonState;
 using engine::editor::EditorRibbonTab;
+using engine::editor::NetworkTestRibbonActions;
 using Id = EditorCommandId;
 using Tab = EditorRibbonTab;
 namespace Icons = engine::editor::EditorIcons;
@@ -36,7 +37,9 @@ void require(const bool condition, const char* message) {
 bool samePreferences(const EditorRibbonState& a, const EditorRibbonState& b) {
     return a.tab == b.tab && a.compact == b.compact && a.showLabels == b.showLabels &&
         a.createCommand == b.createCommand && a.playCommand == b.playCommand &&
-        a.moveSnap == b.moveSnap && a.rotateSnap == b.rotateSnap && a.scaleSnap == b.scaleSnap;
+        a.moveSnap == b.moveSnap && a.rotateSnap == b.rotateSnap && a.scaleSnap == b.scaleSnap &&
+        a.networkTest.clientCount == b.networkTest.clientCount && a.networkTest.latencyMs == b.networkTest.latencyMs &&
+        a.networkTest.lossPercent == b.networkTest.lossPercent;
 }
 
 void registryContracts() {
@@ -74,10 +77,10 @@ void registryContracts() {
         require(state.enabled && state.checked, "State query lost availability or checked status");
     }
     require(effects == 0 && actions.empty(), "State queries performed a mutation");
-    enabled = false; // Selection vanished after the UI queried the command.
+    enabled = false;
     require(!commands.execute(Id::Delete) && effects == 0, "Execute used stale enabled state");
     require(!commands.state(Id::Delete).enabled, "Disabled state is not observable");
-    enabled = true; // The command becomes available after an earlier disabled query.
+    enabled = true;
     require(commands.execute(Id::Delete) && effects == 1 && actions.back() == Id::Delete,
         "Execute did not recheck current availability");
 
@@ -139,6 +142,10 @@ void preferenceContracts() {
     require(EditorRibbon::sanitizeState(state) && state.tab == Tab::Home &&
         EditorCommandRegistry::definition(state.createCommand) && EditorCommandRegistry::definition(state.playCommand),
         "Out-of-range command preferences survived repair");
+    state.networkTest = {0, 1000, -1};
+    require(EditorRibbon::sanitizeState(state) && state.networkTest.clientCount == 1 &&
+        state.networkTest.latencyMs == engine::net::MaxNetworkTestLatencyMs && state.networkTest.lossPercent == 0 &&
+        !EditorRibbon::sanitizeState(state), "Out-of-range network test options survived preference repair");
 }
 
 void validateDrawData() {
@@ -200,6 +207,8 @@ struct Gui final {
     EditorRibbon ribbon;
     ImGuiID pauseId{};
     ImGuiID moreId{};
+    ImGuiID networkOptionsId{};
+    ImGuiID networkStatsId{};
     float firstRowY{};
     bool popupDrawn{};
     Icons::Resolver resolveIcon;
@@ -218,8 +227,6 @@ struct Gui final {
         int width{}, height{};
         io.Fonts->GetTexDataAsRGBA32(&pixels, &width, &height);
         require(pixels && width > 0 && height > 0, "Cannot build headless ImGui font atlas");
-        // Emulate the legacy backend's completed atlas upload, so GetTexID()
-        // can distinguish font commands from the synthetic icon texture.
         io.Fonts->SetTexID(static_cast<ImTextureID>(0xFFFFU));
         themeContracts();
         auto& context = *ImGui::GetCurrentContext();
@@ -231,7 +238,8 @@ struct Gui final {
     ~Gui() { ImGui::DestroyContext(); }
 
     bool frame(EditorCommandRegistry& commands, EditorRibbonState& state, const float width,
-        const ImVec2 mouse = {-100.0F, -100.0F}, const bool down = false, const bool keepPopups = false) {
+        const ImVec2 mouse = {-100.0F, -100.0F}, const bool down = false, const bool keepPopups = false,
+        const NetworkTestRibbonActions& networkActions = {}) {
         auto& io = ImGui::GetIO();
         io.DisplaySize = {width, 720.0F};
         io.AddMousePosEvent(mouse.x, mouse.y);
@@ -251,6 +259,10 @@ struct Gui final {
         firstRowY = ImGui::GetCursorScreenPos().y + ImGui::GetFrameHeight() * 0.5F;
         ImGui::PushID("EditorRibbon");
         moreId = ImGui::GetID("More...");
+        ImGui::PushID("Network Test");
+        networkOptionsId = ImGui::GetID("Options...");
+        networkStatsId = ImGui::GetID("Net Stats");
+        ImGui::PopID();
         ImGui::PushID("Transport");
         ImGui::PushID(static_cast<int>(Id::Pause));
         pauseId = ImGui::GetID("Pause");
@@ -261,7 +273,7 @@ struct Gui final {
         const auto styleDepth = context.StyleVarStack.Size;
         const auto colorDepth = context.ColorStack.Size;
         const auto idDepth = context.CurrentWindow->IDStack.Size;
-        const bool changed = ribbon.render(commands, state, resolveIcon);
+        const bool changed = ribbon.render(commands, state, resolveIcon, networkActions);
         require(context.StyleVarStack.Size == styleDepth && context.ColorStack.Size == colorDepth &&
             context.CurrentWindow->IDStack.Size == idDepth, "Ribbon leaked an ImGui style or ID stack");
         if (context.CurrentWindow->DC.CursorMaxPos.y > context.CurrentWindow->InnerRect.Max.y + 1.0F) {
@@ -283,7 +295,6 @@ struct Gui final {
     }
 
     ImVec2 locatePause(EditorCommandRegistry& commands, EditorRibbonState& state) {
-        // Probe actual hover hit-testing rather than assuming button coordinates or widths.
         frame(commands, state, 1600.0F);
         frame(commands, state, 1600.0F);
         for (float x = 8.0F; x < 1592.0F; x += 8.0F) {
@@ -343,8 +354,6 @@ void renderingAndClicks() {
             }
         }
     }
-    // The native image path is exercised with a borrowed synthetic handle. No
-    // backend runs, but draw commands must actually carry the image texture ID.
     std::vector<std::string> requestedIcons;
     constexpr std::uintptr_t imageHandle = 0x123456U;
     gui.resolveIcon = [&](const std::string_view path) {
@@ -371,8 +380,6 @@ void renderingAndClicks() {
     }
     require(imageSubmitted && effects == 0, "Ribbon did not submit the resolved icon image or invoked a command while drawing");
     gui.resolveIcon = {};
-    // With labels, every tab has real overflow at this width. Open it through
-    // its rendered button so popup lifetime/focus follows normal ImGui input.
     for (const Tab tab : {Tab::Home, Tab::Model, Tab::Test, Tab::View, Tab::Script}) {
         EditorRibbonState narrow;
         narrow.tab = tab;
@@ -400,7 +407,7 @@ void renderingAndClicks() {
     pauseEnabled = true;
     gui.frame(commands, state, 1600.0F, point, false);
     gui.frame(commands, state, 1600.0F, point, true);
-    pauseEnabled = false; // Availability changes between press and release.
+    pauseEnabled = false;
     gui.frame(commands, state, 1600.0F, point, false);
     require(effects == 1, "Button ignored availability lost during a click");
 }
@@ -409,9 +416,6 @@ void localFontContracts() {
     const auto localFonts = kBuiltinAssets.parent_path() / ".local/editor-fonts";
     if (!std::filesystem::is_regular_file(localFonts / "BuilderSans-Regular.otf") ||
         !std::filesystem::is_regular_file(localFonts / "BuilderSans-Medium.otf")) { return; }
-    // The ordinary Gui above covers the portable free-font path. This separate
-    // atlas also verifies an explicitly installed local face and merged real
-    // Cyrillic glyphs through the same themeContracts checks in Gui's setup.
     Gui gui(localFonts);
     require(std::string_view(ImGui::GetIO().FontDefault->GetDebugName()).starts_with("Builder Sans"),
         "Explicit local Builder fonts were ignored");
@@ -422,7 +426,141 @@ void localFontContracts() {
     require(!gui.frame(commands, state, 1600.0F) && effects == 0,
         "Local Builder font rendering changed preferences or invoked a command");
 }
-} // namespace
+
+void liveNetworkOptions() {
+    namespace net = engine::net;
+    Gui gui;
+    EditorCommandRegistry commands;
+    bool running = true;
+    bool hasHistory = true;
+    commands.setHandlers([&](Id id) {
+        return CommandState{(id != Id::StartNetworkTest || !running) && (id != Id::StopNetworkTest || running),
+            false, "The network command is unavailable."};
+    }, [](Id) {});
+    EditorRibbonState state;
+    state.tab = Tab::Test;
+    state.networkTest = {3, 94, 26};
+    const auto saved = state;
+    std::vector<net::NetworkTestClientView> clients{
+        {2, {175, 100}, net::NetworkTestLinkState::TimedOut, true, true, {}},
+        {3, {}, net::NetworkTestLinkState::Closed, false, false, {}}
+    };
+    auto& metrics = clients.front().metrics;
+    metrics.probeLossPercent = 100.0;
+    metrics.uplinkLossPercent = 100.0;
+    metrics.downlinkLossPercent = 98.0;
+    metrics.upload = net::NetworkTestTrafficRate{0.0, 0.0};
+    metrics.download = net::NetworkTestTrafficRate{2048.0, 20.0};
+    net::NetworkTestHistory history;
+    auto historyMetrics = metrics;
+    historyMetrics.rttMs = 42;
+    history.append({500, historyMetrics, false});
+    history.append({750, {}, false});
+    historyMetrics.rttMs = 84;
+    history.append({1000, historyMetrics, true});
+    historyMetrics.rttMs = 100;
+    history.append({1250, historyMetrics, false});
+    unsigned historyQueries = 0;
+    unsigned historyClient = 0;
+    unsigned applies = 0;
+    const NetworkTestRibbonActions actions{
+        [&] { return clients; },
+        [&](unsigned index, net::NetworkTestConditions conditions, std::string&) {
+            require(index == 2 && conditions.latencyMs == 175 && conditions.lossPercent < 100,
+                "Live network Apply targeted the wrong client or profile");
+            ++applies;
+            clients[0].conditions = conditions;
+            clients[0].applying = false;
+            return true;
+        },
+        [&](unsigned index) {
+            ++historyQueries;
+            historyClient = index;
+            return net::NetworkTestHistoryView{1500, hasHistory ? &history : nullptr};
+        },
+        [&] { return hasHistory; },
+        [](const std::filesystem::path&, std::string&) { return false; }
+    };
+    constexpr float width = 1600.0F;
+    const auto frame = [&](ImVec2 mouse, bool down = false, bool keepPopups = true) {
+        require(!gui.frame(commands, state, width, mouse, down, keepPopups, actions),
+            "Live network options changed persistent ribbon state");
+    };
+    const auto locate = [&](ImGuiID id, ImRect rect) {
+        for (float y = rect.Min.y + 4.0F; y < rect.Max.y; y += 6.0F) {
+            for (float x = rect.Min.x + 4.0F; x < rect.Max.x; x += 8.0F) {
+                const ImVec2 point{x, y};
+                frame(point);
+                if (ImGui::GetCurrentContext()->HoveredId == id) return point;
+            }
+        }
+        throw std::runtime_error("Could not locate a rendered live network control");
+    };
+    const auto click = [&](ImVec2 point) { frame(point, true); frame(point); };
+    frame({-100.0F, -100.0F});
+    const ImRect toolbar({0, 40}, {440, EditorRibbon::preferredHeight(state)});
+    const auto statsButton = locate(gui.networkStatsId, toolbar);
+    click(statsButton);
+    frame({-100.0F, -100.0F});
+    auto* statsWindow = ImGui::FindWindowByName("Network Test Stats");
+    require(statsWindow && statsWindow->Active, "Net Stats did not open during a network test");
+    require(historyQueries != 0 && historyClient == 2, "Net Stats did not query the selected client's history");
+    const auto& vertices = statsWindow->DrawList->VtxBuffer;
+    require(std::any_of(vertices.begin(), vertices.end(), [](const ImDrawVert& vertex) {
+        return vertex.col == IM_COL32(121, 175, 255, 255);
+    }), "Net Stats did not render the RTT series");
+    click(locate(statsWindow->GetID("Client"), statsWindow->Rect()));
+    frame({-100.0F, -100.0F});
+    require(gui.popupDrawn, "History client selector did not open");
+    auto* clientMenu = ImGui::GetCurrentContext()->OpenPopupStack.back().Window;
+    click(locate(clientMenu->GetID("Client 3"), clientMenu->Rect()));
+    require(historyClient == 3, "Changing the graph client did not switch history");
+    click(locate(gui.networkOptionsId, toolbar));
+    frame({-100.0F, -100.0F});
+    require(gui.popupDrawn, "Options was disabled while the network test was running");
+    require(statsWindow->Active, "Network Test Stats closed when live options opened");
+    auto* popup = ImGui::GetCurrentContext()->OpenPopupStack.back().Window;
+    const auto bounds = popup->Rect();
+    click(locate(popup->GetID("Packet loss"), bounds));
+    require(applies == 0, "Editing a live profile applied it before the Apply button");
+    click(locate(popup->GetID("Apply"), bounds));
+    require(applies == 1 && samePreferences(state, saved),
+        "A pending timed-out client could not recover without changing launch defaults");
+    const auto historyQueriesBeforeStop = historyQueries;
+    running = false;
+    frame({-100.0F, -100.0F}, false, false);
+    require(statsWindow->Active && historyQueries > historyQueriesBeforeStop && historyClient == 3,
+        "Net Stats lost the selected client's retained history after Stop");
+    click(statsButton);
+    require(!statsWindow->Active, "Net Stats did not close on request after Stop");
+    click(statsButton);
+    require(statsWindow->Active && historyClient == 3, "Net Stats could not reopen the stopped run");
+    const auto exportButtonId = statsWindow->GetID("Export CSV...");
+    const auto exportButton = locate(exportButtonId, statsWindow->Rect());
+    require(!ImGui::GetCurrentContext()->HoveredIdIsDisabled, "CSV export was disabled for the stopped run");
+
+    running = true;
+    hasHistory = false;
+    frame(exportButton);
+    const auto& context = *ImGui::GetCurrentContext();
+    require(statsWindow->Active && historyClient == 2, "Net Stats carried the client selection into the new run");
+    require(context.HoveredId == exportButtonId && context.HoveredIdIsDisabled,
+        "CSV export was enabled before the new run collected samples");
+
+    running = false;
+    frame({-100.0F, -100.0F});
+    require(statsWindow->Active, "Net Stats closed before an offline CSV comparison could be started");
+    click(statsButton);
+    require(!statsWindow->Active, "Net Stats did not close without a live run");
+    click(statsButton);
+    require(statsWindow->Active, "Net Stats could not open without a live or retained run");
+    click(locate(statsWindow->GetID("Compare CSV"), statsWindow->Rect()));
+    locate(statsWindow->GetID("Load Run A..."), statsWindow->Rect());
+    locate(statsWindow->GetID("Load Run B..."), statsWindow->Rect());
+    click(locate(statsWindow->GetID("Back to Test Stats"), statsWindow->Rect()));
+    locate(statsWindow->GetID("Compare CSV"), statsWindow->Rect());
+}
+}
 
 int main() {
     try {
@@ -430,6 +568,7 @@ int main() {
         preferenceContracts();
         renderingAndClicks();
         localFontContracts();
+        liveNetworkOptions();
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';
         return 1;

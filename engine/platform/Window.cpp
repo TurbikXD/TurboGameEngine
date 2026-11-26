@@ -8,4 +8,4 @@ std::unique_ptr<Window> Window::create(const WindowDesc& desc) {
     return std::make_unique<WindowGLFW>(desc);
 }
 
-} // namespace engine::platform
+}

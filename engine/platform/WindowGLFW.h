@@ -23,6 +23,7 @@ public:
     void setVSync(bool enabled) override;
     void setCursorMode(CursorMode mode) override;
     [[nodiscard]] CursorMode cursorMode() const override;
+    [[nodiscard]] bool focused() const override;
     bool hasOpenGLContext() const override;
     void setEventCallback(EventCallback callback) override;
 
@@ -39,4 +40,4 @@ private:
     CursorMode m_cursorMode{CursorMode::Normal};
 };
 
-} // namespace engine::platform
+}

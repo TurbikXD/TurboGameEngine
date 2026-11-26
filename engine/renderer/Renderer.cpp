@@ -4,9 +4,10 @@
 
 #include <algorithm>
 #include <array>
+#include <charconv>
+#include <cfloat>
 #include <cmath>
 #include <cstdint>
-#include <cstring>
 #include <exception>
 #include <filesystem>
 #include <fstream>
@@ -33,11 +34,13 @@
 
 #include "engine/core/Log.h"
 #include "engine/core/Profiling.h"
+#include "engine/network/SteamFriend.h"
 #include "engine/platform/Events.h"
 #include "engine/platform/Window.h"
 #include "engine/rhi_diligent/DiligentDevice.h"
 #include "engine/resources/loaders.h"
 #include "engine/resources/image_mips.h"
+#include "engine/resources/material_graph.h"
 #include "third_party/DiligentEngine/DiligentCore/Common/interface/GeometryPrimitives.h"
 #include "third_party/DiligentEngine/DiligentCore/Common/interface/RefCntAutoPtr.hpp"
 #include "third_party/DiligentEngine/DiligentCore/Graphics/GraphicsEngine/interface/SwapChain.h"
@@ -45,13 +48,17 @@
 #include "third_party/DiligentEngine/DiligentTools/Imgui/interface/ImGuiImplDiligent.hpp"
 #include "third_party/DiligentEngine/DiligentTools/ThirdParty/imgui/imgui.h"
 
-#ifndef ENGINE_SOURCE_ROOT
-#    define ENGINE_SOURCE_ROOT ""
-#endif
-
 namespace engine::renderer {
 
 namespace {
+
+static_assert(resources::maxMaterialGraphTextures <= rhi::kMeshTextureSlots);
+constexpr std::size_t kGraphShaderCacheSize = 256;
+#if defined(ENGINE_SOURCE_ROOT) && !defined(ENGINE_PACKAGED_RUNTIME)
+constexpr std::string_view kEngineSourceRoot = ENGINE_SOURCE_ROOT;
+#else
+constexpr std::string_view kEngineSourceRoot;
+#endif
 
 std::string utf8Path(const std::filesystem::path& path) {
     const auto utf8 = path.generic_u8string();
@@ -64,7 +71,7 @@ bool containsPath(const std::filesystem::path& root, const std::filesystem::path
 }
 
 std::filesystem::path engineAssetsDirectory() {
-    const auto source = std::filesystem::u8path(ENGINE_SOURCE_ROOT);
+    const auto source = std::filesystem::u8path(kEngineSourceRoot);
     std::error_code error;
     if (!source.empty() && source.is_absolute() && std::filesystem::is_directory(source / "assets", error)) {
         return std::filesystem::weakly_canonical(source / "assets");
@@ -115,6 +122,8 @@ struct DrawPushConstants final {
     glm::vec4 tint{1.0F, 1.0F, 1.0F, 1.0F};
     glm::vec4 lightDirection{-0.45F, -0.8F, 0.35F, 0.0F};
     glm::vec4 ambientColor{0.47F, 0.5F, 0.58F, 0.18F};
+    glm::vec4 cameraPosition{0.0F, 0.0F, 0.0F, 1.0F};
+    rhi::SceneLightingConstants lighting;
 };
 
 constexpr std::array<PrimitiveVertex, 3> kTriangleVertices{
@@ -295,13 +304,16 @@ bool populateMeshDataFromGeometryPrimitive(
     return true;
 }
 
-} // namespace
+}
 
 void ImGuiImplDiligentDeleter::operator()(Diligent::ImGuiImplDiligent* ptr) const {
     delete ptr;
 }
 
-Renderer::Renderer() : m_engineAssetRoot(engineAssetsDirectory()) {}
+Renderer::Renderer() : m_engineAssetRoot(engineAssetsDirectory()) {
+    m_materials.setRoot(m_engineAssetRoot);
+    m_materials.setBuiltinShaderRoot(m_engineAssetRoot);
+}
 
 Renderer::~Renderer() {
     shutdown();
@@ -313,7 +325,6 @@ bool Renderer::init(
     bool vsync,
     const std::string& diligentDeviceType) {
     m_window = &window;
-    m_backend = backend;
 
     std::string error;
     rhi::DeviceCreateDesc deviceDesc{};
@@ -504,7 +515,7 @@ bool Renderer::initializeImGui() {
         io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
         io.ConfigWindowsMoveFromTitleBarOnly = true;
         editor::applyEditorTheme();
-        const auto sourceRoot = std::filesystem::path(ENGINE_SOURCE_ROOT);
+        const auto sourceRoot = std::filesystem::u8path(kEngineSourceRoot);
         const auto localFonts = sourceRoot.empty() ? std::filesystem::path{} : sourceRoot / ".local" / "editor-fonts";
         if (!editor::configureEditorFonts(io, m_engineAssetRoot, localFonts)) ENGINE_LOG_WARN("Editor font unavailable; using ImGui fallback");
         m_imgui->InvalidateDeviceObjects();
@@ -912,7 +923,8 @@ std::shared_ptr<resources::Texture> Renderer::requestTextureLoadFromDisk(const s
 std::shared_ptr<resources::ShaderProgram> Renderer::createShaderProgram(
     const std::string& key,
     const std::string& vertexPath,
-    const std::string& fragmentPath) {
+    const std::string& fragmentPath,
+    const std::string_view fragmentSource) {
     ENGINE_PROFILE_ZONE("Create Shader Program");
     auto program = std::make_shared<resources::ShaderProgram>();
     program->key = key;
@@ -932,6 +944,7 @@ std::shared_ptr<resources::ShaderProgram> Renderer::createShaderProgram(
     rhi::ShaderModuleDesc fragmentShaderDesc{};
     fragmentShaderDesc.stage = rhi::ShaderStage::Fragment;
     fragmentShaderDesc.path = fragmentPath;
+    fragmentShaderDesc.source = fragmentSource;
     program->fragmentShader = m_device->createShaderModule(fragmentShaderDesc);
     if (!program->fragmentShader) {
         ENGINE_LOG_ERROR("Shader load failed (fragment): '{}'", fragmentPath);
@@ -1016,17 +1029,23 @@ void Renderer::onEvent(const platform::Event& event) {
     }
 
     ImGuiIO& io = ImGui::GetIO();
+    const bool pointerLocked = m_window && m_window->cursorMode() == platform::CursorMode::Disabled;
     switch (event.type) {
+        case platform::EventType::FocusGained:
+        case platform::EventType::FocusLost:
+            io.AddFocusEvent(event.type == platform::EventType::FocusGained);
+            break;
+
         case platform::EventType::MouseMoved:
-            io.AddMousePosEvent(static_cast<float>(event.mouseX), static_cast<float>(event.mouseY));
+            if (!pointerLocked) io.AddMousePosEvent(static_cast<float>(event.mouseX), static_cast<float>(event.mouseY));
             break;
 
         case platform::EventType::MouseScrolled:
-            io.AddMouseWheelEvent(static_cast<float>(event.scrollX), static_cast<float>(event.scrollY));
+            if (!pointerLocked) io.AddMouseWheelEvent(static_cast<float>(event.scrollX), static_cast<float>(event.scrollY));
             break;
 
         case platform::EventType::MouseButtonPressed:
-            io.AddMouseButtonEvent(toImGuiMouseButton(event.mouseButton), true);
+            if (!pointerLocked) io.AddMouseButtonEvent(toImGuiMouseButton(event.mouseButton), true);
             break;
 
         case platform::EventType::MouseButtonReleased:
@@ -1065,6 +1084,9 @@ void Renderer::beginImGuiFrame(const float deltaSeconds) {
 
     ImGuiIO& io = ImGui::GetIO();
     io.DeltaTime = deltaSeconds > 0.0F ? deltaSeconds : (1.0F / 60.0F);
+    if (m_window && m_window->cursorMode() == platform::CursorMode::Disabled) {
+        io.AddMousePosEvent(-FLT_MAX, -FLT_MAX);
+    }
 
     auto* diligentDevice = dynamic_cast<rhi::diligent::DiligentDevice*>(m_device.get());
     if (diligentDevice == nullptr) {
@@ -1076,8 +1098,6 @@ void Renderer::beginImGuiFrame(const float deltaSeconds) {
     }
 
     const auto& swapChainDesc = nativeSwapChain->GetDesc();
-    // ImGuiImplDiligent does not provide a platform backend that fills DisplaySize,
-    // so set it explicitly before NewFrame() to satisfy Dear ImGui sanity checks.
     io.DisplaySize = ImVec2(static_cast<float>(swapChainDesc.Width), static_cast<float>(swapChainDesc.Height));
     io.DisplayFramebufferScale = ImVec2(1.0F, 1.0F);
     m_imgui->NewFrame(swapChainDesc.Width, swapChainDesc.Height, swapChainDesc.PreTransform);
@@ -1093,8 +1113,6 @@ void Renderer::renderImGui() {
     if (diligentDevice != nullptr) {
         if (auto* nativeContext = diligentDevice->nativeImmediateContext()) {
             if (m_uiCanvases && m_uiCanvases->pending()) {
-                // Finalize dynamic font textures before rendering captured
-                // layers. ImGui::Render is idempotent within the same frame.
                 ImGui::Render();
                 m_uiCanvases->render(nativeContext);
                 if (auto* swapchain = diligentDevice->nativeSwapChain()) {
@@ -1154,6 +1172,8 @@ void Renderer::beginFrame(const glm::vec4& clearColor) {
         frame.inFlight->reset();
     }
     frame.uiImages.clear();
+    frame.pipelines.clear();
+    m_materialStats = {};
     if (m_uiCanvases) m_uiCanvases->beginFrame(m_currentFrameIndex);
     ++m_uiImageFrame;
     m_uiImageRequests = 0;
@@ -1170,24 +1190,33 @@ void Renderer::beginFrame(const glm::vec4& clearColor) {
     passDesc.clearColorTarget = true;
     frame.commandBuffer->beginRenderPass(passDesc);
 
-    const rhi::Extent2D extent = m_swapchain->extent();
-    rhi::Viewport viewport{};
-    viewport.x = 0.0F;
-    viewport.y = 0.0F;
-    viewport.width = static_cast<float>(extent.width);
-    viewport.height = static_cast<float>(extent.height);
-    viewport.minDepth = 0.0F;
-    viewport.maxDepth = 1.0F;
-    frame.commandBuffer->setViewport(viewport);
-
-    rhi::Rect2D scissor{};
-    scissor.x = 0;
-    scissor.y = 0;
-    scissor.width = extent.width;
-    scissor.height = extent.height;
-    frame.commandBuffer->setScissor(scissor);
-
     m_activeCommandBuffer = frame.commandBuffer.get();
+    resetSceneViewport();
+}
+
+void Renderer::setSceneViewport(const glm::vec2& position, const glm::vec2& size) {
+    if (!m_activeCommandBuffer || !m_swapchain) return;
+    const auto extent = m_swapchain->extent();
+    const auto maxX = static_cast<float>(extent.width);
+    const auto maxY = static_cast<float>(extent.height);
+    const auto left = std::clamp(position.x, 0.0F, maxX);
+    const auto top = std::clamp(position.y, 0.0F, maxY);
+    const auto right = std::clamp(position.x + size.x, 0.0F, maxX);
+    const auto bottom = std::clamp(position.y + size.y, 0.0F, maxY);
+    if (!(right > left && bottom > top)) return;
+
+    m_activeCommandBuffer->setViewport({left, top, right - left, bottom - top});
+    const auto x = static_cast<std::int32_t>(std::floor(left));
+    const auto y = static_cast<std::int32_t>(std::floor(top));
+    const auto width = static_cast<std::int32_t>(std::ceil(right)) - x;
+    const auto height = static_cast<std::int32_t>(std::ceil(bottom)) - y;
+    m_activeCommandBuffer->setScissor({x, y, static_cast<std::uint32_t>(width), static_cast<std::uint32_t>(height)});
+}
+
+void Renderer::resetSceneViewport() {
+    if (!m_swapchain) return;
+    const auto extent = m_swapchain->extent();
+    setSceneViewport({}, {static_cast<float>(extent.width), static_cast<float>(extent.height)});
 }
 
 void Renderer::drawTestPrimitive(const Transform2D& transform) {
@@ -1223,38 +1252,58 @@ void Renderer::drawMesh(
     const glm::mat4& viewProjectionMatrix,
     const glm::vec4& tint,
     const glm::vec2& uvScale) {
+    drawMeshInternal(mesh, shader, std::span(&texture, 1), modelMatrix, viewProjectionMatrix, tint, uvScale);
+}
+
+void Renderer::drawMeshInternal(
+    const resources::Mesh& mesh, const resources::ShaderProgram& shader, std::span<const resources::Texture* const> textures,
+    const glm::mat4& modelMatrix, const glm::mat4& viewProjectionMatrix, const glm::vec4& tint,
+    const glm::vec2& uvScale, std::shared_ptr<rhi::IGraphicsPipeline> pipeline, const glm::vec3& cameraPosition) {
     if (!m_activeCommandBuffer) {
         return;
     }
 
     const resources::Mesh* activeMesh = &mesh;
-    const resources::Texture* activeTexture = texture;
     const resources::ShaderProgram* activeShader = &shader;
 
     if (!activeMesh->isReady()) {
         activeMesh = m_placeholderMesh.get();
     }
-    if (activeTexture == nullptr || !activeTexture->isReady()) {
-        activeTexture = m_whiteTexture.get();
-    }
     if (!activeShader->isReady()) {
         activeShader = m_fallbackShader.get();
     }
 
-    if (activeMesh == nullptr || activeTexture == nullptr || activeShader == nullptr || !activeMesh->isReady() ||
-        !activeTexture->isReady() || !activeShader->isReady() || !activeShader->pipeline) {
+    if (!activeMesh || !activeMesh->isReady() || !activeShader || !activeShader->isReady() ||
+        !m_whiteTexture || !m_whiteTexture->isReady()) {
         return;
     }
 
-    m_activeCommandBuffer->bindPipeline(*activeShader->pipeline);
+    if (activeShader != &shader || !pipeline) pipeline = activeShader->pipeline;
+    if (!m_frames.empty()) {
+        auto& pins = m_frames[m_currentFrameIndex].pipelines;
+        if (std::find(pins.begin(), pins.end(), pipeline) == pins.end()) pins.push_back(pipeline);
+    }
+    m_activeCommandBuffer->bindPipeline(*pipeline);
     m_activeCommandBuffer->bindVertexBuffer(*activeMesh->vertexBuffer);
-    m_activeCommandBuffer->bindImage(0, *activeTexture->image);
+    if (textures.empty()) {
+        m_activeCommandBuffer->bindImage(0, *m_whiteTexture->image);
+    } else {
+        const auto count = activeShader == &shader ? textures.size() : 1U;
+        for (std::size_t slot = 0; slot < count; ++slot) {
+            const auto* texture = textures[slot];
+            if (!texture || !texture->isReady()) texture = m_whiteTexture.get();
+            m_activeCommandBuffer->bindImage(static_cast<std::uint32_t>(slot), *texture->image);
+        }
+    }
 
     DrawPushConstants constants{};
     constants.modelViewProjection = viewProjectionMatrix * modelMatrix;
     constants.model = modelMatrix;
     constants.uvScaleBias = glm::vec4(uvScale.x, uvScale.y, 0.0F, 0.0F);
     constants.tint = tint;
+    constants.cameraPosition = glm::vec4(cameraPosition, 1.0F);
+    constants.lightDirection = glm::vec4(m_sceneLighting.direction, 0.0F);
+    constants.lighting = m_sceneLighting.constants;
     m_activeCommandBuffer->pushConstants(&constants, sizeof(constants));
 
     if (activeMesh->indexCount > 0 && activeMesh->indexBuffer) {
@@ -1264,6 +1313,192 @@ void Renderer::drawMesh(
     }
 
     m_activeCommandBuffer->draw(activeMesh->vertexCount, 0);
+}
+
+std::shared_ptr<resources::ShaderProgram> Renderer::loadGraphShader(const std::string& path, const std::string& pixelSource) {
+    if (const auto found = m_graphShaders.find(pixelSource); found != m_graphShaders.end()) {
+        if (auto shader = found->second.lock()) return shader;
+    }
+    std::erase_if(m_graphShaders, [](const auto& entry) { return entry.second.expired(); });
+    auto shader = createShaderProgram(path, utf8Path(m_engineAssetRoot / "shaders_hlsl/textured.vert.hlsl"),
+                                      path, pixelSource);
+    if (shader && m_graphShaders.size() < kGraphShaderCacheSize) m_graphShaders.emplace(pixelSource, shader);
+    return shader;
+}
+
+void Renderer::updateMaterialBinding(MaterialBinding& binding, const resources::Material& material) {
+    binding.revision = material.revision;
+    binding.compileError.clear();
+    const auto& definition = material.definition;
+    std::shared_ptr<resources::ShaderProgram> shader;
+    std::vector<std::shared_ptr<resources::Texture>> textures;
+    if (const auto& graph = definition.graphProgram) {
+        if (!graph->pixelSource.empty() && graph->textures.size() <= rhi::kMeshTextureSlots) {
+            shader = loadGraphShader(material.path, graph->pixelSource);
+        }
+        if (!shader) {
+            binding.compileError = "Material graph shader or pipeline compilation failed";
+            return;
+        }
+        textures.reserve(graph->textures.size());
+        for (const auto& path : graph->textures) {
+            textures.push_back(path.empty() ? m_whiteTexture : loadTexture(path));
+        }
+    } else {
+        shader = loadShaderProgram(definition.shader);
+        textures.push_back(definition.texture.empty() ? m_whiteTexture : loadTexture(definition.texture));
+    }
+    binding.shader = std::move(shader);
+    binding.textures = std::move(textures);
+    binding.tint = definition.tint;
+    binding.uvScale = definition.uvScale;
+    binding.blend = definition.blend;
+    binding.depthTest = definition.depthTest;
+    binding.depthWrite = definition.depthWrite;
+}
+
+std::shared_ptr<rhi::IGraphicsPipeline> Renderer::materialPipeline(const MaterialBinding& binding) {
+    auto& shader = *binding.shader;
+    const unsigned key = static_cast<unsigned>(binding.blend) | (binding.depthTest ? 4U : 0U) | (binding.depthWrite ? 8U : 0U);
+    if (const auto found = shader.materialPipelines.find(key); found != shader.materialPipelines.end()) {
+        ++m_materialStats.pipelineHits;
+        return found->second;
+    }
+
+    auto pipeline = shader.pipeline;
+    if (key != 12U) {
+        rhi::GraphicsPipelineDesc desc;
+        desc.vertexShader = shader.vertexShader.get();
+        desc.fragmentShader = shader.fragmentShader.get();
+        desc.blend = static_cast<rhi::BlendMode>(binding.blend);
+        desc.depthTest = binding.depthTest;
+        desc.depthWrite = binding.depthWrite;
+        pipeline = m_device->createGraphicsPipeline(desc);
+        ++m_materialStats.pipelineCreates;
+    }
+    if (pipeline) shader.materialPipelines.emplace(key, pipeline);
+    return pipeline;
+}
+
+void Renderer::drawMaterialBinding(const resources::Mesh& mesh, const MaterialBinding& binding,
+    std::shared_ptr<rhi::IGraphicsPipeline> pipeline, const glm::mat4& model, const glm::mat4& viewProjection,
+    const glm::vec4& tint, const glm::vec2& uvScale, const glm::vec3& cameraPosition) {
+    std::array<const resources::Texture*, rhi::kMeshTextureSlots> textures{};
+    auto& pins = m_frames[m_currentFrameIndex].uiImages;
+    for (std::size_t slot = 0; slot < binding.textures.size(); ++slot) {
+        const auto& texture = binding.textures[slot];
+        textures[slot] = texture.get();
+        if (texture->isReady() && std::find(pins.begin(), pins.end(), texture) == pins.end()) pins.push_back(texture);
+    }
+    drawMeshInternal(mesh, *binding.shader, std::span(textures.data(), binding.textures.size()), model, viewProjection,
+        tint * binding.tint, uvScale * binding.uvScale, std::move(pipeline), cameraPosition);
+}
+
+void Renderer::drawMaterialMesh(const resources::Mesh& mesh, resources::Material& material,
+    const glm::mat4& model, const glm::mat4& viewProjection, const glm::vec4& tint, const glm::vec2& uvScale,
+    const glm::vec3& cameraPosition) {
+    ENGINE_PROFILE_ZONE("Apply Material");
+    if (!m_activeCommandBuffer || !m_device) return;
+    ++m_materialStats.draws;
+    auto& binding = m_materialBindings[material.path];
+    if (material.ready && (binding.revision != material.revision || (!binding.shader && binding.compileError.empty()))) {
+        updateMaterialBinding(binding, material);
+    }
+
+    const auto reportError = [&](const std::string& error) {
+        ++m_materialStats.errors;
+        if (material.ready) material.runtimeError = error;
+        if (error != binding.reportedError) {
+            ENGINE_LOG_ERROR("Material '{}': {}", material.path, error);
+            binding.reportedError = error;
+        }
+    };
+    const auto failedTexture = std::find_if(binding.textures.begin(), binding.textures.end(), [](const auto& texture) {
+        return !texture || texture->loadState() == resources::ResourceLoadState::Failed;
+    });
+    if (!material.ready || !binding.shader || binding.shader->loadState() == resources::ResourceLoadState::Failed ||
+        failedTexture != binding.textures.end()) {
+        std::string error = material.ready ? binding.compileError : material.lastError;
+        if (error.empty() && binding.shader) error = binding.shader->lastError;
+        if (error.empty() && failedTexture != binding.textures.end() && *failedTexture) error = (*failedTexture)->lastError;
+        reportError(error.empty() ? "Material resources unavailable" : error);
+        if (m_fallbackShader) drawMeshInternal(mesh, *m_fallbackShader, {}, model, viewProjection,
+                                               glm::vec4(1, 0, 1, 1), glm::vec2(1));
+        return;
+    }
+    std::shared_ptr<rhi::IGraphicsPipeline> pipeline;
+    if (binding.shader->isReady()) {
+        pipeline = materialPipeline(binding);
+        if (!pipeline) {
+            reportError("Pipeline creation failed");
+            return;
+        }
+    }
+    if (!binding.compileError.empty()) reportError(binding.compileError);
+    else {
+        binding.reportedError.clear();
+        material.runtimeError.clear();
+    }
+
+    drawMaterialBinding(mesh, binding, std::move(pipeline), model, viewProjection, tint, uvScale, cameraPosition);
+}
+
+std::optional<resources::MaterialBlend> Renderer::prepareMaterialPreview(
+    const std::shared_ptr<resources::Material>& draft) {
+    auto& preview = m_materialPreview;
+    if (!draft || !draft->ready) {
+        preview = {};
+        return std::nullopt;
+    }
+    if (!m_activeCommandBuffer || !m_device) return std::nullopt;
+    if (preview.path != draft->path) {
+        preview = {};
+        preview.path = draft->path;
+    }
+    if (preview.draft.lock() != draft || preview.revision != draft->revision) {
+        preview.draft = draft;
+        preview.revision = draft->revision;
+        draft->runtimeError.clear();
+        updateMaterialBinding(preview.pending.emplace(), *draft);
+    }
+    if (preview.pending) {
+        auto& candidate = *preview.pending;
+        std::string error = candidate.compileError;
+        if (error.empty() && (!candidate.shader || candidate.shader->loadState() == resources::ResourceLoadState::Failed)) {
+            error = candidate.shader && !candidate.shader->lastError.empty()
+                ? candidate.shader->lastError : "Preview shader unavailable";
+        }
+        if (error.empty()) {
+            const auto failedTexture = std::find_if(candidate.textures.begin(), candidate.textures.end(), [](const auto& texture) {
+                return !texture || texture->loadState() == resources::ResourceLoadState::Failed;
+            });
+            if (failedTexture != candidate.textures.end()) {
+                error = *failedTexture && !(*failedTexture)->lastError.empty() ? (*failedTexture)->lastError : "Preview texture unavailable";
+            }
+        }
+        if (error.empty() && candidate.shader->isReady() &&
+            std::all_of(candidate.textures.begin(), candidate.textures.end(), [](const auto& texture) { return texture->isReady(); })) {
+            if (auto pipeline = materialPipeline(candidate)) {
+                preview.active = std::move(candidate);
+                preview.pipeline = std::move(pipeline);
+                preview.pending.reset();
+            } else {
+                error = "Preview pipeline creation failed";
+            }
+        }
+        if (!error.empty()) {
+            draft->runtimeError = std::move(error);
+            preview.pending.reset();
+        }
+    }
+    return preview.pipeline ? std::optional{preview.active.blend} : std::nullopt;
+}
+
+void Renderer::drawMaterialPreviewMesh(const resources::Mesh& mesh, const glm::mat4& model,
+    const glm::mat4& viewProjection, const glm::vec4& tint, const glm::vec2& uvScale, const glm::vec3& cameraPosition) {
+    if (!m_activeCommandBuffer || !m_materialPreview.pipeline) return;
+    ++m_materialStats.draws;
+    drawMaterialBinding(mesh, m_materialPreview.active, m_materialPreview.pipeline, model, viewProjection, tint, uvScale, cameraPosition);
 }
 
 void Renderer::drawMesh(
@@ -1393,7 +1628,7 @@ void Renderer::loadUiImageAliases() {
         return;
     }
     if (stamp == m_uiAliasWriteTime) return;
-    m_uiAliasWriteTime = stamp; // Report a bad revision once, retaining the last good map.
+    m_uiAliasWriteTime = stamp;
     try {
         if (std::filesystem::file_size(file) > 65536) throw std::runtime_error("UI image aliases exceed 64 KiB");
         std::ifstream stream(file, std::ios::binary);
@@ -1431,8 +1666,6 @@ bool Renderer::reserveUiImageBytes(const std::uint64_t bytes, const std::string&
         for (auto candidate = m_uiImages.begin(); candidate != m_uiImages.end(); ++candidate) {
             const auto& entry = candidate->second;
             if (candidate->first == protectedKey || entry.lastUsedFrame == m_uiImageFrame) continue;
-            // Pending jobs retain their targets, so they cannot be evicted to
-            // make room for an unbounded backlog of orphan decodes.
             if ((entry.pending && entry.pending->loadState() == resources::ResourceLoadState::Loading) ||
                 (entry.texture && entry.texture->loadState() == resources::ResourceLoadState::Loading)) continue;
             if (victim == m_uiImages.end() || entry.lastUsedFrame < victim->second.lastUsedFrame) victim = candidate;
@@ -1465,8 +1698,6 @@ Renderer::UiImage Renderer::resolveUiImage(const std::string_view image) {
             if (m_projectAssetRoot.empty() && !containsPath(m_engineAssetRoot, std::filesystem::u8path(path)))
                 throw std::invalid_argument("UI image path is outside engine assets");
         } catch (const std::exception& exception) {
-            // Negative entries are bounded and avoid per-frame IO/log spam. An
-            // added alias resolves to a new canonical key on the next map poll.
             path = "!" + id;
             if (!m_uiImages.contains(path) && m_uiImages.size() < 128) {
                 ENGINE_LOG_WARN("UI image unavailable: {}", exception.what());
@@ -1495,15 +1726,43 @@ Renderer::UiImage Renderer::resolveEditorIcon(const std::string_view image) {
     return resolveUiImagePath(resolved);
 }
 
-Renderer::UiImage Renderer::resolveUiImagePath(const std::string& path) {
+Renderer::UiImage Renderer::resolveSteamFriendAvatar(const std::filesystem::path& path) {
+    if (!path.is_absolute()) return {};
+    const auto normalized = path.lexically_normal();
+    if (!utf8Path(normalized.parent_path().filename()).starts_with("tge-play-")) return {};
+    const auto name = utf8Path(normalized.filename());
+    constexpr std::string_view prefix = "steam-avatar-";
+    constexpr std::string_view suffix = ".tga";
+    if (!name.starts_with(prefix) || !name.ends_with(suffix)) return {};
+    const auto digits = std::string_view(name).substr(prefix.size(), name.size() - prefix.size() - suffix.size());
+    const auto* end = digits.data() + digits.size();
+    std::uint64_t id{};
+    const auto parsed = std::from_chars(digits.data(), end, id);
+    if (parsed.ec != std::errc{} || parsed.ptr != end || !net::validSteamUserId(id)) return {};
+    return resolveUiImagePath(utf8Path(normalized), true);
+}
+
+Renderer::UiImage Renderer::resolveUiImagePath(const std::string& path, bool steamAvatar) {
     if (path.empty()) return {};
+    const auto inspect = [&](std::int32_t& width, std::int32_t& height, std::string& error) {
+        if (!steamAvatar) return path.front() != '!' && resources::inspectTextureRgba8(path, width, height, &error);
+        const auto nativePath = std::filesystem::u8path(path);
+        std::ifstream file(nativePath, std::ios::binary | std::ios::ate);
+        if (file.tellg() != static_cast<std::streamoff>(net::SteamAvatarFileBytes)) return false;
+        file.seekg(0);
+        std::array<std::uint8_t, net::SteamAvatarTgaHeader.size()> header{};
+        if (!file.read(reinterpret_cast<char*>(header.data()), static_cast<std::streamsize>(header.size())) ||
+            header != net::SteamAvatarTgaHeader) return false;
+        width = height = static_cast<std::int32_t>(net::SteamAvatarSide);
+        return true;
+    };
     auto found = m_uiImages.find(path);
     if (found == m_uiImages.end()) {
         if (m_uiImageRequests >= 4) return {};
         ++m_uiImageRequests;
         std::int32_t width = 0, height = 0;
         std::string error;
-        const bool valid = path.front() != '!' && resources::inspectTextureRgba8(path, width, height, &error);
+        const bool valid = inspect(width, height, error);
         const auto bytes = valid ? std::uint64_t(width) * height * 4 : 0;
         if (!reserveUiImageBytes(bytes, path, true)) return {};
         UiImageEntry entry;
@@ -1526,7 +1785,7 @@ Renderer::UiImage Renderer::resolveUiImagePath(const std::string& path) {
             entry.reservedBytes = entry.pendingBytes;
         } else {
             entry.reservedBytes -= entry.pendingBytes;
-            entry.pending.reset(); // Retain the old good image on failed edits.
+            entry.pending.reset();
         }
         entry.pendingBytes = 0;
     }
@@ -1540,7 +1799,7 @@ Renderer::UiImage Renderer::resolveUiImagePath(const std::string& path) {
         if (stamp != entry.fileStamp) {
             std::int32_t width = 0, height = 0;
             std::string error;
-            if (resources::inspectTextureRgba8(path, width, height, &error)) {
+            if (inspect(width, height, error)) {
                 const auto bytes = std::uint64_t(width) * height * 4;
                 if (reserveUiImageBytes(bytes, path, false)) {
                     ++m_uiImageRequests;
@@ -1551,7 +1810,7 @@ Renderer::UiImage Renderer::resolveUiImagePath(const std::string& path) {
                 }
             } else {
                 entry.fileStamp = stamp;
-                ENGINE_LOG_WARN("UI image edit rejected '{}': {}", path, error);
+                if (!error.empty()) ENGINE_LOG_WARN("UI image edit rejected '{}': {}", path, error);
             }
         }
     }
@@ -1577,8 +1836,6 @@ std::shared_ptr<resources::ShaderProgram> Renderer::loadShaderProgram(const std:
 void Renderer::setProjectAssetRoot(std::filesystem::path assetsRoot) {
     if (!assetsRoot.empty()) { assetsRoot = std::filesystem::weakly_canonical(std::filesystem::absolute(assetsRoot)); }
     if (assetsRoot == m_projectAssetRoot) { return; }
-    // stop() joins both CPU work and transfer fences before cancelling owner
-    // finalizers, so an old project cannot publish work into the new context.
     m_assetLoads.stop();
     m_shaderHotReloadEntries.clear();
     m_uiImages.clear();
@@ -1588,7 +1845,11 @@ void Renderer::setProjectAssetRoot(std::filesystem::path assetsRoot) {
     m_uiAliasWriteTime = {};
     m_uiImageRequests = 0;
     m_resourceManager.clearCache();
+    m_materialBindings.clear();
+    m_materialPreview = {};
+    m_graphShaders.clear();
     m_projectAssetRoot = std::move(assetsRoot);
+    m_materials.setRoot(m_projectAssetRoot.empty() ? m_engineAssetRoot : m_projectAssetRoot);
     if (m_initialized) { m_assetLoads.start(m_jobSystem); }
 }
 
@@ -1705,12 +1966,14 @@ bool Renderer::reloadShaderInPlace(resources::ShaderProgram& program, const reso
     program.fragmentShader = std::move(reloadedProgram->fragmentShader);
     program.pipelineLayout = std::move(reloadedProgram->pipelineLayout);
     program.pipeline = std::move(reloadedProgram->pipeline);
+    program.materialPipelines.clear();
     program.lastError.clear();
     program.setLoadState(resources::ResourceLoadState::Loaded);
     return true;
 }
 
 void Renderer::pollHotReload() {
+    m_materials.poll();
     if (!m_initialized || m_shaderHotReloadEntries.empty()) {
         return;
     }
@@ -1882,8 +2145,9 @@ void Renderer::shutdown() {
 
     m_assetLoads.stop();
     if (m_device && m_device->uploadQueue()) { m_device->uploadQueue()->waitIdle(); }
-    if (auto* diligent = dynamic_cast<rhi::diligent::DiligentDevice*>(m_device.get())) {
-        if (auto* context = diligent->nativeImmediateContext()) context->WaitForIdle();
+    if (!m_frames.empty() && m_frames.front().inFlight) {
+        m_frames.front().inFlight->signal();
+        m_frames.front().inFlight->wait();
     }
     m_activeCommandBuffer = nullptr;
     m_frames.clear();
@@ -1892,6 +2156,9 @@ void Renderer::shutdown() {
     m_imgui.reset();
 
     m_resourceManager.clear();
+    m_materialBindings.clear();
+    m_materialPreview = {};
+    m_graphShaders.clear();
     m_uiImages.clear();
     m_uiImageAliases.clear();
     m_uiImagePaths.clear();
@@ -1917,4 +2184,4 @@ void Renderer::shutdown() {
     ENGINE_LOG_INFO("Renderer shutdown complete");
 }
 
-} // namespace engine::renderer
+}

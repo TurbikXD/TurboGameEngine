@@ -70,6 +70,11 @@ cmake --preset clion-release
 cmake --build --preset clion-release
 ```
 
+## Lab 5 — Crash reports and release packages
+
+The [Lab 5 guide](docs/lab5/README.md) covers the two Windows ZIPs, symbolized
+minidumps and the playable Beacon scene. The game includes the [tester guide](docs/lab5/TESTER.md).
+
 ## Lab 2: Luau, React UI And Script Workspace
 
 The editor ribbon has **Home / Model / Test / View / Script** tabs. Play,

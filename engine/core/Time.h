@@ -33,7 +33,6 @@ public:
 private:
     double m_emitIntervalSeconds;
     double m_accumulatedSeconds{0.0};
-    double m_sumDelta{0.0};
     double m_minDelta{0.0};
     double m_maxDelta{0.0};
     int m_samples{0};
@@ -41,4 +40,4 @@ private:
     TimeStats m_cached{};
 };
 
-} // namespace engine::core
+}

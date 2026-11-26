@@ -16,11 +16,8 @@ constexpr ImVec4 rgb(const unsigned int value, const float alpha = 1.0F) {
         static_cast<float>(value & 0xffU) / 255.0F, alpha};
 }
 
-// Static lifetime is required by the legacy ImGui atlas API.
 constexpr ImWchar kEditorGlyphRanges[]{0x0020, 0x024f, 0x0370, 0x052f,
     0x2000, 0x206f, 0x20ac, 0x20ac, 0x2116, 0x2116, 0};
-// The inspected Builder Sans fonts have no Greek/Cyrillic cmap entries. Keep
-// their Latin and punctuation untouched; merge only these missing scripts.
 constexpr ImWchar kLocalFallbackRanges[]{0x0370, 0x052f, 0x1f00, 0x1fff,
     0x2116, 0x2116, 0x2de0, 0x2dff, 0xa640, 0xa69f, 0};
 
@@ -33,8 +30,6 @@ std::vector<char> readFont(const std::filesystem::path& path) {
     std::vector<char> bytes(static_cast<std::size_t>(size));
     input.seekg(0);
     if (!input.read(bytes.data(), static_cast<std::streamsize>(size))) { return {}; }
-    // The bundled font is TrueType; the optional local Builder font uses CFF
-    // OpenType. Both sfnt variants are supported by the vendored stb loader.
     const bool trueType = static_cast<unsigned char>(bytes[0]) == 0 &&
         static_cast<unsigned char>(bytes[1]) == 1 && bytes[2] == 0 && bytes[3] == 0;
     if (!trueType && std::memcmp(bytes.data(), "OTTO", 4) != 0) { return {}; }
@@ -59,7 +54,7 @@ ImFont* addFont(ImGuiIO& io, const std::vector<char>& bytes, const char* name,
     return io.Fonts->AddFontFromMemoryTTF(ownedData, static_cast<int>(bytes.size()),
         size, &config, ranges);
 }
-} // namespace
+}
 
 void applyEditorTheme() {
     ImGui::StyleColorsDark();
@@ -94,7 +89,6 @@ void applyEditorTheme() {
     auto* colors = style.Colors;
     colors[ImGuiCol_Text] = rgb(0xe1e1e1);
     colors[ImGuiCol_TextDisabled] = rgb(0x818181);
-    // Surfaces/dividers sampled from the supplied Studio reference image.
     colors[ImGuiCol_WindowBg] = rgb(0x191a1f);
     colors[ImGuiCol_ChildBg] = rgb(0x191a1f);
     colors[ImGuiCol_PopupBg] = rgb(0x202227);
@@ -182,8 +176,6 @@ bool configureEditorFonts(ImGuiIO& io, const std::filesystem::path& assetRoot,
     } else if (!semibold.empty()) {
         addFont(io, semibold, "Source Sans Pro Semibold");
     }
-    // Source Sans Pro's 1257-unit hhea span makes 15 stb pixels closely match
-    // the native Qt application default of 9 pt / 12 px per em at 96 DPI.
     addFont(io, regular, "Source Sans Native");
     if (!semibold.empty()) { addFont(io, semibold, "Source Sans Native Semibold"); }
     if (!code.empty()) { addFont(io, code, "Fira Mono", nullptr, kEditorGlyphRanges, kCodeFontSize); }
@@ -236,4 +228,4 @@ ImFont* nativeSemiboldFont() noexcept {
     return nativeFont();
 }
 
-} // namespace engine::editor
+}

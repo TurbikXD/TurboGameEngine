@@ -92,7 +92,7 @@ bool primaryButton(const char* label, const ImVec2 size = ImVec2(0, 0)) {
     ImGui::PopStyleColor(3);
     return pressed;
 }
-} // namespace
+}
 
 struct ProjectLauncher::Impl final {
     core::ProjectManager& manager;
@@ -194,7 +194,6 @@ ProjectLauncher::ProjectLauncher(core::ProjectManager& manager, std::function<vo
 ProjectLauncher::~ProjectLauncher() = default;
 
 void ProjectLauncher::render() {
-    // A callback may replace the launcher; keep its state alive through dispatch.
     const auto lifetime = m_impl;
     Impl& state = *lifetime;
     state.actionTaken = false;
@@ -253,12 +252,10 @@ void ProjectLauncher::render() {
                 ImVec2(ImGui::GetContentRegionAvail().x, 64.0F))) {
                 state.selected = static_cast<int>(index);
                 if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left) && !state.actionTaken) {
-                    // Copy before backend.open refreshes the recent list.
                     const auto manifest = project.manifestPath;
                     state.open(manifest);
                 }
             }
-            // Backend activation may replace the list; draw using copied values after that action.
             if (!state.actionTaken) {
                 const std::string name = project.name.empty() ? "Untitled project" : project.name;
                 const std::string path = displayPath(project.manifestPath.parent_path());
@@ -374,4 +371,4 @@ void ProjectLauncherTestAccess::fillCreateForm(ProjectLauncher& launcher, std::s
 void ProjectLauncherTestAccess::fillOpenForm(ProjectLauncher& launcher, std::string path) { launcher.m_impl->openPath = std::move(path); }
 std::string ProjectLauncherTestAccess::error(const ProjectLauncher& launcher) { return launcher.m_impl->error; }
 
-} // namespace engine::editor
+}

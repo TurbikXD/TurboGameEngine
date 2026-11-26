@@ -47,6 +47,7 @@ CMakeUserPresets.json
 
 # Logs
 logs/*.log
+logs/crash-last.txt
 *.log
 app_stdout*.txt
 app_stderr*.txt

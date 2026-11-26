@@ -1,9 +1,5 @@
 #include "engine/rhi/RHI.h"
 
-#include <algorithm>
-#include <cctype>
-#include <string>
-
 #include "engine/rhi_diligent/DiligentDevice.h"
 
 namespace engine::rhi {
@@ -20,26 +16,10 @@ std::unique_ptr<IDevice> createDevice(
         return nullptr;
     }
 
-#if ENGINE_ENABLE_DILIGENT_BACKEND
     return diligent::createDiligentDevice(desc, errorMessage);
-#else
-    if (errorMessage != nullptr) {
-        *errorMessage = "Diligent backend is disabled at build time";
-    }
-    return nullptr;
-#endif
 }
 
-BackendType backendFromString(std::string_view value) {
-    std::string lowered(value);
-    std::transform(lowered.begin(), lowered.end(), lowered.begin(), [](unsigned char c) {
-        return static_cast<char>(std::tolower(c));
-    });
-
-    if (lowered.empty() || lowered == "diligent") {
-        return BackendType::Diligent;
-    }
-
+BackendType backendFromString(std::string_view) {
     return BackendType::Diligent;
 }
 
@@ -58,4 +38,4 @@ const char* toString(BackendType backend) {
     }
 }
 
-} // namespace engine::rhi
+}

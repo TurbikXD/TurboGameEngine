@@ -17,6 +17,11 @@ zero progress without creating an infinite UDim2 scale. Otherwise its dual-label
 tree and LoadingDots' binding/effect/cleanup logic follow the retained sources.
 
 This is a two-component port, not support for the whole StudioComponents library.
+Source API comments are documented here; complete originals and their MIT
+notices remain alongside the ports. `ProgressBar` accepts `Value`, optional `Max`
+(default 1) and an optional `Formatter(current, max)` string callback. Use it for
+detailed loading progress. `LoadingDots` provides a compact activity indicator
+with binding-driven animation and effect cleanup.
 ORBIT adds its own mission reducer, crew selection, animated orbits and waveforms,
 interactive mission progression, theme changes and portal dialog around them.
 The separate tutorial workshop remains available via the SOURCE button.

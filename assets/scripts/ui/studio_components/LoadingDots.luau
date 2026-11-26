@@ -1,25 +1,3 @@
--- Copyright (c) 2025 sircfenner; MIT. Original copyright is retained in LICENSE.
--- Adapted from pinned StudioComponents; see README.md for every port change.
---[=[
-	@class LoadingDots
-
-	A basic animated loading indicator. This matches similar indicators used in various places 
-	around Studio. This should be used for short processes where the user does not need to see
-	information about how complete the loading is. For longer or more detailed loading processes, 
-	consider using a [ProgressBar].
-	
-	| Dark | Light |
-	| - | - |
-	| ![Dark](/StudioComponents/components/loadingdots/dark.gif) | ![Light](/StudioComponents/components/loadingdots/light.gif) |
-
-	Example of usage:
-
-	```lua
-	local function MyComponent()
-		return React.createElement(StudioComponents.LoadingDots, {})
-	end
-	```
-]=]
 
 local RunService = game:GetService("RunService")
 
@@ -27,13 +5,6 @@ local React = require("React")
 
 local useTheme = require("scripts/ui/studio_components/Theme.luau").useTheme
 
---[=[
-	@within LoadingDots
-	@interface Props
-	@tag Component Props
-
-	@field ... CommonProps
-]=]
 
 type LoadingDotsProps = { [string]: any }
 

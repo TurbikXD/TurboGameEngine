@@ -1,15 +1,31 @@
 #include "engine/core/Log.h"
+#include "engine/core/CrashReport.h"
 
 #include <chrono>
 #include <filesystem>
 #include <mutex>
 #include <vector>
 
+#include <spdlog/sinks/base_sink.h>
 #include <spdlog/sinks/rotating_file_sink.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
 #include <spdlog/spdlog.h>
 
 namespace engine::core {
+namespace {
+
+class RunLogSink final : public spdlog::sinks::base_sink<std::mutex> {
+private:
+    void sink_it_(const spdlog::details::log_msg& message) override {
+        spdlog::memory_buf_t formatted;
+        formatter_->format(message, formatted);
+        CrashReport::appendLog({formatted.data(), formatted.size()});
+    }
+
+    void flush_() override {}
+};
+
+}
 
 std::shared_ptr<spdlog::logger> Log::s_engineLogger;
 
@@ -23,6 +39,7 @@ void Log::init() {
             "logs/engine.log", 1024 * 1024 * 5, 3);
 
         std::vector<spdlog::sink_ptr> sinks{consoleSink, fileSink};
+        if (CrashReport::hasRunLog()) sinks.push_back(std::make_shared<RunLogSink>());
         s_engineLogger = std::make_shared<spdlog::logger>("engine", sinks.begin(), sinks.end());
 
         s_engineLogger->set_pattern("[%Y-%m-%d %H:%M:%S.%e] [%^%l%$] [%n] %v");
@@ -55,4 +72,4 @@ std::shared_ptr<spdlog::logger> Log::engineLogger() {
     return s_engineLogger;
 }
 
-} // namespace engine::core
+}

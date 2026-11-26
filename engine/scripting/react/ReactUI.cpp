@@ -94,8 +94,6 @@ ImVec2 vectorField(lua_State* vm, int table, const char* field) {
 ImVec4 colorField(lua_State* vm, int table, const char* field, ImVec4 fallback) {
     rawField(vm, table, field);
     if (lua_istable(vm, -1)) {
-        // A Color3 supplies opaque RGB; transparency is its separate property,
-        // independent of the current ImGui skin's (often transparent) ChildBg.
         fallback.w = 1.0F;
         const int color = lua_gettop(vm);
         const char* names[] = { "R", "G", "B" };
@@ -130,6 +128,7 @@ void enqueue(lua_State* vm, int instance, const char* name, int valueIndex = 0, 
 struct Rect { ImVec2 origin, size; };
 struct MeasuredSize { ImVec2 basis, size; float scale; };
 struct Budget {
+    bool inputCaptured = false;
     int nodes = 4096, inspections = 16384, rootInspections = 8192, measurements = 8192, valueWrites = 128, inputWrites=128, meshVertices = 131072;
     std::unordered_map<const void*, MeasuredSize> measured;
     const ReactUI::ImageResolver* imageResolver = nullptr;
@@ -139,9 +138,6 @@ struct Budget {
     int textBytes=32768;
     int canvasGroups=32,canvasDepth=0,capturedVertices=262144,capturedIndices=786432;
 };
-// Delimit retained UI output without executing any script or changing ImGui's
-// layout/input state. The markers prevent ImGui from merging a group with a
-// preceding command; they are removed before the main draw data is submitted.
 void canvasMarker(const ImDrawList*,const ImDrawCmd*) {}
 class CanvasCapture final {
     struct Snapshot {
@@ -209,8 +205,6 @@ public:
         ImGui::PopClipRect();
         bool valid=true;
         const auto* context=ImGui::GetCurrentContext();
-        // ImGui emits a parent before its native child windows. Copy the root
-        // first, then child draw lists, including multiline text input widgets.
         const auto capture=[&](ImGuiWindow* window) {
             if (window->LastFrameActive!=context->FrameCount || !descendant(window,m_root)) return;
             auto& list=*window->DrawList;
@@ -275,8 +269,6 @@ struct Modifiers {
     std::vector<Child> children;
     std::vector<Child> structural;
 };
-// Modifier/layout discovery is bounded globally as well as the actual draw
-// traversal. Raw reads must never execute script metamethods on the native path.
 Modifiers modifiers(lua_State* vm, int instance, Budget& budget) {
     Modifiers result;
     rawField(vm, instance, "children");
@@ -379,7 +371,6 @@ ImVec2 constrainedSize(ImVec2 size,const Modifiers& layout,float scale) {
         float width=layout.fitAspect ? std::min(size.x,size.y*layout.aspect) : layout.dominantHeight ? size.y*layout.aspect : size.x;
         const float lower=std::max(minimum.x,minimum.y*layout.aspect),upper=std::min(maximum.x,maximum.y*layout.aspect);
         if (lower<=upper) {width=std::clamp(width,lower,upper); size={width,width/layout.aspect};}
-        // Contradictory min/max constraints take priority over aspect ratio.
     }
     return {std::clamp(size.x,0.0F,1000000.0F),std::clamp(size.y,0.0F,1000000.0F)};
 }
@@ -610,8 +601,6 @@ ImU32 tinted(const ImVec4 base, const Gradient* gradient, const ImVec2 position,
     const auto color=gradient ? gradient->sample(position,rect) : ImVec4(1,1,1,1);
     return ImGui::ColorConvertFloat4ToU32(ImVec4(base.x*color.x,base.y*color.y,base.z*color.z,base.w*color.w));
 }
-// A bounded row mesh follows the rounded parent's boundary. Unlike recoloring a
-// four-corner quad, interior vertices preserve intermediate sequence keypoints.
 void surface(const Rect& patch, const Rect& clip, float radius, ImVec2 uvMin, ImVec2 uvMax, ImVec4 color,
              const Gradient* gradient, Budget& budget, const ReactUI::Image* image=nullptr) {
     if (patch.size.x<=0 || patch.size.y<=0 || color.w<=0) return;
@@ -826,6 +815,7 @@ void hoverEvents(lua_State* vm,int instance,const Rect& rect,bool button,Budget&
     const bool enabled=!(ImGui::GetCurrentContext()->CurrentItemFlags & ImGuiItemFlags_Disabled);
     const bool hovered=enabled && ImGui::IsWindowHovered(ImGuiHoveredFlags_AllowWhenBlockedByActiveItem) &&
         ImGui::IsMouseHoveringRect(rect.origin,{rect.origin.x+rect.size.x,rect.origin.y+rect.size.y});
+    if (button && (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled) || ImGui::IsItemActive())) budget.inputCaptured=true;
     if (wantsEvent(vm,instance,"MouseEnter") || wantsEvent(vm,instance,"MouseLeave")) {
         const bool previous=booleanField(vm,instance,"_nativeHovered");
         if (hovered!=previous && !lua_getreadonly(vm,instance) && spend(budget,512)) {
@@ -846,7 +836,8 @@ void publishText(lua_State* vm,int instance,int props,std::string_view text,Budg
 void textBox(lua_State* vm,int instance,int props,const Rect& rect,const Gradient* gradient,Budget& budget,float scale) {
     instance=absolute(vm,instance); props=absolute(vm,props);
     const auto original=stringField(vm,props,"Text"),placeholder=stringField(vm,props,"PlaceholderText");
-    std::array<char,32769> buffer{}; std::copy(original.begin(),original.end(),buffer.begin());
+    const std::string_view originalBuffer(original.c_str());
+    std::array<char,32769> buffer{}; std::copy(originalBuffer.begin(),originalBuffer.end(),buffer.begin());
     const auto id=ImGui::GetID("##text");
     const bool enabled=!(ImGui::GetCurrentContext()->CurrentItemFlags & ImGuiItemFlags_Disabled);
     if (!enabled && ImGui::GetCurrentContext()->ActiveId==id) ImGui::ClearActiveID();
@@ -856,7 +847,7 @@ void textBox(lua_State* vm,int instance,int props,const Rect& rect,const Gradien
         if (capture && spend(budget,512)) {lua_pushstring(vm,"_focusRequested"); lua_pushnil(vm); lua_rawset(vm,instance); if (enabled) ImGui::SetKeyboardFocusHere();}
         if (release && spend(budget,512)) {lua_pushstring(vm,"_releaseFocusRequested"); lua_pushnil(vm); lua_rawset(vm,instance);}
     }
-    if (auto* state=ImGui::GetInputTextState(id); state && std::string_view(state->TextA.Data,state->TextLen)!=original) state->ReloadUserBufAndKeepSelection();
+    if (auto* state=ImGui::GetInputTextState(id); state && std::string_view(state->TextA.Data,state->TextLen)!=originalBuffer) state->ReloadUserBufAndKeepSelection();
     auto color=colorField(vm,props,"TextColor3",ImGui::GetStyle().Colors[ImGuiCol_Text]);
     const auto plainColor=color;
     color.w*=1.0F-std::clamp(numberField(vm,props,"TextTransparency"),0.0F,1.0F);
@@ -876,12 +867,14 @@ void textBox(lua_State* vm,int instance,int props,const Rect& rect,const Gradien
     const int first=draw->VtxBuffer.Size;
     const bool entered=multiline ? ImGui::InputTextMultiline("##text",buffer.data(),buffer.size(),rect.size,flags) :
         ImGui::InputTextWithHint("##text",placeholder.c_str(),buffer.data(),buffer.size(),flags);
-    if (ImGui::IsItemActivated() && booleanField(vm,props,"ClearTextOnFocus",true) && booleanField(vm,props,"TextEditable",true)) {
+    const bool clearOnFocus=ImGui::IsItemActivated() && booleanField(vm,props,"ClearTextOnFocus",true) && booleanField(vm,props,"TextEditable",true);
+    if (clearOnFocus) {
         buffer[0]=0; if (auto* state=ImGui::GetInputTextState(id)) state->ClearText();
     }
     const bool enterPressed=(entered && !multiline) || (release && releaseEnter);
     if ((enterPressed || release) && ImGui::GetCurrentContext()->ActiveId==id) ImGui::ClearActiveID();
     const bool focused=ImGui::IsItemActive(),wasFocused=booleanField(vm,instance,"_focused");
+    if (focused || ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) budget.inputCaptured=true;
     if (focused!=wasFocused && !lua_getreadonly(vm,instance) && spend(budget,512)) {
         lua_pushstring(vm,"_focused"); lua_pushboolean(vm,focused); lua_rawset(vm,instance);
         if (wantsEvent(vm,instance,focused ? "Focused" : "FocusLost") && spend(budget,512)) {
@@ -890,7 +883,7 @@ void textBox(lua_State* vm,int instance,int props,const Rect& rect,const Gradien
         }
     }
     const std::string_view current(buffer.data());
-    if (current!=original) publishText(vm,instance,props,current,budget);
+    if ((current!=originalBuffer || clearOnFocus) && current!=original) publishText(vm,instance,props,current,budget);
     if (!boundedText && multiline && current.empty() && !focused && !placeholder.empty()) {
         auto hint=colorField(vm,props,"PlaceholderColor3",ImVec4(.55F,.55F,.55F,1)); hint.w*=ImGui::GetStyle().Alpha;
         const ImVec4 clip{rect.origin.x,rect.origin.y,rect.origin.x+rect.size.x,rect.origin.y+rect.size.y};
@@ -901,8 +894,6 @@ void textBox(lua_State* vm,int instance,int props,const Rect& rect,const Gradien
     }
     ImGui::PopStyleVar(2); ImGui::PopFont(); ImGui::PopStyleColor(6);
     if (boundedText) {
-        // Keep the full editable UTF-8 buffer and clipboard behavior, while the
-        // fallback renderer cannot exceed a 16-bit draw list's vertex range.
         const bool hint=current.empty() && !focused;
         label(vm,props,rect,hint ? placeholder : std::string(current),false,gradient,budget,scale,hint ? &placeholderColor : &plainColor);
     } else budget.textBytes=std::max(0,budget.textBytes-static_cast<int>(std::max(current.size(),current.empty() ? placeholder.size() : size_t{0})));
@@ -951,6 +942,7 @@ Rect scrolling(lua_State* vm,int instance,int props,const Rect& window,const Mod
     auto position=vectorField(vm,props,"CanvasPosition");
     ImVec2 maximum{std::max(0.0F,canvas.x-viewport.size.x),std::max(0.0F,canvas.y-viewport.size.y)};
     if (enabled && ImGui::IsWindowHovered(ImGuiHoveredFlags_AllowWhenBlockedByActiveItem) && ImGui::IsMouseHoveringRect(window.origin,{window.origin.x+window.size.x,window.origin.y+window.size.y})) {
+        budget.inputCaptured=true;
         const auto& io=ImGui::GetIO();
         if (x) position.x-=(io.MouseWheelH+(io.KeyShift ? io.MouseWheel : 0))*40.0F*scale;
         if (y && !io.KeyShift) position.y-=io.MouseWheel*40.0F*scale;
@@ -966,6 +958,7 @@ Rect scrolling(lua_State* vm,int instance,int props,const Rect& window,const Mod
         float& offset=horizontal ? position.x : position.y; const float max=horizontal ? maximum.x : maximum.y;
         ImGui::SetCursorScreenPos(origin); ImGui::BeginDisabled(!enabled);
         ImGui::InvisibleButton(horizontal ? "scroll-x" : "scroll-y",size);
+        if (ImGui::IsItemActive() || ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) budget.inputCaptured=true;
         if (enabled && ImGui::IsItemActive() && max>0 && length>thumb) offset=((horizontal ? ImGui::GetIO().MousePos.x-origin.x : ImGui::GetIO().MousePos.y-origin.y)-thumb*.5F)/(length-thumb)*max;
         ImGui::EndDisabled();
         offset=std::clamp(offset,0.0F,max);
@@ -1004,8 +997,6 @@ void drawNode(lua_State* vm, int instance, int depth, Budget& budget, const Rect
     const bool canvasGroup=type=="CanvasGroup";
     const float groupAlpha=1.0F-std::clamp(numberField(vm,props,"GroupTransparency"),0.0F,1.0F);
     const bool canvasAvailable=budget.canvasResolver && *budget.canvasResolver;
-    // Reserve a fail-closed readiness publication before descendants spend the
-    // event budget. A failed render must suppress events already queued inside.
     const bool canvasCanPublish=canvasGroup && !lua_getreadonly(vm,instance) && budget.allocationBytes>=512;
     if (canvasCanPublish) budget.allocationBytes-=512;
     if (type == "Folder" || type == "PlayerGui") {
@@ -1023,7 +1014,6 @@ void drawNode(lua_State* vm, int instance, int depth, Budget& budget, const Rect
     ImGui::PushID(static_cast<int>(numberField(vm, instance, "id")));
     const bool gated=!booleanField(vm,props,"Interactable",true) ||
         (canvasGroup && (groupAlpha<=0 || !canvasAvailable || !booleanField(vm,instance,"_canvasReady",true) || !canvasCanPublish));
-    // Interaction ancestry is independent of the group's visual opacity.
     if (gated) ImGui::PushStyleVar(ImGuiStyleVar_DisabledAlpha,1.0F);
     ImGui::BeginDisabled(booleanField(vm, props, "Disabled") || gated ||
         ((type == "TextButton" || type=="ImageButton") && !booleanField(vm, props, "Active", true)));
@@ -1148,10 +1138,10 @@ void drawNode(lua_State* vm, int instance, int depth, Budget& budget, const Rect
             if (type == "TextLabel" || type == "TextButton") publishVector(vm, instance, props, "TextBounds", ImGui::CalcTextSize(text.c_str()), budget);
         }
     }
+    if ((type == "Checkbox" || type == "SliderFloat") &&
+        (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled) || ImGui::IsItemActive())) budget.inputCaptured=true;
     if (renderChildren) {
         if (styled) ImGui::SetCursorScreenPos(childRect.origin);
-        // ScreenGui historically hosted legacy flow widgets too. Only an
-        // explicitly laid out descendant switches those children to a canvas.
         drawChildren(vm, instance, depth + 1, budget, childRect, styled && type != "ScreenGui", children,scale);
     }
     if (clip) ImGui::PopClipRect();
@@ -1183,8 +1173,6 @@ void drawNode(lua_State* vm, int instance, int depth, Budget& budget, const Rect
         }
     }
     if (restoreCursor) {
-        // Register the restored boundary through a real item. Merely moving the
-        // cursor past the last item's extent is an ImGui layout assertion.
         ImGui::SetCursorScreenPos({ after.x, after.y - ImGui::GetStyle().ItemSpacing.y });
         ImGui::Dummy(ImVec2(0.0F, 0.0F));
     }
@@ -1193,25 +1181,50 @@ void drawNode(lua_State* vm, int instance, int depth, Budget& budget, const Rect
     if (colorPushed) ImGui::PopStyleColor();
     ImGui::EndDisabled(); if (gated) ImGui::PopStyleVar(); ImGui::PopID(); lua_pop(vm, 1);
 }
-} // namespace
+}
 
-void ReactUI::draw(ScriptingSystem& scripting, const bool gameOnly, const ImageResolver& images, const CanvasResolver& canvases) {
-    // Preserve allocator headroom for raw-field reads, the bounded Lua stack and
-    // mouse event records. Lua callbacks only run later in the protected pump.
+namespace {
+class ViewportLayout final {
+    ImGuiWindow* window = ImGui::GetCurrentWindow();
+    ImVec2 cursor = window->DC.CursorPos, previous = window->DC.CursorPosPrevLine;
+    ImVec2 maximum = window->DC.CursorMaxPos, ideal = window->DC.IdealMaxPos;
+    ImVec2 currentLine = window->DC.CurrLineSize, previousLine = window->DC.PrevLineSize;
+    float currentOffset = window->DC.CurrLineTextBaseOffset, previousOffset = window->DC.PrevLineTextBaseOffset;
+    bool sameLine = window->DC.IsSameLine, setPosition = window->DC.IsSetPos;
+public:
+    explicit ViewportLayout(const Rect& rect) {
+        ImGui::PushClipRect(rect.origin, {rect.origin.x + rect.size.x, rect.origin.y + rect.size.y}, true);
+        window->DC.CurrLineSize = window->DC.PrevLineSize = ImVec2(0, 0);
+        window->DC.CurrLineTextBaseOffset = window->DC.PrevLineTextBaseOffset = 0;
+        window->DC.IsSameLine = false;
+        ImGui::SetCursorScreenPos(rect.origin);
+    }
+    ~ViewportLayout() {
+        ImGui::PopClipRect();
+        window->DC.CursorPos = cursor; window->DC.CursorPosPrevLine = previous;
+        window->DC.CursorMaxPos = maximum; window->DC.IdealMaxPos = ideal;
+        window->DC.CurrLineSize = currentLine; window->DC.PrevLineSize = previousLine;
+        window->DC.CurrLineTextBaseOffset = currentOffset; window->DC.PrevLineTextBaseOffset = previousOffset;
+        window->DC.IsSameLine = sameLine; window->DC.IsSetPos = setPosition;
+    }
+};
+
+bool drawRoots(ScriptingSystem& scripting, const bool gameOnly, const Rect* viewport,
+    const ReactUI::ImageResolver& images, const ReactUI::CanvasResolver& canvases) {
     const auto limit = scripting.limits().memoryBytes;
-    if (scripting.memoryUsed() >= limit || limit - scripting.memoryUsed() < 64U * 1024U) return;
+    if (scripting.memoryUsed() >= limit || limit - scripting.memoryUsed() < 64U * 1024U) return false;
     lua_State* vm = scripting.state();
-    if (!vm || !lua_checkstack(vm, 512)) return;
+    if (!vm || !lua_checkstack(vm, 512)) return false;
     const int originalTop = lua_gettop(vm);
+    bool inputCaptured = false;
     rawField(vm, LUA_GLOBALSINDEX, "__turboUIRoots");
     if (lua_istable(vm, -1)) {
+        Rect gameContent;
+        bool openedGameWindow = false;
         const int roots = lua_gettop(vm), count = lua_objlen(vm, roots);
         Budget budget;
         budget.imageResolver=&images;
         budget.canvasResolver=&canvases;
-        // Geometry and event records are allocated on this unprotected native
-        // path. Reserve most VM headroom and cap writes; unchanged nodes then
-        // let large trees finish publishing geometry across subsequent frames.
         const size_t headroom = scripting.memoryUsed() < limit ? limit-scripting.memoryUsed() : 0;
         budget.allocationBytes=headroom>32768U ? headroom-32768U : 0;
         budget.valueWrites = headroom > 32768U ? static_cast<int>(std::min(size_t{128}, (headroom-32768U)/512U)) : 0;
@@ -1219,32 +1232,67 @@ void ReactUI::draw(ScriptingSystem& scripting, const bool gameOnly, const ImageR
             --budget.nodes;
             lua_rawgeti(vm, roots, index);
             if (lua_istable(vm, -1) && drawableRoot(vm, -1, 0, budget.rootInspections)) {
+                if (gameOnly && !viewport) {
+                    const auto* mainViewport = ImGui::GetMainViewport();
+                    ImGui::SetNextWindowPos(mainViewport->Pos);
+                    ImGui::SetNextWindowSize(mainViewport->Size);
+                    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
+                    openedGameWindow = true;
+                    if (!ImGui::Begin("##ReactGameUI", nullptr, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove |
+                            ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoBackground |
+                            ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoScrollWithMouse)) break;
+                    gameContent = { ImGui::GetCursorScreenPos(), ImGui::GetContentRegionAvail() };
+                    viewport = &gameContent;
+                }
                 const int container = lua_gettop(vm);
                 rawField(vm, container, "props");
-                const auto title = lua_istable(vm, -1) ? stringField(vm, -1, "Name", "Script UI") : stringField(vm, container, "Name", "Script UI");
+                auto title = lua_istable(vm, -1) ? stringField(vm, -1, "Name", "Script UI") : stringField(vm, container, "Name", "Script UI");
+                std::replace(title.begin(), title.end(), '\0', ' ');
                 lua_pop(vm, 1);
                 const auto name = title + "##ReactRoot" +
                     std::to_string(static_cast<int>(numberField(vm, container, "id", static_cast<float>(index))));
-                ImGuiWindowFlags flags = ImGuiWindowFlags_None;
-                if (gameOnly) {
-                    const auto* viewport = ImGui::GetMainViewport();
-                    ImGui::SetNextWindowPos(viewport->Pos); ImGui::SetNextWindowSize(viewport->Size);
-                    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0F, 0.0F));
-                    flags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings |
-                        ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoScrollWithMouse;
-                } else ImGui::SetNextWindowSize(ImVec2(440, 420), ImGuiCond_FirstUseEver);
-                if (ImGui::Begin(name.c_str(), nullptr, flags)) {
+                if (viewport) {
+                    const ViewportLayout layout(*viewport);
+                    ImGui::PushID(name.c_str());
+                    const auto children = modifiers(vm, container, budget);
+                    drawChildren(vm, container, 0, budget, *viewport, false, children);
+                    ImGui::PopID();
+                    lua_pop(vm, 1);
+                    continue;
+                }
+                ImGui::SetNextWindowSize(ImVec2(440, 420), ImGuiCond_FirstUseEver);
+                if (ImGui::Begin(name.c_str())) {
                     const Rect rect{ ImGui::GetCursorScreenPos(), ImGui::GetContentRegionAvail() };
                     const auto children = modifiers(vm, container, budget);
                     drawChildren(vm, container, 0, budget, rect, false, children);
                 }
                 ImGui::End();
-                if (gameOnly) ImGui::PopStyleVar();
             }
             lua_pop(vm, 1);
         }
+        if (openedGameWindow) {
+            ImGui::End();
+            ImGui::PopStyleVar();
+        }
+        inputCaptured = budget.inputCaptured;
     }
     lua_settop(vm, originalTop);
+    return inputCaptured;
 }
-} // namespace engine::scripting
+}
+
+void ReactUI::draw(ScriptingSystem& scripting, const bool gameOnly, const ImageResolver& images, const CanvasResolver& canvases) {
+    drawRoots(scripting, gameOnly, nullptr, images, canvases);
+}
+
+bool ReactUI::drawInViewport(ScriptingSystem& scripting, const Viewport& viewport,
+    const ImageResolver& images, const CanvasResolver& canvases) {
+    const auto* context = ImGui::GetCurrentContext();
+    if (!context || !context->WithinFrameScope || !context->CurrentWindow || context->CurrentWindow->SkipItems ||
+        !std::isfinite(viewport.x) || !std::isfinite(viewport.y) || !std::isfinite(viewport.width) || !std::isfinite(viewport.height) ||
+        viewport.width <= 0 || viewport.height <= 0) return false;
+    const Rect rect{{viewport.x, viewport.y}, {viewport.width, viewport.height}};
+    return drawRoots(scripting, false, &rect, images, canvases);
+}
+}
 

@@ -101,4 +101,4 @@ void DebugRenderSystem::render(
     });
 }
 
-} // namespace engine::ecs
+}

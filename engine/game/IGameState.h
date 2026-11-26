@@ -45,4 +45,4 @@ public:
     virtual void renderUi(renderer::Renderer& renderer) = 0;
 };
 
-} // namespace engine::game
+}

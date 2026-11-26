@@ -27,4 +27,4 @@ public:
     static EngineConfig load(std::string_view path);
 };
 
-} // namespace engine::core
+}

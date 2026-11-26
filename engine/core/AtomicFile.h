@@ -1,13 +1,23 @@
 #pragma once
 
 #include <filesystem>
+#include <span>
 #include <string>
 
 namespace engine::core {
 
-// Write through an exclusively created sibling, then replace the target entry.
-// The parent directory must already exist. Failed writes preserve the target.
 bool writeFileAtomically(const std::filesystem::path& target, const std::string& contents,
                          std::string& error);
 
-} // namespace engine::core
+struct NewFileContents {
+    std::filesystem::path path;
+    std::string contents;
+};
+
+bool writeNewFiles(std::span<const NewFileContents> files, std::string& error);
+
+bool writeNewFilePair(const std::filesystem::path& first, const std::string& firstContents,
+                      const std::filesystem::path& second, const std::string& secondContents,
+                      std::string& error);
+
+}

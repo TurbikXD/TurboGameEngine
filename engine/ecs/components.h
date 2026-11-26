@@ -14,7 +14,8 @@ namespace engine::resources {
 class Mesh;
 class ShaderProgram;
 class Texture;
-} // namespace engine::resources
+struct Material;
+}
 
 namespace engine::ecs {
 
@@ -47,6 +48,20 @@ struct Camera final {
     float nearPlane{0.1F};
     float farPlane{200.0F};
     bool active{true};
+};
+
+enum class LightKind : std::uint8_t { Directional = 0, Point };
+
+struct Light final {
+    static constexpr float MaxIntensity = 64.0F;
+    static constexpr float MinRange = 0.01F;
+    static constexpr float MaxRange = 10000.0F;
+
+    LightKind kind{LightKind::Point};
+    glm::vec3 color{1.0F};
+    float intensity{1.0F};
+    float range{10.0F};
+    bool enabled{true};
 };
 
 struct Rigidbody final {
@@ -128,18 +143,21 @@ struct MeshRenderer final {
     std::string meshId;
     std::string textureId;
     std::string shaderId;
+    std::string materialId;
     std::shared_ptr<resources::Mesh> mesh;
     std::shared_ptr<resources::Texture> texture;
     std::shared_ptr<resources::ShaderProgram> shader;
+    std::shared_ptr<resources::Material> material;
+    std::string materialCacheKey;
     bool visible{true};
 
     [[nodiscard]] bool hasResourceIds() const {
-        return !meshId.empty() && !textureId.empty() && !shaderId.empty();
+        return !meshId.empty() && (!materialId.empty() || (!textureId.empty() && !shaderId.empty()));
     }
 
     [[nodiscard]] bool hasGpuResources() const {
-        return mesh != nullptr && texture != nullptr && shader != nullptr;
+        return mesh != nullptr && (material != nullptr || (texture != nullptr && shader != nullptr));
     }
 };
 
-} // namespace engine::ecs
+}

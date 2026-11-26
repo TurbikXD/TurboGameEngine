@@ -1,5 +1,3 @@
--- UI-only TweenService. One deterministic pump owns every tween; no Heartbeat
--- connections, native callbacks or per-cycle loops are installed.
 local UI = __turboRobloxUI
 local State = Enum.PlaybackState
 local records = setmetatable({}, { __mode = "kv" })
@@ -175,9 +173,6 @@ function methods:GetPropertyChangedSignal(property)
     return record.playbackSignal
 end
 local function tweenMeta(record)
-    -- The public object's metatable retains its state. Registry entries are
-    -- weak on both sides, so a Completed callback capturing its own Tween does
-    -- not keep otherwise unreachable tween/target cycles alive forever.
     return table.freeze({
     __index = function(tween, name)
         if methods[name] then return methods[name] end

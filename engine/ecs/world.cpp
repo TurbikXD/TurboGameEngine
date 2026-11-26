@@ -6,16 +6,20 @@ World::StablePhase::StablePhase(const World& world, const bool requireOwner) : m
     if (requireOwner) {
         world.requireOwnerThread();
     }
-    m_ownsPhase = std::this_thread::get_id() == world.m_ownerThread;
-    if (m_ownsPhase) {
-        ++world.m_stablePhases;
+    if (std::this_thread::get_id() == world.m_ownerThread) {
+        world.m_stablePhases.fetch_add(1U, std::memory_order_acq_rel);
+        return;
     }
+    auto count = world.m_stablePhases.load(std::memory_order_acquire);
+    while (count != 0U) {
+        if (world.m_stablePhases.compare_exchange_weak(count, count + 1U,
+                std::memory_order_acq_rel, std::memory_order_acquire)) return;
+    }
+    throw std::logic_error("World worker reads require an owner-held stable phase");
 }
 
 World::StablePhase::~StablePhase() {
-    if (m_ownsPhase) {
-        --m_world.m_stablePhases;
-    }
+    m_world.m_stablePhases.fetch_sub(1U, std::memory_order_release);
 }
 
 World::StablePhase World::stablePhase() const {
@@ -29,10 +33,16 @@ void World::requireOwnerThread() const {
 }
 
 void World::requireStructuralChange() const {
-    // Check thread ownership first; workers must never read the owner's phase counter.
     requireOwnerThread();
-    if (m_stablePhases != 0U) {
+    if (m_stablePhases.load(std::memory_order_acquire) != 0U) {
         throw std::logic_error("World structure is frozen until iteration/jobs finish");
+    }
+}
+
+void World::requireReadAccess() const {
+    if (std::this_thread::get_id() != m_ownerThread &&
+        m_stablePhases.load(std::memory_order_acquire) == 0U) {
+        throw std::logic_error("World worker reads require an owner-held stable phase");
     }
 }
 
@@ -50,16 +60,17 @@ void World::destroyEntity(const EntityId entity) {
 
 void World::clear() {
     requireStructuralChange();
-    // Keep entity storage so its versions invalidate handles across scene resets.
     m_registry.clear();
 }
 
 bool World::isAlive(const EntityId entity) const {
+    requireReadAccess();
     return entity != kInvalidEntity && m_registry.valid(toNative(entity));
 }
 
 std::size_t World::aliveCount() const {
+    requireReadAccess();
     return m_registry.storage<entt::entity>()->free_list();
 }
 
-} // namespace engine::ecs
+}

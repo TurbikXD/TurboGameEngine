@@ -1,4 +1,5 @@
 #include "engine/core/ProjectManager.h"
+#include "engine/network/NetworkSession.h"
 
 #include <algorithm>
 #include <atomic>
@@ -8,6 +9,7 @@
 #include <fstream>
 #include <limits>
 #include <stdexcept>
+#include <string_view>
 #include <system_error>
 
 #include <nlohmann/json.hpp>
@@ -77,7 +79,7 @@ fs::path containedPath(const fs::path& root, const std::string& value) {
     if (!within(root, resolved)) { throw std::invalid_argument("Project path escapes its root: " + value); }
     return resolved;
 }
-Json readJson(const fs::path& path, const std::size_t limit) {
+std::string readText(const fs::path& path, const std::size_t limit) {
     if (!fs::is_regular_file(path)) { throw std::invalid_argument("Expected a regular file: " + utf8(path)); }
     const auto size = fs::file_size(path);
     if (size > limit) { throw std::invalid_argument("File exceeds project size limit: " + utf8(path)); }
@@ -89,7 +91,10 @@ Json readJson(const fs::path& path, const std::size_t limit) {
     if (!file.eof() && file.peek() != std::char_traits<char>::eof()) {
         throw std::invalid_argument("File changed while reading: " + utf8(path));
     }
-    return Json::parse(text);
+    return text;
+}
+Json readJson(const fs::path& path, const std::size_t limit) {
+    return Json::parse(readText(path, limit));
 }
 void requireVersion(const Json& value, const char* label) {
     if (!value.is_object() || !value.contains("version") || !value["version"].is_number_integer() || value["version"] != 1) {
@@ -104,7 +109,6 @@ std::string requiredString(const Json& value, const char* key) {
     return found->get<std::string>();
 }
 
-// CREATE_NEW/O_EXCL protects project and temporary files from accidental clobber.
 bool writeExclusive(const fs::path& path, const std::string& text, bool& created, std::string& error) {
     created = false;
 #ifdef _WIN32
@@ -165,12 +169,12 @@ void cleanupCreated(const fs::path& root, const std::vector<fs::path>& files, co
         }
         for (auto iterator = directories.rbegin(); iterator != directories.rend(); ++iterator) {
             if (samePath(*iterator, root) || within(root, fs::weakly_canonical(*iterator))) {
-                std::error_code ignored; fs::remove(*iterator, ignored); // Empty directories only, never recursive.
+                std::error_code ignored; fs::remove(*iterator, ignored);
             }
         }
-    } catch (...) { /* A failed rollback must not mask the original diagnostic. */ }
+    } catch (...) {}
 }
-} // namespace
+}
 
 ProjectManager::ProjectManager(fs::path registryPath) : m_registryPath(std::move(registryPath)) {
     if (m_registryPath.empty()) { m_registryPath = defaultRegistryPath(); }
@@ -239,14 +243,25 @@ std::optional<Project> ProjectManager::createBlank(const fs::path& parentDirecto
     }
 }
 std::optional<Project> ProjectManager::open(const fs::path& manifestOrDirectory, std::string& error) {
+    try {
+        auto project = load(manifestOrDirectory, error);
+        if (project) remember(*project, error);
+        return project;
+    } catch (const std::exception& failure) { error = failure.what(); return std::nullopt; }
+}
+
+std::optional<Project> ProjectManager::load(const fs::path& manifestOrDirectory, std::string& error,
+                                            std::uint64_t* networkCompatibility, std::string* startupSceneContents) {
     error.clear();
+    if (networkCompatibility) *networkCompatibility = 0;
+    if (startupSceneContents) startupSceneContents->clear();
     try {
         if (manifestOrDirectory.empty()) { throw std::invalid_argument("Select a .tgeproj manifest or project directory"); }
         fs::path manifest = fs::absolute(manifestOrDirectory).lexically_normal();
         if (fs::is_directory(manifest)) {
             fs::path found;
             for (const auto& entry : fs::directory_iterator(manifest)) {
-                if (lowercase(utf8(entry.path().extension())) != ".tgeproj") { continue; }
+                if (lowercase(utf8(entry.path().extension())) != ".tgeproj" || !entry.is_regular_file()) { continue; }
                 if (!found.empty()) { throw std::invalid_argument("Directory contains multiple .tgeproj files; select one manifest"); }
                 found = entry.path();
             }
@@ -270,11 +285,34 @@ std::optional<Project> ProjectManager::open(const fs::path& manifestOrDirectory,
         }
         if (!fs::is_directory(assets)) { throw std::invalid_argument("Project assets directory is missing"); }
         if (lowercase(utf8(scene.extension())) != ".json") { throw std::invalid_argument("Startup scene must be a JSON scene file"); }
-        const auto sceneData = readJson(scene, kSceneLimit);
+        auto sceneText = readText(scene, kSceneLimit);
+        const auto sceneData = Json::parse(sceneText);
         requireVersion(sceneData, "Startup scene");
         if (!sceneData.contains("entities") || !sceneData["entities"].is_array()) { throw std::invalid_argument("Startup scene entities must be an array"); }
         Project project{name, root, manifest, assets, scene, layout};
-        remember(project, error);
+        if (const auto limit = description.find("networkPlayerLimit"); limit != description.end()) {
+            if (!limit->is_number_unsigned() || !limit->get<std::uint64_t>() ||
+                limit->get<std::uint64_t>() > net::MaxPeers) {
+                throw std::invalid_argument("networkPlayerLimit must be an integer from 1 to " + std::to_string(net::MaxPeers));
+            }
+            project.networkPlayerLimit = limit->get<unsigned>();
+        }
+        if (networkCompatibility) {
+            std::uint64_t hash = 14695981039346656037ULL;
+            const auto append = [&](std::string_view value) {
+                for (const unsigned char byte : value) {
+                    hash ^= byte;
+                    hash *= 1099511628211ULL;
+                }
+                hash *= 1099511628211ULL;
+            };
+            append(name);
+            append(utf8(scene.lexically_relative(root)));
+            append(sceneText);
+            if (project.networkPlayerLimit) append(std::to_string(project.networkPlayerLimit));
+            *networkCompatibility = hash ? hash : 1;
+        }
+        if (startupSceneContents) *startupSceneContents = std::move(sceneText);
         return project;
     } catch (const std::exception& failure) { error = failure.what(); return std::nullopt; }
 }
@@ -334,4 +372,4 @@ bool ProjectManager::persist(std::string& error) const {
     }
 }
 
-} // namespace engine::core
+}

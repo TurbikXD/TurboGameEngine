@@ -8,7 +8,6 @@
 
 namespace engine::core {
 
-// Explicit opt-in lab controls; ordinary editor sessions keep their normal scene.
 struct LabOptions final {
     std::string scene;
     std::string assetDirectory;
@@ -17,12 +16,12 @@ struct LabOptions final {
     bool gpuUpload{true};
     bool waitForTracy{false};
     bool missingAsset{false};
-    bool stressScene{false}; // Explicit ordinary-app stress scene, independent of Tracy.
+    bool stressScene{false};
     double durationSeconds{0.0};
     double loadAtSeconds{6.0};
     std::size_t entityCount{4096U};
-    std::size_t jobWorkers{0U}; // 0 preserves the conservative automatic default.
-    std::size_t assetInFlightLimit{0U}; // 0 keeps the normal workers-dependent limit.
+    std::size_t jobWorkers{0U};
+    std::size_t assetInFlightLimit{0U};
     std::size_t uploadsPerFrame{1U};
     double uploadBudgetMilliseconds{2.0};
 
@@ -82,4 +81,4 @@ struct LabOptions final {
     }
 };
 
-} // namespace engine::core
+}

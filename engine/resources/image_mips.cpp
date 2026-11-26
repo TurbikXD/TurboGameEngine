@@ -17,7 +17,6 @@ std::vector<ImageMip> buildRgba8MipTail(std::uint32_t width, std::uint32_t heigh
         throw std::invalid_argument("Invalid RGBA8 mip source");
     }
     std::vector<ImageMip> levels;
-    // Reserve first: spans into earlier levels must not be invalidated.
     levels.reserve(32);
     while (width > 1 || height > 1) {
         ImageMip mip;
@@ -51,4 +50,4 @@ std::vector<ImageMip> buildRgba8MipTail(std::uint32_t width, std::uint32_t heigh
     return levels;
 }
 
-} // namespace engine::resources
+}

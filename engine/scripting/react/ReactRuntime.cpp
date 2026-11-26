@@ -3,13 +3,11 @@
 #include <algorithm>
 #include <cmath>
 #include <fstream>
-#include <iomanip>
 #include <map>
 #include <set>
 #include <sstream>
 #include <string>
 #include <utility>
-#include <vector>
 
 #include "engine/scripting/ScriptingSystem.h"
 
@@ -22,7 +20,6 @@ std::string readText(const std::filesystem::path& path) {
 }
 
 std::string quote(const std::string& value) {
-    // Module names are fixed ASCII paths from our checked-in manifest.
     std::string result = "\"";
     for (const char character : value) {
         if (character == '\\' || character == '"') result += '\\';
@@ -34,11 +31,12 @@ std::string quote(const std::string& value) {
 bool failure(ScriptingSystem& scripting, const std::string& message) {
     return scripting.execute("error(" + quote("React Luau: " + message) + ")", "=ReactBootstrap");
 }
-} // namespace
+}
 
 bool ReactRuntime::install(ScriptingSystem& scripting, std::filesystem::path packageRoot) {
     if (packageRoot.empty()) {
         packageRoot = "assets/scripts/react-luau";
+#if !defined(ENGINE_PACKAGED_RUNTIME)
         if (!std::filesystem::exists(packageRoot / "manifest.tsv")) {
 #ifdef ENGINE_REACT_PACKAGE_DIR
             packageRoot = ENGINE_REACT_PACKAGE_DIR;
@@ -46,6 +44,7 @@ bool ReactRuntime::install(ScriptingSystem& scripting, std::filesystem::path pac
             packageRoot = "third_party/react-luau";
 #endif
         }
+#endif
     }
     std::ifstream manifest(packageRoot / "manifest.tsv");
     if (!manifest) return failure(scripting, "missing manifest at " + packageRoot.generic_string());
@@ -100,12 +99,8 @@ bool ReactRuntime::install(ScriptingSystem& scripting, std::filesystem::path pac
     if (!scripting.execute(compatibility, "=ReactCompatibility")) return false;
     if (!scripting.execute(robloxUI, "=RobloxUICompatibility")) return false;
     if (!scripting.execute(tweens, "=TweenServiceCompatibility")) return false;
-    // Advertise native capabilities from the binary, not from replaceable Luau
-    // adapters. Projects can keep their older pages usable until restart.
     if (!scripting.execute("__turboNativeUIVersion = 3", "=NativeUIVersion")) return false;
     for (auto& [id, source] : modules) {
-        // Use the module's private environment: BeginWork is exactly at Luau's
-        // local-register limit, so introducing even one local breaks upstream.
         const auto taskAlias = id == "Scheduler" || id.starts_with("Scheduler/") ? "task = __turboSchedulerTask\n" : "";
         scripting.registerModule(id, "script = __reactModuleTree[" + quote(id) + "]\n" + taskAlias + source);
     }
@@ -120,8 +115,6 @@ bool ReactRuntime::install(ScriptingSystem& scripting, std::filesystem::path pac
         "local UI = require('ReactTurbo'); __turboUIRoots = UI.getRoots(); "
         "__turboUIEvents = UI.events; __turboUIPump = UI.pump; __turboUIReset = UI.reset; "
         "__turboUIRefresh = UI.refresh; "
-        // Upstream lazily loads ReactFiberHooks on the first function component.
-        // Prewarm it within the trusted bootstrap budget, before any game code.
         "local React=require('React'); local function Warmup() React.useState(0); React.useEffect(function() end, {}); return nil end; "
         "local warmRoot=UI.createRoot(); warmRoot:render(React.createElement(Warmup)); UI.pump(0); warmRoot:unmount()", "=ReactBootstrap");
     scripting.setLimits(previousLimits);
@@ -136,4 +129,4 @@ bool ReactRuntime::pump(ScriptingSystem& scripting, const double dt) {
 bool ReactRuntime::reset(ScriptingSystem& scripting) {
     return scripting.callGlobal("__turboUIReset");
 }
-} // namespace engine::scripting
+}

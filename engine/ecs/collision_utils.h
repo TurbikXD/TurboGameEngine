@@ -13,11 +13,11 @@ struct WorldAabb final {
     glm::vec3 max{0.0F, 0.0F, 0.0F};
 
     [[nodiscard]] glm::vec3 center() const {
-        return (min + max) * 0.5F;
+        return min * 0.5F + max * 0.5F;
     }
 
     [[nodiscard]] glm::vec3 extents() const {
-        return (max - min) * 0.5F;
+        return max * 0.5F - min * 0.5F;
     }
 };
 
@@ -41,6 +41,7 @@ struct CollisionContact final {
 };
 
 bool computeWorldColliderShape(const World& world, EntityId entity, const Collider& collider, WorldColliderShape& outShape);
+bool computeWorldColliderShape(const glm::mat4& worldMatrix, const Collider& collider, WorldColliderShape& outShape);
 WorldAabb computeWorldBounds(const WorldColliderShape& shape);
 bool intersectColliders(
     EntityId entityA,
@@ -49,4 +50,4 @@ bool intersectColliders(
     const WorldColliderShape& shapeB,
     CollisionContact& outContact);
 
-} // namespace engine::ecs
+}

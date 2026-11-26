@@ -1,6 +1,3 @@
--- These checks cover the public facade and lifecycle. Flattened compositing,
--- overlapping pixels, rounded clipping and native hit tests belong to the
--- renderer/GPU tests; multiplying descendant alpha would not prove those.
 do
     local function runCanvasGroupTests()
         local React = require("React")

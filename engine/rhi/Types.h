@@ -3,12 +3,26 @@
 #include <cstddef>
 #include <cstdint>
 #include <string>
+#include <string_view>
 
 namespace engine::platform {
 class Window;
 }
 
 namespace engine::rhi {
+
+inline constexpr std::size_t MaxScenePointLights = 24;
+
+struct ScenePointLightConstants final {
+    float positionRange[4]{};
+    float colorIntensity[4]{};
+};
+
+struct SceneLightingConstants final {
+    float directionalColorIntensity[4]{1.0F, 1.0F, 1.0F, 0.86F};
+    float pointLightInfo[4]{};
+    ScenePointLightConstants pointLights[MaxScenePointLights]{};
+};
 
 enum class BackendType : std::uint8_t {
     OpenGL = 0,
@@ -143,14 +157,22 @@ struct ShaderModuleDesc final {
     ShaderStage stage{ShaderStage::Vertex};
     std::string path;
     std::string entryPoint{"main"};
+    std::string_view source{};
 };
 
 class IShaderModule;
+
+inline constexpr std::size_t kMeshTextureSlots = 8;
+
+enum class BlendMode : std::uint8_t { Opaque, Alpha, Additive };
 
 struct GraphicsPipelineDesc final {
     IShaderModule* vertexShader{nullptr};
     IShaderModule* fragmentShader{nullptr};
     PrimitiveTopology topology{PrimitiveTopology::TriangleList};
+    BlendMode blend{BlendMode::Opaque};
+    bool depthTest{true};
+    bool depthWrite{true};
 };
 
-} // namespace engine::rhi
+}

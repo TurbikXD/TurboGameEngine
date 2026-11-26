@@ -29,7 +29,6 @@ public:
     template <class T>
     std::shared_ptr<T> load(const std::string& path);
 
-    // Existing holders keep the last good resource while a replacement loads.
     template <class T>
     std::shared_ptr<T> reload(const std::string& path) {
         { std::lock_guard<std::mutex> lock(m_mutex); m_cacheByType[typeid(T)].erase(path); }
@@ -37,8 +36,6 @@ public:
     }
 
     void clear();
-    // Project switches discard cached handles while preserving loader and
-    // fallback registration owned by the live renderer.
     void clearCache();
 
 private:
@@ -125,4 +122,4 @@ std::shared_ptr<T> ResourceManager::fallbackForType() const {
     return std::static_pointer_cast<T>(it->second);
 }
 
-} // namespace engine::resources
+}

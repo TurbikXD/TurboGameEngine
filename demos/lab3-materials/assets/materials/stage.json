@@ -1,0 +1,14 @@
+{
+  "base": "materials/base.json",
+  "texture": "textures/white.ppm",
+  "tint": [
+    0.09,
+    0.14,
+    0.22,
+    1
+  ],
+  "uvScale": [
+    1,
+    1
+  ]
+}

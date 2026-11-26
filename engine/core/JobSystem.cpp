@@ -25,7 +25,7 @@ void nameWorker(const std::uint32_t index) {
     const std::string name = "Job Worker " + std::to_string(index);
     ENGINE_PROFILE_THREAD_NAME(name.c_str());
 }
-} // namespace
+}
 
 struct JobSystem::JobState final : enki::ITaskSet {
     Impl* owner{};
@@ -33,7 +33,7 @@ struct JobSystem::JobState final : enki::ITaskSet {
     std::function<void(std::size_t, std::size_t)> function;
     std::vector<std::shared_ptr<JobState>> prerequisites;
     std::vector<std::weak_ptr<JobState>> continuations;
-    std::atomic_size_t prerequisitesLeft{1U}; // Registration gate prevents early scheduling.
+    std::atomic_size_t prerequisitesLeft{1U};
     std::atomic_size_t itemsLeft{1U};
     std::atomic_bool started{false};
     std::atomic_bool bodyDone{false};
@@ -49,28 +49,24 @@ struct JobSystem::Impl final {
         ExecutionScope* previousScope;
         Impl* owner;
         JobState* task;
-        Impl* previousOwner;
-        JobState* previousTask;
         ExecutionScope(Impl* currentOwner, JobState* currentTask)
-            : previousScope(executionTop), owner(currentOwner), task(currentTask),
-              previousOwner(executingOwner), previousTask(executingTask) {
+            : previousScope(executionTop), owner(currentOwner), task(currentTask) {
             executionTop = this;
-            executingOwner = currentOwner;
-            executingTask = currentTask;
         }
         ~ExecutionScope() {
             executionTop = previousScope;
-            executingOwner = previousOwner;
-            executingTask = previousTask;
         }
     };
     static thread_local ExecutionScope* executionTop;
-    static thread_local Impl* executingOwner;
-    static thread_local JobState* executingTask;
 
     explicit Impl(const bool jobsEnabled, std::size_t requestedWorkers)
         : parallel(jobsEnabled), creator(std::this_thread::get_id()) {
         if (!parallel) return;
+        for (auto* scope = executionTop; scope; scope = scope->previousScope) {
+            if (scope->owner->parallel && creator != scope->owner->creator) {
+                throw std::logic_error("A parallel JobSystem cannot be created on another JobSystem worker");
+            }
+        }
         if (requestedWorkers == 0U) {
             const auto hardware = std::thread::hardware_concurrency();
             requestedWorkers = std::min<std::size_t>(hardware > 1U ? hardware - 1U : 1U, 4U);
@@ -85,14 +81,21 @@ struct JobSystem::Impl final {
         scheduler.Initialize(config);
     }
 
+    bool isExecuting() const {
+        for (auto* scope = executionTop; scope; scope = scope->previousScope) {
+            if (scope->owner == this) return true;
+        }
+        return false;
+    }
+
     void requireThread() const {
-        if (std::this_thread::get_id() != creator && executingOwner != this) {
+        if (std::this_thread::get_id() != creator && !isExecuting()) {
             throw std::logic_error("JobSystem API requires its creator thread or one of its jobs");
         }
     }
 
     void requireOwner() const {
-        if (std::this_thread::get_id() != creator || executingOwner == this) {
+        if (std::this_thread::get_id() != creator || isExecuting()) {
             throw std::logic_error("JobSystem drain/shutdown requires the idle creator thread");
         }
     }
@@ -117,7 +120,7 @@ struct JobSystem::Impl final {
         const std::size_t grain, const Priority priority,
         const std::vector<Handle>& dependencies = {}) {
         requireThread();
-        if (stopped || (draining && executingOwner != this)) {
+        if (stopped || (draining && !isExecuting())) {
             throw std::logic_error("JobSystem is shutting down");
         }
         if (count > std::numeric_limits<std::uint32_t>::max()) {
@@ -140,9 +143,6 @@ struct JobSystem::Impl final {
             }
         }
 
-        // Reserve all edges before publishing the job. A failed allocation must
-        // not leave an unschedulable task in the registry. Lock ordering allows
-        // concurrent worker submissions with overlapping prerequisites.
         std::vector<JobState*> lockOrder;
         lockOrder.reserve(state->prerequisites.size());
         for (const auto& dependency : state->prerequisites) lockOrder.push_back(dependency.get());
@@ -159,14 +159,11 @@ struct JobSystem::Impl final {
         {
             std::lock_guard lock(activeMutex);
             std::erase_if(active, [](const auto& job) { return complete(*job); });
-            active.push_back(state); // Keep fire-and-forget tasks alive until enkiTS releases them.
+            active.push_back(state);
         }
         submitted.fetch_add(1U, std::memory_order_relaxed);
         queued.fetch_add(1U, std::memory_order_relaxed);
         state->prerequisitesLeft.store(state->prerequisites.size() + 1U, std::memory_order_relaxed);
-        // Native enkiTS dependency edges must be attached before their roots are
-        // launched. Handles are already running, so use synchronized continuations
-        // here and enqueue only after every predecessor's body is complete.
         for (const auto& dependency : state->prerequisites) {
             if (dependency->bodyDone.load(std::memory_order_relaxed)) {
                 state->prerequisitesLeft.fetch_sub(1U, std::memory_order_relaxed);
@@ -186,8 +183,6 @@ struct JobSystem::Impl final {
                 throw std::logic_error("A job cannot wait for itself or an executing ancestor");
             }
         }
-        // Wait prerequisites first: an unqueued continuation has native count 0.
-        // Each wait keeps its own priority threshold, avoiding unrelated low-priority IO.
         for (const auto& prerequisite : state->prerequisites) await(prerequisite);
         if (parallel) scheduler.WaitforTask(state.get(), state->m_Priority);
     }
@@ -205,8 +200,6 @@ struct JobSystem::Impl final {
     std::atomic_size_t queued{0U}, running{0U};
 };
 
-thread_local JobSystem::Impl* JobSystem::Impl::executingOwner = nullptr;
-thread_local JobSystem::JobState* JobSystem::Impl::executingTask = nullptr;
 thread_local JobSystem::Impl::ExecutionScope* JobSystem::Impl::executionTop = nullptr;
 
 void JobSystem::JobState::releasePrerequisite() {
@@ -231,10 +224,10 @@ void JobSystem::JobState::ExecuteRange(const enki::TaskSetPartition range, const
     }
     owner->running.fetch_sub(1U, std::memory_order_relaxed);
     if (itemsLeft.fetch_sub(range.end - range.start, std::memory_order_acq_rel) == range.end - range.start) {
+        function = {};
         std::vector<std::weak_ptr<JobState>> ready;
         {
             std::lock_guard lock(completionMutex);
-            function = {};
             ready.swap(continuations);
             bodyDone.store(true, std::memory_order_release);
         }
@@ -325,4 +318,4 @@ void JobSystem::runParallelFor(const std::size_t count, const std::size_t grain,
     wait(handle);
 }
 
-} // namespace engine::core
+}

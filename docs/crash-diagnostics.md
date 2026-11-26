@@ -24,19 +24,16 @@ letting a Luau exception escape C++. Regression scenarios are in
 `engine_scripting_tests`. Structured React errors retain their raw `message`
 without invoking user `__tostring` metamethods.
 
-New fatal failures write `logs/crash-last.txt` relative to the process's working
-directory, independently of the normal logger. It records the exception/abort
-category, available message, UTC timestamp, process/thread IDs, module offsets
-and a reporting stack. A native Windows fault also records its fault address.
-This is a diagnostic record, not a recovery mechanism or a symbolized minidump.
-Use the matching executable/PDB to resolve offsets. Assertions and native faults
-remain visible; they are not suppressed. No global Windows crash settings change.
+On Windows, a fatal failure creates a uniquely named directory under
+`%LOCALAPPDATA%/TurboGameEngine/crash-reports`. Preserve `crash.dmp`, `engine.log`
+and `report.json` together. The report records the build ID, commit, UTC time,
+scene, last recorded action, exception code and faulting thread. Use the
+matching executable and PDB to resolve the stack. Each process has its own log
+snapshot, including Standalone Play and network test windows.
 
-For a new report, preserve `crash-last.txt` and the final `logs/engine.log`
-interval, the build configuration, project and the action before the failure.
-Standalone Play has its own temporary working directory/logs. A missing report
-does not prove a normal exit (external termination and some low-level failures
-can bypass handlers).
+`logs/crash-last.txt` remains a short summary in the working directory for
+Play Session diagnostics. See [Lab 5](lab5/README.md) for the report format,
+package checks and symbolized stack workflow.
 
 The UI image path has independent safeguards: immutable bounded encoded
 snapshots, dimension validation before decode, bounded cache/pending loads and

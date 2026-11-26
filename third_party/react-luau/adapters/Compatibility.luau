@@ -1,5 +1,3 @@
--- Engine host services required by unmodified React Luau and its dependencies.
--- These services perform no network or filesystem access.
 local queue = {}
 local heartbeatListeners = {}
 local clock = 0
@@ -36,9 +34,6 @@ task = {
         if type(item) == "table" then item.cancelled = true end
     end,
 }
--- Injected only into upstream Scheduler modules' private environments. Host
--- scheduler callbacks must survive a Play reset so its internal pending flags
--- can settle; callbacks created by game scripts belong to one Play generation.
 __turboSchedulerTask = {
     delay = function(seconds, callback, ...) return schedule(true, seconds, callback, ...) end,
     defer = function(callback, ...) return schedule(true, 0, callback, ...) end,
@@ -66,7 +61,6 @@ end
 
 local httpService = {}
 function httpService:JSONEncode(value)
-    -- Upstream inspect() asks HttpService only to quote strings.
     assert(type(value) == "string", "Engine compatibility JSONEncode supports strings")
     return quote(value)
 end
@@ -92,8 +86,6 @@ __turboReactPump = function(dt)
             if not ok then connection:Disconnect(); error(message) end
         end
     end
-    -- Run a snapshot: work scheduled during a callback runs on the next frame.
-    -- This preserves scheduler yielding and prevents zero-delay recursive loops.
     local pending = queue
     queue = {}
     for index, item in ipairs(pending) do
@@ -108,8 +100,6 @@ __turboReactPump = function(dt)
                     end
                 end)
                 if not ok then
-                    -- A failed user callback must not discard remaining work,
-                    -- including the React scheduler's next host invocation.
                     for remaining = index + 1, #pending do table.insert(queue, pending[remaining]) end
                     error(message)
                 end
@@ -120,8 +110,6 @@ __turboReactPump = function(dt)
     end
 end
 
--- SafeFlags is an internal Roblox dependency. The engine supplies its documented
--- getter shape with explicit defaults, disabling Roblox-only experimental flags.
 __turboSafeFlags = {
     createGetFFlag = function(name, defaultValue)
         local value = if name == "ReactIsolatedGlobalsEnabled" then true else (defaultValue == true)

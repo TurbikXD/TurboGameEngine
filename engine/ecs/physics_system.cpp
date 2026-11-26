@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
+#include <limits>
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
@@ -15,6 +16,7 @@
 
 #include "engine/core/JobSystem.h"
 #include "engine/core/Profiling.h"
+#include "engine/ecs/transform_utils.h"
 #include "engine/ecs/world.h"
 
 namespace engine::ecs {
@@ -26,8 +28,20 @@ struct BodyProxy final {
     Transform* transform{nullptr};
     Rigidbody* rigidbody{nullptr};
     Collider* collider{nullptr};
+    Transform worldTransform{};
+    glm::mat4 worldMatrix{1};
     WorldColliderShape worldShape{};
     WorldAabb worldBounds{};
+};
+
+struct IntegratedBody final {
+    EntityId entity{kInvalidEntity};
+    Transform* transform{nullptr};
+    Rigidbody* rigidbody{nullptr};
+    Collider* collider{nullptr};
+    Transform worldTransform{};
+    std::size_t depth{0};
+    bool valid{false};
 };
 
 struct CellKey final {
@@ -121,6 +135,83 @@ glm::mat3 rotationMatrixFromEuler(const glm::vec3& rotationEulerRadians) {
     rotation = glm::rotate(rotation, rotationEulerRadians.y, glm::vec3(0.0F, 1.0F, 0.0F));
     rotation = glm::rotate(rotation, rotationEulerRadians.z, glm::vec3(0.0F, 0.0F, 1.0F));
     return glm::mat3(rotation);
+}
+
+glm::vec3 eulerFromRotation(const glm::mat3& rotation) {
+    const float y = std::asin(std::clamp(rotation[2][0], -1.0F, 1.0F));
+    if (std::abs(std::cos(y)) > 1e-5F) {
+        return {std::atan2(-rotation[2][1], rotation[2][2]), y,
+            std::atan2(-rotation[1][0], rotation[0][0])};
+    }
+    return {std::atan2(rotation[1][2], rotation[1][1]), y, 0};
+}
+
+bool finiteVector(const glm::vec3& value) {
+    return std::isfinite(value.x) && std::isfinite(value.y) && std::isfinite(value.z);
+}
+
+bool inverseParentMatrix(const glm::mat4& parent, glm::dmat4& inverse) {
+    for (int column = 0; column < 4; ++column) for (int row = 0; row < 4; ++row)
+        if (!std::isfinite(parent[column][row])) return false;
+    const glm::dmat3 basis(parent);
+    const double volume = glm::length(basis[0]) * glm::length(basis[1]) * glm::length(basis[2]);
+    if (volume <= 0 || std::abs(glm::determinant(basis)) <= volume * 1e-8) return false;
+    inverse = glm::inverse(glm::dmat4(parent));
+    return true;
+}
+
+bool snapshotWorldPose(const World& world, const EntityId entity, const Transform& local,
+    Transform& pose, glm::mat4& matrix) {
+    const auto parent = computeParentWorldMatrix(world, entity);
+    matrix = parent * local.toMatrix();
+    for (int column = 0; column < 4; ++column) for (int row = 0; row < 4; ++row)
+        if (!std::isfinite(matrix[column][row])) return false;
+    pose = local;
+    pose.position = glm::vec3(matrix[3]);
+    const auto parentRotation = computeParentWorldRotation(world, entity);
+    if (parentRotation != glm::mat3(1)) pose.rotationEulerRadians =
+        eulerFromRotation(parentRotation * rotationMatrixFromEuler(local.rotationEulerRadians));
+    for (int axis = 0; axis < 3; ++axis) {
+        const double scale = glm::length(glm::dvec3(matrix[axis]));
+        if (scale > std::numeric_limits<float>::max()) return false;
+        pose.scale[axis] = static_cast<float>(scale);
+    }
+    return finiteVector(pose.position) && finiteVector(pose.rotationEulerRadians);
+}
+
+std::size_t hierarchyDepth(const World& world, const EntityId entity) {
+    const auto* first = world.getComponent<Hierarchy>(entity);
+    if (!first || first->parent == kInvalidEntity || !world.isAlive(first->parent)) return 0;
+    std::unordered_set<EntityId> visited{entity};
+    auto current = entity;
+    std::size_t depth = 0;
+    while (const auto* hierarchy = world.getComponent<Hierarchy>(current)) {
+        current = hierarchy->parent;
+        if (current == kInvalidEntity || !world.isAlive(current)) break;
+        if (!visited.insert(current).second) return std::numeric_limits<std::size_t>::max();
+        ++depth;
+    }
+    return depth;
+}
+
+void commitWorldPoses(const World& world, const std::vector<IntegratedBody>& bodies) {
+    for (const auto& body : bodies) {
+        if (!body.valid || !body.rigidbody->isDynamic()) continue;
+        glm::dmat4 inverse;
+        if (!inverseParentMatrix(computeParentWorldMatrix(world, body.entity), inverse)) continue;
+        const auto local = inverse * glm::dvec4(body.worldTransform.position, 1);
+        if (!std::isfinite(local.x) || !std::isfinite(local.y) || !std::isfinite(local.z) ||
+            std::abs(local.x) > std::numeric_limits<float>::max() || std::abs(local.y) > std::numeric_limits<float>::max() ||
+            std::abs(local.z) > std::numeric_limits<float>::max()) continue;
+        const glm::vec3 position(local);
+        if (!finiteVector(position)) continue;
+        const auto parentRotation = computeParentWorldRotation(world, body.entity);
+        const auto rotation = parentRotation == glm::mat3(1) ? body.worldTransform.rotationEulerRadians :
+            eulerFromRotation(glm::transpose(parentRotation) * rotationMatrixFromEuler(body.worldTransform.rotationEulerRadians));
+        if (!finiteVector(rotation)) continue;
+        body.transform->position = position;
+        body.transform->rotationEulerRadians = rotation;
+    }
 }
 
 glm::vec3 localHalfExtentsForBody(const Transform& transform, const Collider* collider) {
@@ -286,7 +377,7 @@ glm::vec3 velocityAtPoint(const BodyProxy& body, const glm::vec3& worldPoint) {
     if (body.transform == nullptr || body.rigidbody == nullptr) {
         return glm::vec3(0.0F);
     }
-    const glm::vec3 offset = worldPoint - body.transform->position;
+    const glm::vec3 offset = worldPoint - body.worldTransform.position;
     return body.rigidbody->velocity + glm::cross(body.rigidbody->angularVelocity, offset);
 }
 
@@ -323,10 +414,10 @@ void resolveCollision(BodyProxy& bodyA, BodyProxy& bodyB, const CollisionContact
         if (correctionDepth > 0.0F) {
             const glm::vec3 correction = contact.normal * (correctionDepth * kCorrectionPercent);
             if (bodyA.transform != nullptr && inverseMassA > 0.0F) {
-                bodyA.transform->position -= correction * (inverseMassA / inverseMassSum);
+                bodyA.worldTransform.position -= correction * (inverseMassA / inverseMassSum);
             }
             if (bodyB.transform != nullptr && inverseMassB > 0.0F) {
-                bodyB.transform->position += correction * (inverseMassB / inverseMassSum);
+                bodyB.worldTransform.position += correction * (inverseMassB / inverseMassSum);
             }
         }
     }
@@ -335,12 +426,13 @@ void resolveCollision(BodyProxy& bodyA, BodyProxy& bodyB, const CollisionContact
         return;
     }
 
-    const glm::vec3 offsetA = contact.contactPoint - bodyA.transform->position;
-    const glm::vec3 offsetB = contact.contactPoint - bodyB.transform->position;
+    const glm::vec3 offsetA = contact.contactPoint - bodyA.worldTransform.position;
+    const glm::vec3 offsetB = contact.contactPoint - bodyB.worldTransform.position;
+    if (!finiteVector(offsetA) || !finiteVector(offsetB)) return;
     const glm::mat3 inverseInertiaA =
-        bodyA.rigidbody != nullptr ? worldInverseInertiaTensor(*bodyA.transform, bodyA.collider, *bodyA.rigidbody) : glm::mat3(0.0F);
+        bodyA.rigidbody != nullptr ? worldInverseInertiaTensor(bodyA.worldTransform, bodyA.collider, *bodyA.rigidbody) : glm::mat3(0.0F);
     const glm::mat3 inverseInertiaB =
-        bodyB.rigidbody != nullptr ? worldInverseInertiaTensor(*bodyB.transform, bodyB.collider, *bodyB.rigidbody) : glm::mat3(0.0F);
+        bodyB.rigidbody != nullptr ? worldInverseInertiaTensor(bodyB.worldTransform, bodyB.collider, *bodyB.rigidbody) : glm::mat3(0.0F);
 
     const glm::vec3 relativeVelocity = velocityAtPoint(bodyB, contact.contactPoint) - velocityAtPoint(bodyA, contact.contactPoint);
     const float closingSpeed = glm::dot(relativeVelocity, contact.normal);
@@ -351,7 +443,7 @@ void resolveCollision(BodyProxy& bodyA, BodyProxy& bodyB, const CollisionContact
     const glm::vec3 angularFactorA = glm::cross(inverseInertiaA * glm::cross(offsetA, contact.normal), offsetA);
     const glm::vec3 angularFactorB = glm::cross(inverseInertiaB * glm::cross(offsetB, contact.normal), offsetB);
     const float normalDenominator = inverseMassSum + glm::dot(angularFactorA + angularFactorB, contact.normal);
-    if (normalDenominator <= 1e-6F) {
+    if (!std::isfinite(normalDenominator) || normalDenominator <= 1e-6F || !finiteVector(relativeVelocity)) {
         return;
     }
 
@@ -379,13 +471,13 @@ void resolveCollision(BodyProxy& bodyA, BodyProxy& bodyB, const CollisionContact
     const glm::vec3 tangentAngularFactorA = glm::cross(inverseInertiaA * glm::cross(offsetA, tangent), offsetA);
     const glm::vec3 tangentAngularFactorB = glm::cross(inverseInertiaB * glm::cross(offsetB, tangent), offsetB);
     const float tangentDenominator = inverseMassSum + glm::dot(tangentAngularFactorA + tangentAngularFactorB, tangent);
-    if (tangentDenominator <= 1e-6F) {
+    if (!std::isfinite(tangentDenominator) || tangentDenominator <= 1e-6F) {
         return;
     }
 
     const float frictionA = bodyA.rigidbody != nullptr ? bodyA.rigidbody->friction : 0.0F;
     const float frictionB = bodyB.rigidbody != nullptr ? bodyB.rigidbody->friction : 0.0F;
-    const float friction = std::sqrt(std::max(0.0F, frictionA) * std::max(0.0F, frictionB));
+    const float friction = static_cast<float>(std::sqrt(static_cast<double>(std::max(0.0F, frictionA)) * std::max(0.0F, frictionB)));
     float tangentImpulseMagnitude = -glm::dot(postNormalRelativeVelocity, tangent) / tangentDenominator;
     const float maxFrictionImpulse = normalImpulseMagnitude * friction;
     tangentImpulseMagnitude = std::clamp(tangentImpulseMagnitude, -maxFrictionImpulse, maxFrictionImpulse);
@@ -417,24 +509,40 @@ std::vector<PotentialPair> buildBroadphasePairs(const std::vector<BodyProxy>& bo
 
     std::unordered_map<CellKey, std::vector<std::size_t>, CellKeyHash> cells;
     cells.reserve(bodies.size() * 2U);
+    std::vector<std::size_t> oversizedBodies;
+    constexpr std::uint64_t kMaximumCellsPerBody = 4096U;
 
     for (std::size_t bodyIndex = 0; bodyIndex < bodies.size(); ++bodyIndex) {
         const WorldAabb& bounds = bodies[bodyIndex].worldBounds;
-        const glm::vec3 minCellFloat = glm::floor(bounds.min / cellSize);
-        const glm::vec3 maxCellFloat = glm::floor(bounds.max / cellSize);
-        const glm::ivec3 minCell(
-            static_cast<int>(minCellFloat.x),
-            static_cast<int>(minCellFloat.y),
-            static_cast<int>(minCellFloat.z));
-        const glm::ivec3 maxCell(
-            static_cast<int>(maxCellFloat.x),
-            static_cast<int>(maxCellFloat.y),
-            static_cast<int>(maxCellFloat.z));
+        glm::ivec3 minCell{}, maxCell{};
+        std::uint64_t cellCount = 1U;
+        bool fitsGrid = true;
+        for (int axis = 0; axis < 3; ++axis) {
+            const double minimum = std::floor(static_cast<double>(bounds.min[axis]) / cellSize);
+            const double maximum = std::floor(static_cast<double>(bounds.max[axis]) / cellSize);
+            if (!std::isfinite(minimum) || !std::isfinite(maximum) || minimum > maximum ||
+                minimum < std::numeric_limits<int>::min() || maximum > std::numeric_limits<int>::max()) {
+                fitsGrid = false;
+                break;
+            }
+            minCell[axis] = static_cast<int>(minimum);
+            maxCell[axis] = static_cast<int>(maximum);
+            const auto count = static_cast<std::uint64_t>(static_cast<std::int64_t>(maxCell[axis]) - minCell[axis] + 1);
+            if (count > kMaximumCellsPerBody / cellCount) {
+                fitsGrid = false;
+                break;
+            }
+            cellCount *= count;
+        }
+        if (!fitsGrid) {
+            oversizedBodies.push_back(bodyIndex);
+            continue;
+        }
 
-        for (int x = minCell.x; x <= maxCell.x; ++x) {
-            for (int y = minCell.y; y <= maxCell.y; ++y) {
-                for (int z = minCell.z; z <= maxCell.z; ++z) {
-                    cells[CellKey{x, y, z}].push_back(bodyIndex);
+        for (std::int64_t x = minCell.x; x <= maxCell.x; ++x) {
+            for (std::int64_t y = minCell.y; y <= maxCell.y; ++y) {
+                for (std::int64_t z = minCell.z; z <= maxCell.z; ++z) {
+                    cells[CellKey{static_cast<int>(x), static_cast<int>(y), static_cast<int>(z)}].push_back(bodyIndex);
                 }
             }
         }
@@ -443,35 +551,38 @@ std::vector<PotentialPair> buildBroadphasePairs(const std::vector<BodyProxy>& bo
     std::unordered_set<std::uint64_t> visitedPairs;
     visitedPairs.reserve(bodies.size() * 4U);
     pairs.reserve(bodies.size() * 3U);
+    const auto appendPair = [&](const std::size_t bodyIndexA, const std::size_t bodyIndexB) {
+        if (bodyIndexA == bodyIndexB ||
+            (effectiveInverseMass(bodies[bodyIndexA].rigidbody) <= 0.0F &&
+             effectiveInverseMass(bodies[bodyIndexB].rigidbody) <= 0.0F)) {
+            return;
+        }
+        const auto minIndex = static_cast<std::uint32_t>(std::min(bodyIndexA, bodyIndexB));
+        const auto maxIndex = static_cast<std::uint32_t>(std::max(bodyIndexA, bodyIndexB));
+        const auto pairKey = (static_cast<std::uint64_t>(minIndex) << 32U) | maxIndex;
+        if (visitedPairs.insert(pairKey).second) {
+            pairs.push_back(PotentialPair{bodyIndexA, bodyIndexB});
+        }
+    };
 
     for (const auto& [cell, bodyIndices] : cells) {
         (void)cell;
         for (std::size_t i = 0; i < bodyIndices.size(); ++i) {
             for (std::size_t j = i + 1U; j < bodyIndices.size(); ++j) {
-                const std::size_t bodyIndexA = bodyIndices[i];
-                const std::size_t bodyIndexB = bodyIndices[j];
-                if (effectiveInverseMass(bodies[bodyIndexA].rigidbody) <= 0.0F &&
-                    effectiveInverseMass(bodies[bodyIndexB].rigidbody) <= 0.0F) {
-                    continue;
-                }
-
-                const std::uint32_t minIndex = static_cast<std::uint32_t>(std::min(bodyIndexA, bodyIndexB));
-                const std::uint32_t maxIndex = static_cast<std::uint32_t>(std::max(bodyIndexA, bodyIndexB));
-                const std::uint64_t pairKey =
-                    (static_cast<std::uint64_t>(minIndex) << 32U) | static_cast<std::uint64_t>(maxIndex);
-                if (!visitedPairs.insert(pairKey).second) {
-                    continue;
-                }
-
-                pairs.push_back(PotentialPair{bodyIndexA, bodyIndexB});
+                appendPair(bodyIndices[i], bodyIndices[j]);
             }
+        }
+    }
+    for (const auto bodyIndex : oversizedBodies) {
+        for (std::size_t otherIndex = 0; otherIndex < bodies.size(); ++otherIndex) {
+            appendPair(bodyIndex, otherIndex);
         }
     }
 
     return pairs;
 }
 
-} // namespace
+}
 
 PhysicsSystem::PhysicsSystem(Settings settings) : m_settings(std::move(settings)) {}
 
@@ -520,7 +631,6 @@ void PhysicsSystem::forgetEntity(const EntityId entity, core::EventBus& eventBus
             ++it;
         }
     }
-    // Publish after erasing so callbacks cannot invalidate this iteration.
     for (const auto& contact : ended) { eventBus.publish(CollisionExitEvent{contact}); }
 }
 
@@ -532,43 +642,71 @@ std::size_t PhysicsSystem::CollisionPairHash::operator()(const CollisionPair& pa
 
 void PhysicsSystem::update(World& world, const double dt, core::EventBus& eventBus) {
     ENGINE_PROFILE_ZONE("PhysicsSystem Update");
-    if (dt <= 0.0) {
+    if (!std::isfinite(dt) || dt <= 0.0 || dt > std::numeric_limits<float>::max()) {
         return;
     }
 
     const float dtSeconds = static_cast<float>(dt);
+    if (dtSeconds <= 0.0F) return;
     std::unordered_map<CollisionPair, CollisionContact, CollisionPairHash> frameContacts;
 
     {
-        // EnTT removal can relocate components. Protect integration/proxy/solver
-        // pointers until all jobs finish; release before publishing user callbacks.
         const auto phase = world.stablePhase();
 
+        std::vector<IntegratedBody> integratedBodies;
+        std::unordered_map<EntityId, std::size_t> integratedIndices;
         {
             ENGINE_PROFILE_ZONE("Physics Integrate Bodies");
-            world.forEachParallel<Transform, Rigidbody>(m_jobSystem, 64U,
-                [&](EntityId entity, Transform& transform, Rigidbody& rigidbody) {
-                    integrateBody(transform, rigidbody, world.getComponent<Collider>(entity), m_settings, dtSeconds);
-                });
+            integratedBodies.reserve(world.aliveCount());
+            world.forEach<Transform, Rigidbody>([&](EntityId entity, Transform& transform, Rigidbody& rigidbody) {
+                IntegratedBody body;
+                body.entity = entity;
+                body.transform = &transform;
+                body.rigidbody = &rigidbody;
+                body.collider = world.getComponent<Collider>(entity);
+                body.depth = hierarchyDepth(world, entity);
+                glm::mat4 matrix;
+                glm::dmat4 inverse;
+                body.valid = body.depth != std::numeric_limits<std::size_t>::max() &&
+                    snapshotWorldPose(world, entity, transform, body.worldTransform, matrix) &&
+                    (rigidbody.isStatic || rigidbody.isKinematic ||
+                        inverseParentMatrix(computeParentWorldMatrix(world, entity), inverse));
+                integratedBodies.push_back(body);
+            });
+            std::stable_sort(integratedBodies.begin(), integratedBodies.end(),
+                [](const auto& a, const auto& b) { return a.depth < b.depth; });
+            const auto integrateRange = [&](const std::size_t begin, const std::size_t end) {
+                ENGINE_PROFILE_ZONE("Job Physics Integrate");
+                for (auto index = begin; index < end; ++index) {
+                    auto& body = integratedBodies[index];
+                    if (body.valid) integrateBody(body.worldTransform, *body.rigidbody, body.collider, m_settings, dtSeconds);
+                }
+            };
+            if (m_jobSystem) m_jobSystem->parallelFor(integratedBodies.size(), 64U, integrateRange);
+            else integrateRange(0, integratedBodies.size());
+            commitWorldPoses(world, integratedBodies);
+            integratedIndices.reserve(integratedBodies.size());
+            for (std::size_t index = 0; index < integratedBodies.size(); ++index)
+                integratedIndices.emplace(integratedBodies[index].entity, index);
         }
 
         std::vector<BodyProxy> bodies;
         {
             ENGINE_PROFILE_ZONE("Physics Build Body Proxies");
-            struct ProxyItem final {
-                EntityId entity{kInvalidEntity};
-                Transform* transform{nullptr};
-                Rigidbody* rigidbody{nullptr};
-                Collider* collider{nullptr};
-            };
-
-            std::vector<ProxyItem> items;
+            std::vector<BodyProxy> items;
             items.reserve(world.aliveCount());
             world.forEach<Transform, Collider>([&](EntityId entity, Transform& transform, Collider& collider) {
                 if (!collider.enabled) {
                     return;
                 }
-                items.push_back(ProxyItem{entity, &transform, world.getComponent<Rigidbody>(entity), &collider});
+                const auto integrated = integratedIndices.find(entity);
+                if (integrated != integratedIndices.end() && !integratedBodies[integrated->second].valid) return;
+                BodyProxy proxy;
+                proxy.entity = entity;
+                proxy.transform = &transform;
+                proxy.rigidbody = world.getComponent<Rigidbody>(entity);
+                proxy.collider = &collider;
+                if (snapshotWorldPose(world, entity, transform, proxy.worldTransform, proxy.worldMatrix)) items.push_back(proxy);
             });
 
             std::vector<BodyProxy> results(items.size());
@@ -576,13 +714,8 @@ void PhysicsSystem::update(World& world, const double dt, core::EventBus& eventB
             const auto buildRange = [&](const std::size_t begin, const std::size_t end) {
                 ENGINE_PROFILE_ZONE("Job Physics Build Proxies");
                 for (std::size_t index = begin; index < end; ++index) {
-                    const ProxyItem& item = items[index];
-                    BodyProxy proxy{};
-                    proxy.entity = item.entity;
-                    proxy.transform = item.transform;
-                    proxy.rigidbody = item.rigidbody;
-                    proxy.collider = item.collider;
-                    if (!computeWorldColliderShape(world, item.entity, *item.collider, proxy.worldShape)) {
+                    BodyProxy proxy = items[index];
+                    if (!computeWorldColliderShape(proxy.worldMatrix, *proxy.collider, proxy.worldShape)) {
                         continue;
                     }
 
@@ -643,13 +776,21 @@ void PhysicsSystem::update(World& world, const double dt, core::EventBus& eventB
                     }
 
                     resolveCollision(bodyA, bodyB, contact);
-                    computeWorldColliderShape(world, bodyA.entity, *bodyA.collider, bodyA.worldShape);
-                    computeWorldColliderShape(world, bodyB.entity, *bodyB.collider, bodyB.worldShape);
+                    bodyA.worldMatrix[3] = glm::vec4(bodyA.worldTransform.position, 1);
+                    bodyB.worldMatrix[3] = glm::vec4(bodyB.worldTransform.position, 1);
+                    computeWorldColliderShape(bodyA.worldMatrix, *bodyA.collider, bodyA.worldShape);
+                    computeWorldColliderShape(bodyB.worldMatrix, *bodyB.collider, bodyB.worldShape);
                     bodyA.worldBounds = computeWorldBounds(bodyA.worldShape);
                     bodyB.worldBounds = computeWorldBounds(bodyB.worldShape);
                 }
             }
         }
+
+        for (const auto& body : bodies) {
+            const auto integrated = integratedIndices.find(body.entity);
+            if (integrated != integratedIndices.end()) integratedBodies[integrated->second].worldTransform = body.worldTransform;
+        }
+        commitWorldPoses(world, integratedBodies);
 
         m_lastSleepingBodyCount = 0;
         {
@@ -666,23 +807,26 @@ void PhysicsSystem::update(World& world, const double dt, core::EventBus& eventB
 
     {
         ENGINE_PROFILE_ZONE("Physics Collision Events");
+        std::vector<std::pair<CollisionContact, bool>> currentEvents;
+        std::vector<CollisionContact> endedEvents;
+        currentEvents.reserve(frameContacts.size());
+        endedEvents.reserve(m_activeContacts.size());
         for (const auto& [pair, contact] : frameContacts) {
-            const auto previousIt = m_activeContacts.find(pair);
-            if (previousIt == m_activeContacts.end()) {
-                eventBus.publish(CollisionEnterEvent{contact});
-            } else {
-                eventBus.publish(CollisionStayEvent{contact});
-            }
+            currentEvents.emplace_back(contact, m_activeContacts.contains(pair));
         }
-
         for (const auto& [pair, contact] : m_activeContacts) {
             if (frameContacts.find(pair) == frameContacts.end()) {
-                eventBus.publish(CollisionExitEvent{contact});
+                endedEvents.push_back(contact);
             }
         }
+        m_activeContacts = std::move(frameContacts);
+        for (const auto& [contact, staying] : currentEvents) {
+            if (!m_activeContacts.contains(makeCollisionPair(contact.entityA, contact.entityB))) { continue; }
+            if (staying) { eventBus.publish(CollisionStayEvent{contact}); }
+            else { eventBus.publish(CollisionEnterEvent{contact}); }
+        }
+        for (const auto& contact : endedEvents) { eventBus.publish(CollisionExitEvent{contact}); }
     }
-
-    m_activeContacts = std::move(frameContacts);
 }
 
-} // namespace engine::ecs
+}

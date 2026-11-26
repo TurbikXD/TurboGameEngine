@@ -3,6 +3,7 @@
 #include <memory>
 #include <string>
 #include <atomic>
+#include <unordered_map>
 
 #include "engine/rhi/Pipeline.h"
 #include "engine/resources/resource_state.h"
@@ -18,7 +19,8 @@ public:
     std::unique_ptr<rhi::IShaderModule> vertexShader;
     std::unique_ptr<rhi::IShaderModule> fragmentShader;
     std::unique_ptr<rhi::IPipelineLayout> pipelineLayout;
-    std::unique_ptr<rhi::IGraphicsPipeline> pipeline;
+    std::shared_ptr<rhi::IGraphicsPipeline> pipeline;
+    std::unordered_map<unsigned, std::shared_ptr<rhi::IGraphicsPipeline>> materialPipelines;
     std::string lastError;
 
     [[nodiscard]] ResourceLoadState loadState() const {
@@ -38,4 +40,4 @@ private:
     std::atomic<ResourceLoadState> m_loadState{ResourceLoadState::Unloaded};
 };
 
-} // namespace engine::resources
+}

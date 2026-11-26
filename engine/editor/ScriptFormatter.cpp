@@ -74,7 +74,6 @@ struct TemporaryDocument final {
     std::filesystem::path source;
     std::filesystem::path config;
     ~TemporaryDocument() {
-        // Only remove the two files and empty directory created for this request.
         std::error_code error;
         if (!source.empty()) std::filesystem::remove(source, error);
         if (!config.empty()) std::filesystem::remove(config, error);
@@ -180,7 +179,6 @@ ScriptFormatter::Result formatDocument(const std::filesystem::path& executable, 
         }
         finished = WaitForSingleObject(process.value, 10) == WAIT_OBJECT_0;
     }
-    // The process has exited; drain any final diagnostic bytes before checking its exit status.
     DWORD available = 0;
     while (PeekNamedPipe(readPipe.value, nullptr, 0, nullptr, &available, nullptr) && available > 0) {
         char buffer[8192];
@@ -205,7 +203,7 @@ ScriptFormatter::Result formatDocument(const std::filesystem::path& executable, 
     return result;
 }
 #endif
-} // namespace
+}
 
 struct ScriptFormatter::Impl final {
     std::filesystem::path executable = findExecutable();
@@ -263,4 +261,4 @@ std::optional<ScriptFormatter::Result> ScriptFormatter::poll() {
 }
 void ScriptFormatter::cancel() { m_impl->cancelled = true; }
 
-} // namespace engine::editor
+}

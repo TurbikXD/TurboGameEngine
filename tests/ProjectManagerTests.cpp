@@ -41,7 +41,6 @@ void directoryLink(const fs::path& target, const fs::path& link, std::error_code
     fs::create_directory_symlink(target, link, error);
 #ifdef _WIN32
     if (!error) { return; }
-    // Junctions test the same canonical-containment boundary without admin/Developer Mode.
     if (!fs::create_directory(link)) { return; }
     const auto print = fs::canonical(target).wstring();
     const auto substitute = L"\\??\\" + print;
@@ -67,7 +66,7 @@ void directoryLink(const fs::path& target, const fs::path& link, std::error_code
         if (ok) { error.clear(); return; }
         error = std::error_code(static_cast<int>(failure), std::system_category());
     } else { error = std::error_code(static_cast<int>(GetLastError()), std::system_category()); }
-    std::error_code ignored; fs::remove(link, ignored); // Newly created empty fixture only.
+    std::error_code ignored; fs::remove(link, ignored);
 #endif
 }
 
@@ -94,6 +93,24 @@ void lifecycle(const fs::path& fixtures) {
     const auto registryBefore = read(registry);
     ProjectManager reopened(registry);
     require(read(registry) == registryBefore && reopened.recent().size() == 2U, "Registry reload wrote state or lost projects");
+
+    std::uint64_t startupIdentity{};
+    const auto runtimeProject = ProjectManager::load(first->manifestPath, error, &startupIdentity);
+    require(runtimeProject && error.empty() && runtimeProject->scenePath == first->scenePath && startupIdentity != 0,
+        "Runtime project load did not validate the scene or produce a network compatibility ID");
+    require(read(registry) == registryBefore && reopened.recent().front().name == "Beta", "Runtime project load changed recents");
+    const auto replica = fixtures / "AlphaRuntimeCopy";
+    fs::copy(first->root, replica, fs::copy_options::recursive);
+    std::uint64_t replicaIdentity{};
+    const auto runtimeCopy = ProjectManager::load(replica, error, &replicaIdentity);
+    require(runtimeCopy && startupIdentity == replicaIdentity, "Network compatibility depended on the project installation path");
+    write(runtimeCopy->scenePath, R"({"version":1,"entities":[],"revision":2})");
+    require(ProjectManager::load(replica, error, &replicaIdentity) && replicaIdentity && startupIdentity != replicaIdentity,
+        "Network compatibility did not detect a changed startup scene");
+    write(runtimeCopy->scenePath, "invalid scene file");
+    require(!ProjectManager::load(replica, error, &replicaIdentity) && !replicaIdentity && !error.empty(),
+        "Runtime project load kept a compatibility ID for a malformed scene");
+
     const auto opened = reopened.open(first->root, error);
     require(opened.has_value() && error.empty() && opened->manifestPath == first->manifestPath, "Directory reopen failed");
     require(reopened.recent().size() == 2U && reopened.recent().front().name == "Alpha", "Reopen duplicated or failed to reorder a recent project");
@@ -125,6 +142,23 @@ void lifecycle(const fs::path& fixtures) {
     require(unicodeOpened.has_value() && unicodeOpened->name == unicode->name && unicodeOpened->root == unicode->root, "Unicode manifest did not reopen through native filesystem paths");
 }
 
+void directoryManifestCandidates(const fs::path& fixtures) {
+    ProjectManager manager(fixtures / "directory-candidates-registry.json");
+    std::string error;
+    const auto project = manager.createBlank(fixtures / "directory-candidates", "Game", error);
+    require(project.has_value() && error.empty(), "Cannot create directory candidate fixture");
+    const auto backup = project->root / "backup.tgeproj";
+    require(fs::create_directory(backup), "Cannot create non-manifest directory fixture");
+    write(backup / "sentinel", "preserve backup contents");
+    const auto opened = manager.open(project->root, error);
+    require(opened.has_value() && error.empty() && opened->manifestPath == project->manifestPath,
+            "A directory with .tgeproj suffix blocked opening the real manifest");
+    require(read(backup / "sentinel") == "preserve backup contents", "Opening a project altered its backup directory");
+    write(project->root / "Other.tgeproj", read(project->manifestPath));
+    require(!manager.open(project->root, error) && error.find("multiple .tgeproj") != std::string::npos,
+            "Multiple real manifests no longer require explicit selection");
+}
+
 void guards(const fs::path& fixtures) {
     ProjectManager manager(fixtures / "guards-registry.json");
     std::string error;
@@ -145,10 +179,22 @@ void guards(const fs::path& fixtures) {
     description = valid; description["assets"] = "../../outside"; reject(description);
     description = valid; description["assets"] = utf8(project->assetRoot); reject(description);
     description = valid; description["startupScene"] = "../../outside.scene.json"; reject(description);
+    for (const auto& limit : {Json(0), Json(-1), Json(33), Json(8.5), Json("8")}) {
+        description = valid; description["networkPlayerLimit"] = limit; reject(description);
+    }
+    std::uint64_t unlimitedIdentity{}, limitedIdentity{};
+    const auto unlimited = ProjectManager::load(project->manifestPath, error, &unlimitedIdentity);
+    require(unlimited && unlimited->networkPlayerLimit == 0, "An omitted player limit lost the default behavior");
+    description = valid;
+    description["networkPlayerLimit"] = 8;
+    write(project->manifestPath, description.dump());
+    const auto limited = ProjectManager::load(project->manifestPath, error, &limitedIdentity);
+    require(limited && limited->networkPlayerLimit == 8 && unlimitedIdentity != limitedIdentity,
+        "The project player limit was not applied to the launch configuration and compatibility identity");
+    write(project->manifestPath, original);
     fs::create_directory(project->root / ".tge");
     write(project->layoutPath, R"({"version":1,"entities":[]})");
     description = valid; description["startupScene"] = "assets/../.tge/editor_layout.json"; reject(description);
-    // Only our known fixture file and empty directory are removed to test a junction below.
     fs::remove(project->layoutPath); fs::remove(project->root / ".tge");
     write(project->manifestPath, std::string(64U * 1024U + 1U, ' '));
     require(!manager.open(project->manifestPath, error), "Oversize manifest accepted");
@@ -211,14 +257,14 @@ void registryFailures(const fs::path& fixtures) {
         require(read(fixtures / "registry-target.json") == "preserve target", "Registry symlink target was clobbered");
     }
 }
-} // namespace
+}
 
 int main() {
     try {
         const auto fixtures = fs::temp_directory_path() / ("tge-project-manager-test-" +
             std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
         fs::create_directory(fixtures);
-        lifecycle(fixtures); guards(fixtures); registryFailures(fixtures);
+        lifecycle(fixtures); directoryManifestCandidates(fixtures); guards(fixtures); registryFailures(fixtures);
         require(ProjectManager::defaultRegistryPath().is_absolute() && ProjectManager::defaultProjectsDirectory().is_absolute(), "Default user paths are not absolute");
     } catch (const std::exception& error) { std::cerr << "ProjectManager test failure: " << error.what() << '\n'; return 1; }
     std::cout << "ProjectManager blank projects, UTF-8 paths, reopen/recents, containment and no-clobber checks passed\n";

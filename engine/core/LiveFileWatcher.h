@@ -9,7 +9,6 @@
 #include "engine/core/JobSystem.h"
 
 namespace engine::core {
-// Bounded file reads run in jobs. Two identical observations debounce editor saves.
 class LiveFileWatcher final {
 public:
     using Clock = std::chrono::steady_clock;

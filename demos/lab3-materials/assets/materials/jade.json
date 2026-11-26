@@ -1,0 +1,17 @@
+{
+  "base": "materials/base.json",
+  "blend": "additive",
+  "depthTest": true,
+  "depthWrite": true,
+  "texture": "textures/checker.ppm",
+  "tint": [
+    0.1,
+    0.12153177708387375,
+    0.12153177708387375,
+    1.0
+  ],
+  "uvScale": [
+    2.0,
+    2.0
+  ]
+}

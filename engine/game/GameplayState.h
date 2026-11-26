@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <deque>
 #include <functional>
+#include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -24,15 +25,22 @@
 #include "engine/editor/ScriptWorkspace.h"
 #include "engine/editor/EditorCommands.h"
 #include "engine/editor/EditorRibbon.h"
+#include "engine/editor/MaterialInspector.h"
+#include "engine/network/NetworkReplica.h"
 #include "engine/scripting/ScriptingSystem.h"
 
 namespace engine::renderer {
 class RenderAdapter;
 }
 
+namespace engine::resources { struct Material; }
+namespace engine::core { struct PlayLaunch; }
+
 struct ImVec2;
 
 namespace engine::game {
+
+class SceneNetwork;
 
 enum class EditorDockSlot : std::uint8_t {
     Top = 0,
@@ -58,6 +66,7 @@ enum class EditorPanelId : std::uint8_t {
 class GameplayState final : public IGameState, public IGameStateUi {
 public:
     explicit GameplayState(StateStack& stack);
+    ~GameplayState() override;
 
     void onEnter() override;
     void onExit() override;
@@ -65,9 +74,14 @@ public:
     void update(double dt) override;
     void render(renderer::Renderer& renderer) override;
     void renderUi(renderer::Renderer& renderer) override;
+    bool networkSceneReady() const { return m_sceneNetwork != nullptr; }
+    uint16_t networkScenePort() const;
+    const std::string& networkSceneError() const { return m_networkSceneError; }
+    const nlohmann::json& scriptStatus() const { return m_scripts.status(); }
+    void queueScriptEvent(std::string event, nlohmann::json payload);
 
 private:
-    friend struct GameplayStateTestAccess; // Headless regression tests, no GPU/editor setup.
+    friend struct GameplayStateTestAccess;
     enum class EditorMode : std::uint8_t {
         Edit = 0,
         Play
@@ -95,6 +109,14 @@ private:
         float aspectRatio{16.0F / 9.0F};
     };
 
+    struct MaterialGraphWorkspace final {
+        glm::vec2 viewportPos;
+        glm::vec2 viewportSize;
+        glm::vec2 graphPos;
+        glm::vec2 graphSize;
+        bool sideBySide;
+    };
+
     struct PickRay final {
         glm::vec3 origin{0.0F};
         glm::vec3 direction{0.0F, 0.0F, 1.0F};
@@ -111,10 +133,12 @@ private:
         std::optional<ecs::Tag> tag;
         std::optional<ecs::Hierarchy> hierarchy;
         std::optional<ecs::Camera> camera;
+        std::optional<ecs::Light> light;
         std::optional<ecs::Rigidbody> rigidbody;
         std::optional<ecs::Collider> collider;
         std::optional<ecs::MeshRenderer> meshRenderer;
         std::optional<scripting::ScriptComponent> script;
+        std::optional<net::NetworkReplica> networkReplica;
     };
 
     struct SceneSnapshot final {
@@ -155,6 +179,8 @@ private:
     void createDemoScene();
     void createScriptDemo();
     void renderScriptInspector(ecs::EntityId entity);
+    void inspectEntity(ecs::EntityId entity);
+    bool saveEntityPrefab(ecs::EntityId entity, const std::string& assetPath);
     void resetDemoScene();
     void startSimulation(bool relaunchStriker = false);
     void pauseSimulation();
@@ -162,21 +188,25 @@ private:
     void spawnDropWave();
     void processPendingSpawns();
     void renderEditorUi(renderer::Renderer& renderer);
+    void restoreMaterialGraphLayout(resources::MaterialLibrary& library);
+    [[nodiscard]] ecs::EntityId materialGraphSelectedSource() const;
+    [[nodiscard]] bool materialGraphViewportVisible() const;
+    [[nodiscard]] std::optional<MaterialGraphWorkspace> materialGraphWorkspace() const;
+    void renderMaterialGraphSplitter(const MaterialGraphWorkspace& workspace);
     void renderMainMenuBar();
     void renderToolbar(renderer::Renderer* renderer = nullptr);
     void initializeEditorCommands();
     [[nodiscard]] editor::CommandState queryEditorCommand(editor::EditorCommandId command) const;
     void executeEditorAction(editor::EditorCommandId command);
     bool renderCommandMenuItem(editor::EditorCommandId command, const char* label = nullptr);
-    bool renderCommandButton(editor::EditorCommandId command, const char* label, const ImVec2& size);
     [[nodiscard]] bool sceneShortcutsBlocked() const;
     void finishGizmoEdit();
     void renderHierarchyPanel(renderer::Renderer* renderer = nullptr);
     void renderProjectPanel(renderer::Renderer* renderer = nullptr);
-    void renderInspectorPanel();
+    void renderInspectorPanel(renderer::Renderer* renderer = nullptr);
     bool inspectorMatches(std::string_view properties) const;
     void renderStatsPanel(const renderer::Renderer& renderer);
-    void renderViewportPanel(renderer::Renderer& renderer);
+    void renderViewportPanel(renderer::Renderer& renderer, const MaterialGraphWorkspace* workspace = nullptr);
     void renderViewportGizmo(const CameraFrame& cameraFrame);
     void renderStatusBar();
     void renderPanelHeader(EditorPanelId panelId, const char* title);
@@ -186,7 +216,7 @@ private:
     void renderDockResizeHandles();
     void renderSelectionOutline(renderer::RenderAdapter& renderer, const glm::mat4& viewProjectionMatrix);
     void handleViewportPicking(const CameraFrame& cameraFrame);
-    void renderEntityComponentEditors(ecs::EntityId entity);
+    void renderEntityComponentEditors(ecs::EntityId entity, renderer::Renderer* renderer = nullptr);
     void renderCreateEntityMenu();
     void renderAddComponentMenu(ecs::EntityId entity);
     void renderRemoveComponentMenu(ecs::EntityId entity);
@@ -211,14 +241,16 @@ private:
     void undoSceneEdit();
     void redoSceneEdit();
     bool saveSceneToDisk();
-    void loadSceneFromDisk();
+    bool loadSceneFromDisk();
+    bool initializeNetworkScene(const core::PlayLaunch& launch);
+    void updateSimulation(double dt);
     void createEditorCamera();
     [[nodiscard]] std::filesystem::path editorAssetsRoot() const;
     [[nodiscard]] std::filesystem::path editorScenePath() const;
     [[nodiscard]] std::filesystem::path editorLayoutPath() const;
     [[nodiscard]] std::string toAssetPath(const std::filesystem::path& path) const;
     void renderProjectSwitchDialog();
-    [[nodiscard]] CameraFrame buildActiveCameraFrame(const renderer::Renderer& renderer) const;
+    [[nodiscard]] CameraFrame buildActiveCameraFrame(const renderer::Renderer& renderer, float renderFraction) const;
     [[nodiscard]] std::optional<PickRay> buildPickRay(const CameraFrame& cameraFrame, const glm::vec2& mousePosition) const;
     [[nodiscard]] std::optional<PickResult> pickEntity(const PickRay& ray) const;
     void ensureSelectedEntityValid();
@@ -261,7 +293,7 @@ private:
     ecs::EntityId createEditorEntity(EditorEntityKind kind);
     ecs::EntityId duplicateEntity(ecs::EntityId entity);
     void deleteEntity(ecs::EntityId entity);
-    void deleteEntityNow(ecs::EntityId entity);
+    void deleteEntityNow(ecs::EntityId entity, bool recordHistory = true);
     void applyPendingRuntimeDeletes();
     ecs::EntityId spawnStaticBody(
         const std::string& tag,
@@ -305,6 +337,8 @@ private:
     std::unordered_map<ecs::EntityId, ecs::EntityId> m_fileEntities;
     bool m_projectSwitchRequested{false};
     ecs::World m_world{};
+    std::unique_ptr<SceneNetwork> m_sceneNetwork;
+    std::string m_networkSceneError;
     scripting::ScriptingSystem m_scripts{};
     editor::ScriptWorkspace m_scriptWorkspace{};
     editor::EditorCommandRegistry m_editorCommands{};
@@ -333,6 +367,8 @@ private:
     ecs::EntityId m_strikerEntity{ecs::kInvalidEntity};
     ecs::EntityId m_showcaseSphereEntity{ecs::kInvalidEntity};
     ecs::EntityId m_selectedEntity{ecs::kInvalidEntity};
+    ecs::EntityId m_materialPreviewEntity{ecs::kInvalidEntity};
+    std::shared_ptr<resources::Material> m_materialPreview;
     ecs::EntityId m_hoveredEntity{ecs::kInvalidEntity};
     EditorMode m_editorMode{EditorMode::Edit};
     GizmoOperation m_gizmoOperation{GizmoOperation::Translate};
@@ -341,6 +377,7 @@ private:
     glm::vec2 m_lastHoverPickMouse{-100000.0F, -100000.0F};
     std::string m_hierarchyFilter{};
     std::string m_inspectorFilter{};
+    std::string m_scriptPrefabPath{"prefabs/behavior.prefab.json"};
     std::string m_assetFilter{};
     std::string m_selectedAssetPath{};
     bool m_sceneInitialized{false};
@@ -354,6 +391,8 @@ private:
     bool m_showcaseSphereLaunched{false};
     bool m_viewportHovered{false};
     bool m_viewportFocused{false};
+    bool m_viewportUiCaptured{false};
+    bool m_viewportUsesContentRect{false};
     bool m_useLocalGizmoSpace{true};
     bool m_snapEnabled{false};
     bool m_selectionToolActive{false};
@@ -369,6 +408,9 @@ private:
     bool m_showInspectorPanel{false};
     bool m_showStatsPanel{false};
     bool m_showViewportPanel{true};
+    bool m_materialGraphDocked{true};
+    bool m_restoreMaterialGraphPending{false};
+    bool m_materialGraphDraftsInitialized{false};
     bool m_showStatusPanel{true};
     EditorDockSlot m_toolbarDockSlot{EditorDockSlot::Top};
     EditorDockSlot m_hierarchyDockSlot{EditorDockSlot::RightTop};
@@ -381,6 +423,9 @@ private:
     float m_editorRightWidth{0.0F};
     float m_editorLeftSplit{0.72F};
     float m_editorRightSplit{0.76F};
+    float m_materialGraphSplit{0.55F};
+    std::optional<editor::MaterialGraphSession> m_materialGraphSession;
+    ecs::EntityId m_materialGraphSelectionSource{ecs::kInvalidEntity};
     EditorPanelId m_draggedDockPanel{EditorPanelId::Toolbar};
     bool m_dockDragActive{false};
     bool m_dockDropAcceptedThisFrame{false};
@@ -400,4 +445,4 @@ private:
     std::string m_editorStatusMessage{"Editor ready."};
 };
 
-} // namespace engine::game
+}

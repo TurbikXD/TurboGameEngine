@@ -19,6 +19,24 @@ namespace engine::editor {
 namespace {
 constexpr std::size_t kMaxDocumentBytes = 2U * 1024U * 1024U;
 
+bool readDocument(const std::filesystem::path& path, std::string& text) {
+    std::error_code error;
+    if (std::filesystem::file_size(path, error) > kMaxDocumentBytes || error) return false;
+    std::ifstream file(path, std::ios::binary);
+    if (!file) return false;
+    std::string contents;
+    std::array<char, 16384> buffer{};
+    while (file) {
+        const auto remaining = kMaxDocumentBytes + 1U - contents.size();
+        file.read(buffer.data(), static_cast<std::streamsize>(std::min(buffer.size(), remaining)));
+        contents.append(buffer.data(), static_cast<std::size_t>(file.gcount()));
+        if (contents.size() > kMaxDocumentBytes) return false;
+    }
+    if (!file.eof()) return false;
+    text = std::move(contents);
+    return true;
+}
+
 TextEditor::Coordinates coordinatesAt(const std::string& text, const std::size_t offset) {
     int line = 0, column = 0;
     for (std::size_t i = 0; i < std::min(offset, text.size()); ++i) {
@@ -51,14 +69,14 @@ TextEditor::LanguageDefinition luauLanguage() {
     return language;
 }
 
-} // namespace
+}
 
 struct ScriptWorkspace::Impl {
     struct Document {
         std::string path;
         TextEditor editor;
         std::string savedText;
-        std::filesystem::file_time_type savedTime{};
+        std::string diskText;
         bool exists{false};
         bool dirty{false};
         Document() { editor.SetLanguageDefinition(luauLanguage()); editor.SetTabSize(4); editor.SetShowWhitespaces(false); }
@@ -66,7 +84,7 @@ struct ScriptWorkspace::Impl {
     std::filesystem::path assets;
     scripting::ScriptingSystem* scripts{};
     Actions actions;
-    EditorCommandRegistry* commandRegistry{}; // Owned by the containing editor.
+    EditorCommandRegistry* commandRegistry{};
     ScriptFormatter formatter;
     core::LiveFileWatcher watcher;
     std::vector<std::unique_ptr<Document>> documents;
@@ -105,22 +123,11 @@ struct ScriptWorkspace::Impl {
     bool load(Document& document) {
         const auto path = resolve(document.path);
         if (!path) { status = "Script path must remain inside assets."; return false; }
-        std::error_code error;
-        if (std::filesystem::file_size(*path, error) > kMaxDocumentBytes || error) { status = "Cannot open script (missing file or exceeds 2 MiB)."; return false; }
-        std::ifstream file(*path, std::ios::binary);
-        if (!file) { status = "Cannot read script: " + document.path; return false; }
         std::string text;
-        std::array<char, 16384> buffer{};
-        while (file) {
-            const auto remaining = kMaxDocumentBytes + 1U - text.size();
-            file.read(buffer.data(), static_cast<std::streamsize>(std::min(buffer.size(), remaining)));
-            text.append(buffer.data(), static_cast<std::size_t>(file.gcount()));
-            if (text.size() > kMaxDocumentBytes) { status = "Cannot open script (exceeds 2 MiB)."; return false; }
-        }
-        if (!file.eof()) { status = "Cannot read script: " + document.path; return false; }
+        if (!readDocument(*path, text)) { status = "Cannot read script (missing file or exceeds 2 MiB): " + document.path; return false; }
         document.editor.SetText(text);
         document.savedText = document.editor.GetText();
-        document.savedTime = std::filesystem::last_write_time(*path, error);
+        document.diskText = std::move(text);
         document.exists = true;
         document.dirty = false;
         status = "Opened " + document.path;
@@ -134,7 +141,8 @@ struct ScriptWorkspace::Impl {
         std::error_code error;
         const bool exists = std::filesystem::exists(*path, error);
         if (error) { status = "Cannot inspect script path."; return false; }
-        if ((document->exists && (!exists || std::filesystem::last_write_time(*path, error) != document->savedTime)) || (!document->exists && exists)) {
+        std::string diskText;
+        if ((document->exists && (!exists || !readDocument(*path, diskText) || diskText != document->diskText)) || (!document->exists && exists)) {
             status = "File changed on disk. Use Reload Disk to review it before saving.";
             return false;
         }
@@ -144,8 +152,9 @@ struct ScriptWorkspace::Impl {
         if (error) { status = "Cannot create script directory."; return false; }
         std::string detail;
         if (!core::writeFileAtomically(*path, text, detail)) { status = "Script save failed; original preserved. " + detail; return false; }
+        if (!document->exists) watcher.watch(*path);
         document->savedText = text;
-        document->savedTime = std::filesystem::last_write_time(*path, error);
+        document->diskText = text;
         document->exists = true;
         document->dirty = false;
         status = "Saved " + document->path;
@@ -225,13 +234,13 @@ void ScriptWorkspace::update() {
     auto& impl = *m_impl;
     for (const auto& change : impl.watcher.poll()) {
         for (auto& document : impl.documents) {
-            if (impl.assets / document->path != change.path || change.contents == document->savedText) continue;
+            if (impl.assets / document->path != change.path) continue;
             if (!change.error.empty()) { impl.status = "External change unavailable: " + change.error; continue; }
+            if (change.contents == document->diskText) continue;
             if (document->editor.GetText() != document->savedText) {
                 impl.status = "Changed on disk; local edits kept. Use Reload Disk to resolve."; continue;
             }
-            impl.load(*document);
-            impl.status = "Live: updated " + document->path + " from disk.";
+            if (impl.load(*document)) impl.status = "Live: updated " + document->path + " from disk.";
         }
     }
     const auto result = impl.formatter.poll();
@@ -312,8 +321,6 @@ bool ScriptWorkspace::executeCommand(const EditorCommandId command) {
     if (!commandState(command).enabled) return false;
     auto& impl = *m_impl;
     auto* document = impl.current();
-    // Do not dispatch back to the registry here: its handler delegates to this
-    // method. All text replacements retain TextEditor's document undo history.
     switch (command) {
     case EditorCommandId::ScriptNew:
         for (int i = 1; i < 10000; ++i) {
@@ -323,7 +330,7 @@ bool ScriptWorkspace::executeCommand(const EditorCommandId command) {
             const bool inTabs = std::any_of(impl.documents.begin(), impl.documents.end(), [&](const auto& item) { return item->path == created->path; });
             std::error_code error;
             if (path && !std::filesystem::exists(*path, error) && !error && !inTabs) {
-                created->editor.SetText("return {\n    fields = {},\n    init = function(self)\n        print(\"Hello world!\")\n    end,\n    update = function(self, dt)\n    end,\n}\n");
+                created->editor.SetText("return {\n    fields = {},\n    Init = function(self)\n        print(\"Hello world!\")\n    end,\n    Update = function(self, dt)\n    end,\n}\n");
                 created->dirty = true;
                 impl.documents.push_back(std::move(created));
                 impl.active = static_cast<int>(impl.documents.size() - 1);
@@ -378,7 +385,6 @@ void ScriptWorkspace::render(bool* open, const ecs::EntityId selected, const boo
     if (!ImGui::Begin("Script Workspace", open, windowFlags)) {
         ImGui::End(); if (docked) ImGui::PopStyleVar(); return;
     }
-    // Window padding is captured by Begin; restore it for menus and dialogs.
     if (docked) ImGui::PopStyleVar();
     impl.focused = ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows);
     const auto dispatch = [&](const EditorCommandId command) {
@@ -405,15 +411,11 @@ void ScriptWorkspace::render(bool* open, const ecs::EntityId selected, const boo
         }
         ImGui::EndDisabled();
     };
-    // The containing editor owns shortcuts when a shared registry is installed.
-    // TextEditor keeps Ctrl+Z/Y and its own cursor/selection undo operations.
     if (!impl.commandRegistry && impl.focused && ImGui::GetIO().KeyCtrl && !ImGui::GetIO().KeyAlt) {
         if (ImGui::IsKeyPressed(ImGuiKey_S, false)) dispatch(ImGui::GetIO().KeyShift ? EditorCommandId::ScriptSaveAll : EditorCommandId::ScriptSave);
         if (ImGui::IsKeyPressed(ImGuiKey_F, false)) impl.showFind = true;
         if (ImGui::IsKeyPressed(ImGuiKey_G, false)) dispatch(EditorCommandId::ScriptGoToLine);
     }
-    // The docked workspace uses the shared Script ribbon and transport strip.
-    // Retain the complete standalone toolbar for callers without a registry.
     if (!docked) {
         playButton(playing ? "Resume" : "Play in Editor", EditorCommandId::Play, impl.actions.play);
         ImGui::SameLine();
@@ -438,8 +440,6 @@ void ScriptWorkspace::render(bool* open, const ecs::EntityId selected, const boo
         ImGui::SameLine(); commandButton(impl.formatter.busy() ? "Formatting..." : "Format", EditorCommandId::ScriptFormat);
         ImGui::SameLine(); commandButton("Reload Disk", EditorCommandId::ScriptReloadDisk);
     }
-    // OpenPopup requires this window's ID stack. Requests can originate from a
-    // ribbon drawn earlier, or without any ImGui frame (e.g. command API tests).
     if (impl.popupRequest) {
         switch (*impl.popupRequest) {
         case Impl::Popup::Open: ImGui::OpenPopup("Open Script"); break;
@@ -564,8 +564,6 @@ void ScriptWorkspace::render(bool* open, const ecs::EntityId selected, const boo
                 ImGui::PushFont(codeFont(), kCodeFontSize);
                 if (impl.scripts) {
                     const auto& output = impl.scripts->output();
-                    // Messages may contain multi-line tracebacks; each row has
-                    // a different height, so a fixed-row clipper is inappropriate.
                     for (const auto& message : output) {
                         const bool error = message.kind == scripting::ScriptMessage::Kind::Error;
                         if (error) { ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0F, 0.4F, 0.4F, 1.0F)); }
@@ -635,4 +633,4 @@ void ScriptWorkspace::render(bool* open, const ecs::EntityId selected, const boo
     }
     ImGui::End();
 }
-} // namespace engine::editor
+}

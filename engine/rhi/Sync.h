@@ -15,4 +15,4 @@ public:
     virtual void signal() = 0;
 };
 
-} // namespace engine::rhi
+}

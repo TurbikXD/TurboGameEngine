@@ -15,4 +15,4 @@ public:
     void render(renderer::Renderer& renderer) override;
 };
 
-} // namespace engine::game
+}

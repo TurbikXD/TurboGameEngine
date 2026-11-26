@@ -38,4 +38,4 @@ public:
     virtual void barrier(const BarrierDesc& barrierDesc) = 0;
 };
 
-} // namespace engine::rhi
+}

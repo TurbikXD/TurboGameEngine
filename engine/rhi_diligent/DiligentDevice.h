@@ -9,7 +9,7 @@ namespace Diligent {
 struct IRenderDevice;
 struct IDeviceContext;
 struct ISwapChain;
-} // namespace Diligent
+}
 
 namespace engine::rhi::diligent {
 
@@ -53,6 +53,7 @@ public:
 
     Diligent::IRenderDevice* nativeRenderDevice() const;
     Diligent::IDeviceContext* nativeImmediateContext() const;
+    Diligent::IDeviceContext* nativeUploadContext() const;
     Diligent::ISwapChain* nativeSwapChain() const;
 
 private:
@@ -66,4 +67,4 @@ std::unique_ptr<IDevice> createDiligentDevice(
     const DeviceCreateDesc& desc,
     std::string* errorMessage = nullptr);
 
-} // namespace engine::rhi::diligent
+}

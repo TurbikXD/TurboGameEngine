@@ -37,4 +37,4 @@ void MenuState::render(renderer::Renderer& rendererInstance) {
     rendererInstance.drawTestPrimitive(m_transform);
 }
 
-} // namespace engine::game
+}

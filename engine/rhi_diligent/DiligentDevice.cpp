@@ -2,6 +2,8 @@
 
 #include <algorithm>
 #include <array>
+#include <atomic>
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -13,6 +15,7 @@
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <thread>
 #include <utility>
 
 #include "engine/core/Log.h"
@@ -134,9 +137,6 @@ private:
     bool m_valid{false};
 };
 
-// Diligent's default factory also searches the process working directory. Route
-// all requests to absolute files first so includes belong to this shader's
-// assets, including when two projects contain headers with the same name.
 class ShaderDirectoryFactory final : public Diligent::ObjectBase<Diligent::IShaderSourceInputStreamFactory> {
 public:
     using Base = Diligent::ObjectBase<Diligent::IShaderSourceInputStreamFactory>;
@@ -188,7 +188,10 @@ private:
 
 constexpr std::string_view kVsConstantsName = "Constants";
 constexpr std::string_view kPsConstantsName = "PixelConstants";
-constexpr std::string_view kTextureName = "g_Texture";
+constexpr std::array<std::string_view, kMeshTextureSlots> kTextureNames{
+    "g_Texture", "g_Texture1", "g_Texture2", "g_Texture3", "g_Texture4", "g_Texture5", "g_Texture6", "g_Texture7"};
+
+using TextureSlots = std::array<bool, kMeshTextureSlots>;
 
 struct DiligentVertexConstants final {
     float modelViewProjection[16]{
@@ -208,6 +211,8 @@ struct DiligentPixelConstants final {
     float tint[4]{1.0F, 1.0F, 1.0F, 1.0F};
     float lightDirection[4]{-0.45F, -0.8F, 0.35F, 0.0F};
     float ambientColor[4]{0.47F, 0.5F, 0.58F, 0.18F};
+    float cameraPosition[4]{0.0F, 0.0F, 0.0F, 1.0F};
+    SceneLightingConstants lighting;
 };
 
 struct DiligentPushConstants final {
@@ -244,9 +249,16 @@ std::optional<VertexLayout> inferVertexLayout(const std::string& shaderPath) {
     return std::nullopt;
 }
 
-bool shaderUsesTexture(std::string_view path) {
-    const std::string lowered = toLower(std::string(path));
-    return contains(lowered, "textured") || contains(lowered, "texture");
+TextureSlots reflectTextureSlots(Diligent::IShader& shader) {
+    TextureSlots slots{};
+    for (Diligent::Uint32 index = 0; index < shader.GetResourceCount(); ++index) {
+        Diligent::ShaderResourceDesc resource;
+        shader.GetResourceDesc(index, resource);
+        if (resource.Type != Diligent::SHADER_RESOURCE_TYPE_TEXTURE_SRV || !resource.Name) continue;
+        const auto found = std::find(kTextureNames.begin(), kTextureNames.end(), resource.Name);
+        if (found != kTextureNames.end()) slots[static_cast<std::size_t>(found - kTextureNames.begin())] = true;
+    }
+    return slots;
 }
 
 Diligent::SHADER_TYPE toDiligentShaderType(const ShaderStage stage) {
@@ -300,24 +312,37 @@ void configureCommonEngineOptions(Diligent::EngineCreateInfo& createInfo, const 
 
 class DiligentSemaphore final : public ISemaphore {};
 
+void waitForFenceValue(Diligent::IFence& fence, const std::uint64_t value) {
+    while (fence.GetCompletedValue() < value) {
+        fence.Wait(value);
+        if (fence.GetCompletedValue() < value) {
+            std::this_thread::sleep_for(std::chrono::microseconds(50));
+        }
+    }
+}
+
 class DiligentFence final : public IFence {
 public:
-    explicit DiligentFence(const bool signaled) : m_signaled(signaled) {}
-
-    void wait() override {
-        m_signaled = true;
+    DiligentFence(Diligent::IRenderDevice& device, Diligent::IDeviceContext* context, const bool signaled) :
+        m_context(context), m_waitValue(signaled ? 0U : 1U) {
+        Diligent::FenceDesc desc;
+        desc.Name = "TGE graphics frame timeline";
+        device.CreateFence(desc, &m_fence);
+        if (!m_fence) { throw std::runtime_error("Unable to create graphics frame fence"); }
     }
-
-    void reset() override {
-        m_signaled = false;
-    }
-
+    void wait() override { waitForFenceValue(*m_fence, m_waitValue.load(std::memory_order_acquire)); }
+    void reset() override { m_waitValue.store(m_lastSignal + 1U, std::memory_order_release); }
     void signal() override {
-        m_signaled = true;
+        const auto value = ++m_lastSignal;
+        m_context->EnqueueSignal(m_fence, value);
+        m_waitValue.store(value, std::memory_order_release);
+        m_context->Flush();
     }
-
 private:
-    bool m_signaled{false};
+    Diligent::RefCntAutoPtr<Diligent::IFence> m_fence;
+    Diligent::RefCntAutoPtr<Diligent::IDeviceContext> m_context;
+    std::uint64_t m_lastSignal{0};
+    std::atomic_uint64_t m_waitValue;
 };
 
 class DiligentBuffer final : public IBuffer {
@@ -384,17 +409,17 @@ private:
 class DiligentShaderModule final : public IShaderModule {
 public:
     DiligentShaderModule(
-        ShaderModuleDesc desc,
+        const ShaderStage stage,
         Diligent::RefCntAutoPtr<Diligent::IShader> shader,
         const std::optional<VertexLayout> inferredLayout,
-        const bool usesTexture) :
-        m_desc(std::move(desc)),
+        const TextureSlots textureSlots) :
+        m_stage(stage),
         m_shader(std::move(shader)),
         m_inferredLayout(inferredLayout),
-        m_usesTexture(usesTexture) {}
+        m_textureSlots(textureSlots) {}
 
     ShaderStage stage() const override {
-        return m_desc.stage;
+        return m_stage;
     }
 
     Diligent::IShader* nativeShader() const {
@@ -405,15 +430,15 @@ public:
         return m_inferredLayout;
     }
 
-    bool usesTexture() const {
-        return m_usesTexture;
+    const TextureSlots& textureSlots() const {
+        return m_textureSlots;
     }
 
 private:
-    ShaderModuleDesc m_desc{};
+    ShaderStage m_stage;
     Diligent::RefCntAutoPtr<Diligent::IShader> m_shader;
     std::optional<VertexLayout> m_inferredLayout;
-    bool m_usesTexture{false};
+    TextureSlots m_textureSlots;
 };
 
 class DiligentPipelineLayout final : public IPipelineLayout {};
@@ -427,12 +452,19 @@ public:
         Diligent::RefCntAutoPtr<Diligent::IShaderResourceBinding> shaderBinding,
         Diligent::RefCntAutoPtr<Diligent::IBuffer> transformBuffer,
         Diligent::RefCntAutoPtr<Diligent::IBuffer> tintBuffer,
-        const bool expectsTexture) :
+        const TextureSlots& textureSlots) :
         m_pipelineState(std::move(pipelineState)),
         m_shaderBinding(std::move(shaderBinding)),
         m_transformBuffer(std::move(transformBuffer)),
-        m_tintBuffer(std::move(tintBuffer)),
-        m_expectsTexture(expectsTexture) {}
+        m_tintBuffer(std::move(tintBuffer)) {
+        if (!m_shaderBinding) return;
+        for (std::size_t slot = 0; slot < textureSlots.size(); ++slot) {
+            if (textureSlots[slot]) {
+                m_textureVariables[slot] = m_shaderBinding->GetVariableByName(
+                    Diligent::SHADER_TYPE_PIXEL, kTextureNames[slot].data());
+            }
+        }
+    }
 
     Diligent::IPipelineState* pipelineState() const {
         return m_pipelineState;
@@ -462,6 +494,10 @@ public:
             copyChunk(constants.pixel.lightDirection, sizeof(constants.pixel.lightDirection), offset);
             offset += sizeof(constants.pixel.lightDirection);
             copyChunk(constants.pixel.ambientColor, sizeof(constants.pixel.ambientColor), offset);
+            offset += sizeof(constants.pixel.ambientColor);
+            copyChunk(constants.pixel.cameraPosition, sizeof(constants.pixel.cameraPosition), offset);
+            offset += sizeof(constants.pixel.cameraPosition);
+            copyChunk(&constants.pixel.lighting, sizeof(constants.pixel.lighting), offset);
         }
 
         if (m_transformBuffer) {
@@ -493,13 +529,12 @@ public:
         }
     }
 
-    void bindTextureIfNeeded(Diligent::ITextureView* srv) const {
-        if (!m_expectsTexture || !m_shaderBinding || srv == nullptr) {
-            return;
-        }
-        auto* variable = m_shaderBinding->GetVariableByName(Diligent::SHADER_TYPE_PIXEL, kTextureName.data());
-        if (variable != nullptr) {
-            variable->Set(srv);
+    void bindTextures(const std::array<DiligentImage*, kMeshTextureSlots>& textures) const {
+        for (std::size_t slot = 0; slot < textures.size(); ++slot) {
+            if (m_textureVariables[slot]) {
+                const auto* texture = textures[slot];
+                m_textureVariables[slot]->Set(texture ? texture->shaderResourceView() : nullptr);
+            }
         }
     }
 
@@ -514,7 +549,7 @@ private:
     Diligent::RefCntAutoPtr<Diligent::IShaderResourceBinding> m_shaderBinding;
     Diligent::RefCntAutoPtr<Diligent::IBuffer> m_transformBuffer;
     Diligent::RefCntAutoPtr<Diligent::IBuffer> m_tintBuffer;
-    bool m_expectsTexture{false};
+    std::array<Diligent::IShaderResourceVariable*, kMeshTextureSlots> m_textureVariables{};
 };
 
 class DiligentUploadTicket final : public IUploadTicket {
@@ -522,30 +557,26 @@ public:
     DiligentUploadTicket(Diligent::IFence* fence, Diligent::IDeviceContext* graphics, std::uint64_t value) :
         m_fence(fence), m_graphics(graphics), m_value(value) {}
     ~DiligentUploadTicket() override {
-        // Usually already complete. Covers discarded submissions as well.
         if (submitted) { wait(); }
     }
     bool isComplete() const override { return submitted && m_fence->GetCompletedValue() >= m_value; }
     std::uint64_t value() const override { return m_value; }
-    void wait() const override { if (submitted) { m_fence->Wait(m_value); } }
+    void wait() const override { if (submitted) { waitForFenceValue(*m_fence, m_value); } }
     void acquire() override {
         ENGINE_PROFILE_ZONE("Upload Graphics Acquire");
         if (!isComplete()) { throw std::logic_error("Upload acquired before GPU completion"); }
         if (!m_acquired) {
-            // CPU observation alone is not a Vulkan cross-queue memory dependency.
-            // This is a GPU-side wait, not a CPU stall; next graphics use supplies
-            // the normal COPY_DEST/COMMON -> shader/vertex/index state barrier.
             m_graphics->DeviceWaitForFence(m_fence, m_value);
             m_acquired = true;
         }
     }
-    bool submitted{false}; // published with AsyncLoadQueue's release/acquire flag
+    bool submitted{false};
     std::vector<Diligent::RefCntAutoPtr<Diligent::IDeviceObject>> destinations;
 private:
     Diligent::RefCntAutoPtr<Diligent::IFence> m_fence;
     Diligent::RefCntAutoPtr<Diligent::IDeviceContext> m_graphics;
     std::uint64_t m_value;
-    bool m_acquired{false}; // renderer thread only
+    bool m_acquired{false};
 };
 
 class DiligentUploadQueue final : public IUploadQueue {
@@ -565,7 +596,6 @@ public:
         if (request.buffers.empty() && request.imageMips.empty()) {
             throw std::invalid_argument("Empty GPU upload batch");
         }
-        // One immediate context must never be recorded concurrently by jobs.
         std::unique_lock lock(m_mutex);
         {
         ENGINE_PROFILE_ZONE("Upload Transfer Record");
@@ -655,23 +685,19 @@ public:
                 result.image = std::make_unique<DiligentImage>(request.imageDesc, std::move(texture),
                     Diligent::RefCntAutoPtr<Diligent::ITextureView>{srv});
             }
-            // D3D12 requires COMMON when transferring ownership to graphics.
-            // UpdateTexture temporarily transitions individual mips and restores
-            // their previous state; unlike UpdateBuffer it does not leave the
-            // tracked resource in COPY_DEST. Let Diligent use the tracked state.
             if (!releaseBarriers.empty()) {
                 m_transfer->TransitionResourceStates(static_cast<Diligent::Uint32>(releaseBarriers.size()), releaseBarriers.data());
             }
             m_transfer->EnqueueSignal(m_fence, ++m_value);
             ticket->submitted = true;
             m_transfer->Flush();
-            // Separate contexts are not retired by swapchain Present().
             m_transfer->FinishFrame();
             result.ticket = std::move(ticket);
             return result;
         } catch (...) {
-            // Partial recording must not leave resources or a fence unsubmitted.
-            m_transfer->WaitForIdle();
+            m_transfer->EnqueueSignal(m_fence, ++m_value);
+            m_transfer->Flush();
+            waitForFenceValue(*m_fence, m_value);
             m_transfer->FinishFrame();
             throw;
         }
@@ -680,7 +706,9 @@ public:
     void waitIdle() override {
         ENGINE_PROFILE_ZONE("Upload Transfer Shutdown");
         std::lock_guard lock(m_mutex);
-        m_transfer->WaitForIdle();
+        m_transfer->EnqueueSignal(m_fence, ++m_value);
+        m_transfer->Flush();
+        waitForFenceValue(*m_fence, m_value);
         m_transfer->FinishFrame();
     }
 private:
@@ -692,8 +720,6 @@ private:
     std::uint64_t m_value{0};
 };
 
-// Same mechanism as Diligent Tutorial23_CommandQueues. Never manufacture a
-// "copy queue" from an ordinary graphics context when the adapter lacks one.
 bool configureUploadContexts(Diligent::IEngineFactory* factory, Diligent::EngineCreateInfo& info,
                              std::array<Diligent::ImmediateContextCreateInfo, 2>& contexts) {
     Diligent::Uint32 count = 0;
@@ -722,7 +748,7 @@ bool configureUploadContexts(Diligent::IEngineFactory* factory, Diligent::Engine
     return true;
 }
 
-} // namespace
+}
 
 struct DiligentDevice::Impl {
     platform::Window* window{nullptr};
@@ -741,10 +767,9 @@ struct DiligentDevice::Impl {
     Diligent::RefCntAutoPtr<Diligent::IDeviceContext> immediateContext;
     Diligent::RefCntAutoPtr<Diligent::IDeviceContext> transferContext;
     Diligent::RefCntAutoPtr<Diligent::ISwapChain> swapChain;
-    Diligent::RefCntAutoPtr<Diligent::IShaderSourceInputStreamFactory> shaderSourceFactory;
 
     std::string selectedDeviceName{"unknown"};
-    std::unique_ptr<IUploadQueue> uploads; // destroyed before contexts/device
+    std::unique_ptr<IUploadQueue> uploads;
 };
 
 namespace {
@@ -838,7 +863,7 @@ std::array<Diligent::LayoutElement, 3> getPositionNormalUvLayout() {
         Diligent::LayoutElement{2U, 0U, 2U, Diligent::VT_FLOAT32, Diligent::False}};
 }
 
-} // namespace
+}
 
 class DiligentSwapchain final : public ISwapchain {
 public:
@@ -898,7 +923,7 @@ public:
 
     void begin() override {
         m_pipeline = nullptr;
-        m_boundTexture = nullptr;
+        m_boundTextures.fill(nullptr);
         m_pushConstantSize = 0;
     }
 
@@ -985,6 +1010,7 @@ public:
         }
 
         m_pipeline = diligentPipeline;
+        m_boundTextures.fill(nullptr);
         m_impl->immediateContext->SetPipelineState(m_pipeline->pipelineState());
     }
 
@@ -1018,11 +1044,7 @@ public:
     }
 
     void bindImage(const std::uint32_t slot, IImage& image) override {
-        if (slot != 0U) {
-            return;
-        }
-
-        m_boundTexture = dynamic_cast<DiligentImage*>(&image);
+        if (slot < m_boundTextures.size()) m_boundTextures[slot] = dynamic_cast<DiligentImage*>(&image);
     }
 
     void bindBindGroup(const std::uint32_t slot, IBindGroup& bindGroup) override {
@@ -1084,14 +1106,14 @@ private:
             m_pushConstantSize > 0U ? static_cast<const void*>(m_pushConstants.data()) : nullptr,
             m_pushConstantSize);
 
-        m_pipeline->bindTextureIfNeeded(m_boundTexture != nullptr ? m_boundTexture->shaderResourceView() : nullptr);
+        m_pipeline->bindTextures(m_boundTextures);
         m_pipeline->commit(*m_impl->immediateContext);
     }
 
 private:
     DiligentDevice::Impl* m_impl{nullptr};
     DiligentGraphicsPipeline* m_pipeline{nullptr};
-    DiligentImage* m_boundTexture{nullptr};
+    std::array<DiligentImage*, kMeshTextureSlots> m_boundTextures{};
     std::array<std::byte, sizeof(DiligentPushConstants)> m_pushConstants{};
     std::size_t m_pushConstantSize{0U};
 };
@@ -1111,9 +1133,10 @@ void DiligentGraphicsQueue::submit(
         return;
     }
 
-    m_device->m_impl->immediateContext->Flush();
     if (signalFence != nullptr) {
         signalFence->signal();
+    } else {
+        m_device->m_impl->immediateContext->Flush();
     }
 }
 
@@ -1158,15 +1181,9 @@ DiligentDevice::DiligentDevice(const DeviceCreateDesc& desc) : m_impl(std::make_
             m_impl->baseFactory = m_impl->d3d12Factory;
             Diligent::EngineD3D12CreateInfo createInfo{};
             configureCommonEngineOptions(createInfo, desc.enableValidation);
-            // Dynamic SRV/CBV descriptors are consumed for every draw and kept
-            // until the GPU retires the frame. The SDK default (8192) exhausts
-            // on the 4096-object scene. Reserve headroom for the supported
-            // 16384-object lab scene and multiple frames in flight (~8 MiB).
             createInfo.GPUDescriptorHeapDynamicSize[0] = 262144U;
             std::array<Diligent::ImmediateContextCreateInfo, 2> contextInfo{};
             if (desc.enableUploadQueue && m_impl->d3d12Factory->LoadD3D12()) {
-                // CreateDevice clamps an unspecified API version to 11.0;
-                // EnumerateAdapters does not. Use the same effective minimum.
                 createInfo.GraphicsAPIVersion = std::max(createInfo.GraphicsAPIVersion, Diligent::Version{11, 0});
                 configureUploadContexts(m_impl->baseFactory, createInfo, contextInfo);
             }
@@ -1341,10 +1358,6 @@ std::unique_ptr<ISwapchain> DiligentDevice::createSwapchain(const SwapchainDesc&
         return nullptr;
     }
 
-    if (m_impl->baseFactory) {
-        m_impl->baseFactory->CreateDefaultShaderSourceStreamFactory(".", &m_impl->shaderSourceFactory);
-    }
-
     return std::make_unique<DiligentSwapchain>(*m_impl, desc);
 }
 
@@ -1475,15 +1488,20 @@ std::unique_ptr<IShaderModule> DiligentDevice::createShaderModule(const ShaderMo
     }
 
     Diligent::ShaderCreateInfo createInfo{};
-    createInfo.FilePath = desc.path.c_str();
     createInfo.EntryPoint = desc.entryPoint.c_str();
     createInfo.Desc.ShaderType = toDiligentShaderType(desc.stage);
     createInfo.Desc.Name = desc.path.c_str();
     createInfo.SourceLanguage = Diligent::SHADER_SOURCE_LANGUAGE_HLSL;
     createInfo.Desc.UseCombinedTextureSamplers = Diligent::True;
-    Diligent::RefCntAutoPtr<ShaderDirectoryFactory> sourceFactory{
-        Diligent::MakeNewRCObj<ShaderDirectoryFactory>()(desc.path)};
-    createInfo.pShaderSourceStreamFactory = sourceFactory;
+    Diligent::RefCntAutoPtr<ShaderDirectoryFactory> sourceFactory;
+    if (desc.source.empty()) {
+        createInfo.FilePath = desc.path.c_str();
+        sourceFactory = Diligent::MakeNewRCObj<ShaderDirectoryFactory>()(desc.path);
+        createInfo.pShaderSourceStreamFactory = sourceFactory;
+    } else {
+        createInfo.Source = desc.source.data();
+        createInfo.SourceLength = desc.source.size();
+    }
 
     Diligent::RefCntAutoPtr<Diligent::IShader> nativeShader;
     m_impl->renderDevice->CreateShader(createInfo, &nativeShader);
@@ -1497,8 +1515,8 @@ std::unique_ptr<IShaderModule> DiligentDevice::createShaderModule(const ShaderMo
         inferredLayout = inferVertexLayout(desc.path);
     }
 
-    const bool usesTexture = shaderUsesTexture(desc.path);
-    return std::make_unique<DiligentShaderModule>(desc, std::move(nativeShader), inferredLayout, usesTexture);
+    const auto textureSlots = reflectTextureSlots(*nativeShader);
+    return std::make_unique<DiligentShaderModule>(desc.stage, std::move(nativeShader), inferredLayout, textureSlots);
 }
 
 std::unique_ptr<IPipelineLayout> DiligentDevice::createPipelineLayout() {
@@ -1526,10 +1544,20 @@ std::unique_ptr<IGraphicsPipeline> DiligentDevice::createGraphicsPipeline(const 
     createInfo.GraphicsPipeline.RasterizerDesc.CullMode =
         isMeshPipeline ? Diligent::CULL_MODE_BACK : Diligent::CULL_MODE_NONE;
     createInfo.GraphicsPipeline.RasterizerDesc.FrontCounterClockwise = Diligent::True;
-    createInfo.GraphicsPipeline.DepthStencilDesc.DepthEnable = isMeshPipeline ? Diligent::True : Diligent::False;
+    createInfo.GraphicsPipeline.DepthStencilDesc.DepthEnable = isMeshPipeline && desc.depthTest ? Diligent::True : Diligent::False;
     createInfo.GraphicsPipeline.DepthStencilDesc.DepthWriteEnable =
-        isMeshPipeline ? Diligent::True : Diligent::False;
+        isMeshPipeline && desc.depthWrite ? Diligent::True : Diligent::False;
     createInfo.GraphicsPipeline.DepthStencilDesc.DepthFunc = Diligent::COMPARISON_FUNC_LESS_EQUAL;
+    if (desc.blend != BlendMode::Opaque) {
+        auto& blend = createInfo.GraphicsPipeline.BlendDesc.RenderTargets[0];
+        blend.BlendEnable = Diligent::True;
+        blend.SrcBlend = Diligent::BLEND_FACTOR_SRC_ALPHA;
+        blend.DestBlend = desc.blend == BlendMode::Additive ? Diligent::BLEND_FACTOR_ONE : Diligent::BLEND_FACTOR_INV_SRC_ALPHA;
+        blend.BlendOp = Diligent::BLEND_OPERATION_ADD;
+        blend.SrcBlendAlpha = Diligent::BLEND_FACTOR_ONE;
+        blend.DestBlendAlpha = Diligent::BLEND_FACTOR_INV_SRC_ALPHA;
+        blend.BlendOpAlpha = Diligent::BLEND_OPERATION_ADD;
+    }
     createInfo.pVS = vertexShader->nativeShader();
     createInfo.pPS = fragmentShader->nativeShader();
 
@@ -1546,30 +1574,28 @@ std::unique_ptr<IGraphicsPipeline> DiligentDevice::createGraphicsPipeline(const 
 
     createInfo.PSODesc.ResourceLayout.DefaultVariableType = Diligent::SHADER_RESOURCE_VARIABLE_TYPE_STATIC;
 
-    const bool expectsTexture = fragmentShader->usesTexture();
-    Diligent::ShaderResourceVariableDesc variableDesc{};
-    Diligent::ImmutableSamplerDesc immutableSampler{};
-    if (expectsTexture) {
-        variableDesc.ShaderStages = Diligent::SHADER_TYPE_PIXEL;
-        variableDesc.Name = kTextureName.data();
-        variableDesc.Type = Diligent::SHADER_RESOURCE_VARIABLE_TYPE_DYNAMIC;
-        createInfo.PSODesc.ResourceLayout.Variables = &variableDesc;
-        createInfo.PSODesc.ResourceLayout.NumVariables = 1U;
-
-        Diligent::SamplerDesc samplerDesc{};
-        samplerDesc.MinFilter = Diligent::FILTER_TYPE_LINEAR;
-        samplerDesc.MagFilter = Diligent::FILTER_TYPE_LINEAR;
-        samplerDesc.MipFilter = Diligent::FILTER_TYPE_LINEAR;
-        samplerDesc.AddressU = Diligent::TEXTURE_ADDRESS_WRAP;
-        samplerDesc.AddressV = Diligent::TEXTURE_ADDRESS_WRAP;
-        samplerDesc.AddressW = Diligent::TEXTURE_ADDRESS_WRAP;
-        immutableSampler.ShaderStages = Diligent::SHADER_TYPE_PIXEL;
-        immutableSampler.SamplerOrTextureName = kTextureName.data();
-        immutableSampler.Desc = samplerDesc;
-
-        createInfo.PSODesc.ResourceLayout.ImmutableSamplers = &immutableSampler;
-        createInfo.PSODesc.ResourceLayout.NumImmutableSamplers = 1U;
+    const auto& textureSlots = fragmentShader->textureSlots();
+    std::array<Diligent::ShaderResourceVariableDesc, kMeshTextureSlots> variables{};
+    std::array<Diligent::ImmutableSamplerDesc, kMeshTextureSlots> samplers{};
+    Diligent::SamplerDesc samplerDesc{};
+    samplerDesc.MinFilter = Diligent::FILTER_TYPE_LINEAR;
+    samplerDesc.MagFilter = Diligent::FILTER_TYPE_LINEAR;
+    samplerDesc.MipFilter = Diligent::FILTER_TYPE_LINEAR;
+    samplerDesc.AddressU = Diligent::TEXTURE_ADDRESS_WRAP;
+    samplerDesc.AddressV = Diligent::TEXTURE_ADDRESS_WRAP;
+    samplerDesc.AddressW = Diligent::TEXTURE_ADDRESS_WRAP;
+    Diligent::Uint32 textureCount = 0;
+    for (std::size_t slot = 0; slot < textureSlots.size(); ++slot) {
+        if (!textureSlots[slot]) continue;
+        variables[textureCount] = {Diligent::SHADER_TYPE_PIXEL, kTextureNames[slot].data(),
+                                   Diligent::SHADER_RESOURCE_VARIABLE_TYPE_DYNAMIC};
+        samplers[textureCount] = {Diligent::SHADER_TYPE_PIXEL, kTextureNames[slot].data(), samplerDesc};
+        ++textureCount;
     }
+    createInfo.PSODesc.ResourceLayout.Variables = variables.data();
+    createInfo.PSODesc.ResourceLayout.NumVariables = textureCount;
+    createInfo.PSODesc.ResourceLayout.ImmutableSamplers = samplers.data();
+    createInfo.PSODesc.ResourceLayout.NumImmutableSamplers = textureCount;
 
     Diligent::RefCntAutoPtr<Diligent::IPipelineState> pipelineState;
     m_impl->renderDevice->CreateGraphicsPipelineState(createInfo, &pipelineState);
@@ -1614,7 +1640,7 @@ std::unique_ptr<IGraphicsPipeline> DiligentDevice::createGraphicsPipeline(const 
         std::move(shaderBinding),
         std::move(transformBuffer),
         std::move(tintBuffer),
-        expectsTexture);
+        textureSlots);
 }
 
 std::unique_ptr<IBindGroupLayout> DiligentDevice::createBindGroupLayout() {
@@ -1630,7 +1656,8 @@ std::unique_ptr<ISemaphore> DiligentDevice::createSemaphore() {
 }
 
 std::unique_ptr<IFence> DiligentDevice::createFence(const bool signaled) {
-    return std::make_unique<DiligentFence>(signaled);
+    if (!m_impl || !m_impl->renderDevice || !m_impl->immediateContext) { return nullptr; }
+    return std::make_unique<DiligentFence>(*m_impl->renderDevice, m_impl->immediateContext, signaled);
 }
 
 IQueue& DiligentDevice::graphicsQueue() {
@@ -1655,6 +1682,10 @@ Diligent::IDeviceContext* DiligentDevice::nativeImmediateContext() const {
     return m_impl->immediateContext;
 }
 
+Diligent::IDeviceContext* DiligentDevice::nativeUploadContext() const {
+    return m_impl ? m_impl->transferContext.RawPtr() : nullptr;
+}
+
 Diligent::ISwapChain* DiligentDevice::nativeSwapChain() const {
     if (!m_impl) {
         return nullptr;
@@ -1673,4 +1704,4 @@ std::unique_ptr<IDevice> createDiligentDevice(const DeviceCreateDesc& desc, std:
     }
 }
 
-} // namespace engine::rhi::diligent
+}

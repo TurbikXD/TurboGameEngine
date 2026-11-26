@@ -1,4 +1,3 @@
--- Real React Luau hooks, rendered by the engine's ReactTurbo host.
 local React = require("React")
 local ReactTurbo = require("ReactTurbo")
 local e = React.createElement
@@ -26,7 +25,6 @@ local function Counter()
     })
 end
 
--- Executing this demo again replaces its previous root and runs effect cleanup.
 if turboCounterRoot then turboCounterRoot:unmount() end
 turboCounterRoot = ReactTurbo.createRoot({ Name = "Luau UI Demo" })
 turboCounterRoot:render(e(Counter))

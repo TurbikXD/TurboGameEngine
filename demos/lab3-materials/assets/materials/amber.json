@@ -1,0 +1,7 @@
+{
+  "base": "materials/base.json",
+  "tint": [1.0, 0.64, 0.16, 0.62],
+  "blend": "alpha",
+  "depthWrite": false,
+  "version": 1
+}

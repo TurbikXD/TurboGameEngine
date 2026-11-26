@@ -76,6 +76,8 @@ constexpr auto kDefinitions = std::to_array<EditorCommandDefinition>({
     {Id::ScriptState, "State", "Inspect the selected behavior's current fields and state.", ""},
     {Id::ScriptErrors, "Errors", "Show the last script error and its recorded traceback.", ""},
     {Id::AddComponent, "Add Component", "Choose a component for the selected entity.", ""},
+    {Id::StartNetworkTest, "Start Network Test", "Launch a dedicated server and the configured client windows from the current scene snapshot.", ""},
+    {Id::StopNetworkTest, "Stop Network Test", "Stop the dedicated server and all network test clients.", ""},
 });
 
 constexpr bool definitionsAreOrdered() {
@@ -86,7 +88,7 @@ constexpr bool definitionsAreOrdered() {
     return true;
 }
 static_assert(definitionsAreOrdered());
-} // namespace
+}
 
 void EditorCommandRegistry::setHandlers(Query query, Action action) {
     m_query = std::move(query);
@@ -114,4 +116,4 @@ bool EditorCommandRegistry::execute(const EditorCommandId id) const {
     return true;
 }
 
-} // namespace engine::editor
+}

@@ -1,7 +1,3 @@
-"""Original procedural space illustrations and vector icons for the UI demo.
-
-Requires Pillow. No downloads, fonts or third-party image material are used.
-"""
 import math
 from pathlib import Path
 from PIL import Image, ImageDraw
@@ -64,13 +60,11 @@ def hero():
     scale = 2
     image = Image.new("RGBA", (1024 * scale, 640 * scale))
     draw = ImageDraw.Draw(image)
-    # Sparse deterministic stars; the art remains transparent over UIGradient.
     for index in range(85):
         x, y = (index * 149 + 59) % 990 + 17, (index * 113 + 41) % 580 + 20
         radius = 1.7 if index % 7 == 0 else 0.8
         draw.ellipse(((x - radius) * scale, (y - radius) * scale, (x + radius) * scale, (y + radius) * scale),
                      fill=(204, 222, 255, 210 if index % 7 == 0 else 115))
-    # Orbital tracks and tilted station silhouette.
     for radius in (178, 219, 269):
         draw.ellipse(((596 - radius) * scale, (323 - radius * 0.58) * scale,
                       (596 + radius) * scale, (323 + radius * 0.58) * scale),
@@ -78,7 +72,6 @@ def hero():
     world = planet("dusk", 570 * scale)
     image.alpha_composite(world, (315 * scale, 19 * scale))
     draw = ImageDraw.Draw(image)
-    # Warm crescent satellite.
     satellite = planet("ember", 130 * scale)
     image.alpha_composite(satellite, (785 * scale, 67 * scale))
     draw = ImageDraw.Draw(image)

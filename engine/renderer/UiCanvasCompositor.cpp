@@ -30,8 +30,6 @@ Output main(uint id:SV_VertexID) {
     o.pos=float4(o.uv*float2(2,-2)+float2(-1,1),0,1);
     return o;
 })";
-// ImGui's renderer writes premultiplied RGB. Its ordinary image path expects
-// straight RGBA and premultiplies again, so resolve once after flattening.
 constexpr char resolvePixel[] = R"(
 Texture2D Layer; SamplerState Layer_sampler;
 float4 main(float4 pos:SV_POSITION,float2 uv:TEXCOORD):SV_Target {
@@ -65,8 +63,6 @@ struct UiCanvasCompositor::Impl {
 
     Impl(IRenderDevice* native, std::size_t count) : device(native), frames(std::max(count, std::size_t{1})) {
         if (!device) throw std::invalid_argument("CanvasGroup requires a render device");
-        // Construct before the first ImGui frame: upstream initialization resets
-        // its shared font texture registry. Never construct lazily during draw.
         ImGuiDiligentCreateInfo info{device, TEX_FORMAT_RGBA8_UNORM, TEX_FORMAT_UNKNOWN};
         info.ColorConversion = IMGUI_COLOR_CONVERSION_MODE_NONE;
         renderer = std::make_unique<ImGuiDiligentRenderer>(info);
@@ -110,8 +106,6 @@ struct UiCanvasCompositor::Impl {
 
     std::shared_ptr<Surface> acquire(unsigned width, unsigned height) {
         for (auto& surface : pool) {
-            // GPU reads/writes across frames share the ordered graphics queue.
-            // Within a frame each layer needs its own target until main draw.
             if (surface->used != frame && surface->width == width && surface->height == height) {
                 surface->used = frame;
                 return surface;
@@ -155,7 +149,7 @@ UiCanvasCompositor::~UiCanvasCompositor() = default;
 void UiCanvasCompositor::beginFrame(std::size_t slot) {
     auto& state = *m_impl;
     state.slot = slot % state.frames.size();
-    state.frames[state.slot].clear(); // fence completed; release captured vertices and old-size targets
+    state.frames[state.slot].clear();
     ++state.frame;
 }
 UiCanvasCompositor::Image UiCanvasCompositor::enqueue(const void*, const ImDrawList& list,
@@ -168,10 +162,6 @@ UiCanvasCompositor::Image UiCanvasCompositor::enqueue(const void*, const ImDrawL
         state.warning(); return {};
     }
     try {
-        // Native UI never installs user draw callbacks. Do not execute arbitrary
-        // callbacks supplied through a malformed capture or a future caller.
-        // Validate before allocating, so rejected captures cannot consume the
-        // frame's target budget and hide a later valid layer.
         for (const auto& command : list.CmdBuffer) {
             if (command.UserCallback || std::uint64_t{command.IdxOffset} + command.ElemCount > unsigned(list.IdxBuffer.Size)) return {};
             if (command.ElemCount) {
@@ -211,9 +201,6 @@ void UiCanvasCompositor::render(Diligent::IDeviceContext* context) {
         data.DisplaySize = ImVec2(job.width, job.height);
         data.FramebufferScale = ImVec2(surface.width / job.width, surface.height / job.height);
         data.Textures = ImGui::GetDrawData()->Textures;
-        // CloneOutput deliberately copies only immutable render buffers, not
-        // ImGui's active writer cursors. AddDrawList validates those cursors for
-        // a live list; publish the validated capture directly instead.
         data.CmdLists.push_back(job.list.get());
         data.CmdListsCount = 1;
         data.TotalIdxCount = job.list->IdxBuffer.Size;
@@ -233,4 +220,4 @@ void UiCanvasCompositor::render(Diligent::IDeviceContext* context) {
         context->Draw(DrawAttribs{3, DRAW_FLAG_VERIFY_ALL});
     }
 }
-} // namespace engine::renderer
+}

@@ -1,0 +1,17 @@
+{
+  "base": "materials/base.json",
+  "blend": "opaque",
+  "depthTest": true,
+  "depthWrite": true,
+  "tint": [
+    0.024296239018440247,
+    0.1946902871131897,
+    0.007753150537610054,
+    1.0
+  ],
+  "uvScale": [
+    2.0,
+    1.0
+  ],
+  "version": 1
+}

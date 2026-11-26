@@ -52,7 +52,6 @@ public:
     [[nodiscard]] std::size_t sleepingBodyCount() const;
     void setJobSystem(core::JobSystem* jobSystem);
     void clear();
-    // Main-thread structural change, outside update/jobs; emits exit once.
     void forgetEntity(EntityId entity, core::EventBus& eventBus);
 
     void update(World& world, double dt, core::EventBus& eventBus);
@@ -78,4 +77,4 @@ private:
     core::JobSystem* m_jobSystem{nullptr};
 };
 
-} // namespace engine::ecs
+}

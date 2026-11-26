@@ -1,6 +1,7 @@
 #include "engine/scripting/ScriptingSystem.h"
 
 #include <algorithm>
+#include <charconv>
 #include <chrono>
 #include <cctype>
 #include <cmath>
@@ -8,9 +9,10 @@
 #include <cstring>
 #include <fstream>
 #include <limits>
+#include <numbers>
 #include <optional>
-#include <sstream>
 #include <stdexcept>
+#include <string_view>
 #include <thread>
 #include <type_traits>
 #include <unordered_map>
@@ -20,26 +22,53 @@
 #include <Luau/Compiler.h>
 #include <lua.h>
 #include <lualib.h>
+#include "engine/core/AtomicFile.h"
 #include "engine/core/JobSystem.h"
 #include "engine/core/LiveFileWatcher.h"
 #include "engine/core/Log.h"
 #include "engine/core/Profiling.h"
+#include "engine/core/ProjectManager.h"
 #include "engine/ecs/components.h"
+#include "engine/ecs/light_json.h"
+#include "engine/ecs/render_interpolation.h"
 #include "engine/ecs/world.h"
+#include "engine/network/PeerName.h"
 #include "engine/platform/Input.h"
+#include "engine/platform/Window.h"
+#include "engine/scripting/ScriptAudio.h"
 
 namespace engine::scripting {
 namespace {
 using Json = nlohmann::json;
 using Clock = std::chrono::steady_clock;
+constexpr double MinMouseSensitivity = 0.25;
+constexpr double MaxMouseSensitivity = 4.0;
+
+std::string utf8Path(const std::filesystem::path& path) {
+    const auto utf8 = path.generic_u8string();
+    return {utf8.begin(), utf8.end()};
+}
+
+std::string readAssetBytes(const std::filesystem::path& path, const std::size_t limit, const char* kind) {
+    if (std::filesystem::file_size(path) > limit) throw std::invalid_argument(std::string(kind) + " exceeds source size limit");
+    std::ifstream input(path, std::ios::binary);
+    if (!input) throw std::runtime_error("Cannot read " + utf8Path(path));
+    std::string contents;
+    char chunk[16384];
+    while (input) {
+        input.read(chunk, sizeof(chunk));
+        const auto count = static_cast<std::size_t>(input.gcount());
+        if (count > limit - contents.size()) throw std::invalid_argument(std::string(kind) + " exceeds source size limit");
+        contents.append(chunk, count);
+    }
+    if (!input.eof()) throw std::runtime_error("Cannot read " + utf8Path(path));
+    return contents;
+}
 
 std::string compileSource(const std::string& source) {
     Luau::CompileOptions options;
     options.optimizationLevel = 1;
     options.debugLevel = 2;
-    // UI Instances and Roblox value types are host-backed tables. Their typeof
-    // override must run instead of the VM's table-only FASTCALL specialization.
-    // Keep all other safe-environment/import optimizations enabled.
     static const char* const hostOverrides[] = { "typeof", nullptr };
     options.disabledBuiltins = hostOverrides;
     options.mutableGlobals = hostOverrides;
@@ -59,8 +88,9 @@ void pushJson(lua_State* state, const Json& value) {
     } else if (value.is_object()) {
         lua_createtable(state, 0, static_cast<int>(value.size()));
         for (const auto& [key, item] : value.items()) {
+            lua_pushlstring(state, key.data(), key.size());
             pushJson(state, item);
-            lua_setfield(state, -2, key.c_str());
+            lua_rawset(state, -3);
         }
     } else if (value.is_array()) {
         lua_createtable(state, static_cast<int>(value.size()), 0);
@@ -71,7 +101,8 @@ void pushJson(lua_State* state, const Json& value) {
     } else { lua_pushnil(state); }
 }
 
-Json readJson(lua_State* state, const int index, const unsigned depth = 0U, std::size_t* remaining = nullptr) {
+Json readJson(lua_State* state, const int index, const unsigned depth = 0U, std::size_t* remaining = nullptr,
+              const bool preserveArrays = false) {
     std::size_t budget = 512U;
     if (remaining == nullptr) { remaining = &budget; }
     if (depth > 8U) { return "<depth limit>"; }
@@ -81,7 +112,11 @@ Json readJson(lua_State* state, const int index, const unsigned depth = 0U, std:
     case LUA_TNIL: return nullptr;
     case LUA_TBOOLEAN: return lua_toboolean(state, index) != 0;
     case LUA_TNUMBER: return lua_tonumber(state, index);
-    case LUA_TSTRING: return std::string(lua_tostring(state, index));
+    case LUA_TSTRING: {
+        std::size_t length{};
+        const char* text=lua_tolstring(state,index,&length);
+        return std::string(text,length);
+    }
     case LUA_TVECTOR: {
         const auto* vector = lua_tovector(state, index);
         return Json::array({vector[0], vector[1], vector[2]});
@@ -89,17 +124,32 @@ Json readJson(lua_State* state, const int index, const unsigned depth = 0U, std:
     case LUA_TTABLE: {
         Json value = Json::object();
         const int absolute = lua_absindex(state, index);
+        const int arrayLength = preserveArrays ? lua_objlen(state, absolute) : 0;
+        bool dense = arrayLength > 0 && arrayLength <= 128;
         lua_pushnil(state);
         std::size_t count = 0;
         while (lua_next(state, absolute) != 0) {
             if (++count > 128U) { lua_pop(state, 2); break; }
             if (lua_type(state, -2) == LUA_TSTRING) {
-                value[lua_tostring(state, -2)] = readJson(state, -1, depth + 1U, remaining);
+                std::size_t length{};
+                const char* text=lua_tolstring(state,-2,&length);
+                const std::string key(text,length);
+                value[key] = readJson(state, -1, depth + 1U, remaining, preserveArrays);
+                dense = false;
             } else if (lua_type(state, -2) == LUA_TNUMBER) {
-                value[std::to_string(lua_tointeger(state, -2))] = readJson(state, -1, depth + 1U, remaining);
+                const auto key = lua_tointeger(state, -2);
+                dense = dense && key >= 1 && key <= arrayLength && lua_tonumber(state, -2) == key;
+                value[std::to_string(key)] = readJson(state, -1, depth + 1U, remaining, preserveArrays);
+            } else {
+                dense = false;
             }
             lua_pop(state, 1);
             if (*remaining == 0U) { lua_pop(state, 1); break; }
+        }
+        if (dense && count == static_cast<std::size_t>(arrayLength) && value.size() == count) {
+            Json array = Json::array();
+            for (int item = 1; item <= arrayLength; ++item) array.push_back(std::move(value[std::to_string(item)]));
+            return array;
         }
         return value;
     }
@@ -142,11 +192,121 @@ ecs::EntityId checkEntity(lua_State* state, const int index) {
     return static_cast<ecs::EntityId>(number);
 }
 
+template<class T>
+std::optional<T> networkInteger(lua_State* state, const int index, const T minimum,
+                                const T maximum = std::numeric_limits<T>::max()) {
+    if (lua_type(state, index) != LUA_TNUMBER) return std::nullopt;
+    const double number = lua_tonumber(state, index);
+    if (!std::isfinite(number) || number < static_cast<double>(minimum) ||
+        number > static_cast<double>(maximum) || std::trunc(number) != number) return std::nullopt;
+    return static_cast<T>(number);
+}
+
+template<class T>
+T checkNetworkInteger(lua_State* state, const int index, const T minimum,
+                      const T maximum = std::numeric_limits<T>::max()) {
+    const auto value = networkInteger(state, index, minimum, maximum);
+    if (!value) luaL_argerror(state, index, "expected an integer in range");
+    return *value;
+}
+
+uint32_t checkNetworkKey(lua_State* state, const int index) {
+    return checkNetworkInteger<uint32_t>(state, index, 1, 0x7fffffff);
+}
+
+float checkNetworkAxis(lua_State* state, const int index) {
+    luaL_checktype(state, index, LUA_TNUMBER);
+    const double number = lua_tonumber(state, index);
+    if (!std::isfinite(number) || number < -1.0 || number > 1.0) {
+        luaL_argerror(state, index, "expected an input axis between -1 and 1");
+    }
+    return static_cast<float>(number);
+}
+
+std::string_view checkSteamString(lua_State* state, int index, std::size_t maximum,
+                                  bool required, int argument) {
+    if (lua_type(state, index) != LUA_TSTRING) luaL_argerror(state, argument, "expected a string");
+    std::size_t length{};
+    const auto* text = lua_tolstring(state, index, &length);
+    const std::string_view value(text, length);
+    if ((required && value.empty()) || value.size() > maximum || value.find('\0') != value.npos) {
+        luaL_argerror(state, argument, "string is out of range or contains NUL");
+    }
+    return value;
+}
+
+std::uint64_t checkSteamId(lua_State* state, int index) {
+    const auto text = checkSteamString(state, index, 20, true, index);
+    std::uint64_t id{};
+    const auto* end = text.data() + text.size();
+    const auto parsed = std::from_chars(text.data(), end, id);
+    if (text.front() == '0' || parsed.ec != std::errc{} || parsed.ptr != end || !id) {
+        luaL_argerror(state, index, "expected a decimal Steam ID string");
+    }
+    return id;
+}
+
+unsigned steamPageLimit(lua_State* state, int index) {
+    return lua_isnoneornil(state, index) ? 32U : checkNetworkInteger<unsigned>(state, index, 1, 32);
+}
+
+ScriptSteamOptions checkSteamOptions(lua_State* state) {
+    luaL_checktype(state, 1, LUA_TTABLE);
+    ScriptSteamOptions options;
+    lua_rawgetfield(state, 1, "name");
+    if (!lua_isnil(state, -1)) options.name = checkSteamString(state, -1, 64, false, 1);
+    lua_pop(state, 1);
+
+    lua_rawgetfield(state, 1, "visibility");
+    if (!lua_isnil(state, -1)) {
+        const auto visibility = checkSteamString(state, -1, 7, true, 1);
+        if (visibility != "friends" && visibility != "private" && visibility != "public") {
+            luaL_argerror(state, 1, "visibility must be friends, private, or public");
+        }
+        options.visibility = visibility;
+    }
+    lua_pop(state, 1);
+
+    lua_rawgetfield(state, 1, "maxPlayers");
+    if (!lua_isnil(state, -1)) {
+        const auto maxPlayers = networkInteger<unsigned>(state, -1, 2, 32);
+        if (!maxPlayers) luaL_argerror(state, 1, "maxPlayers must be an integer from 2 to 32");
+        options.maxPlayers = *maxPlayers;
+    }
+    lua_pop(state, 1);
+
+    lua_rawgetfield(state, 1, "joinable");
+    if (!lua_isnil(state, -1)) {
+        if (!lua_isboolean(state, -1)) luaL_argerror(state, 1, "joinable must be a boolean");
+        options.joinable = lua_toboolean(state, -1) != 0;
+    }
+    lua_pop(state, 1);
+
+    lua_rawgetfield(state, 1, "properties");
+    if (!lua_isnil(state, -1)) {
+        if (!lua_istable(state, -1)) luaL_argerror(state, 1, "properties must be a table of strings");
+        lua_pushnil(state);
+        while (lua_next(state, -2)) {
+            if (options.properties.size() == 8) luaL_argerror(state, 1, "at most 8 properties are supported");
+            const auto key = checkSteamString(state, -2, 32, true, 1);
+            if (key.find_first_not_of("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-") != key.npos) {
+                luaL_argerror(state, 1, "property keys must use ASCII letters, digits, underscore, or hyphen");
+            }
+            const auto value = checkSteamString(state, -1, 128, false, 1);
+            options.properties.emplace(key, value);
+            lua_pop(state, 1);
+        }
+    }
+    lua_pop(state, 1);
+    return options;
+}
+
 platform::KeyCode keyCode(const std::string& name) {
     using Key = platform::KeyCode;
     static const std::unordered_map<std::string, Key> keys{
         {"W", Key::W}, {"A", Key::A}, {"S", Key::S}, {"D", Key::D}, {"Q", Key::Q}, {"E", Key::E},
-        {"F", Key::F}, {"N", Key::N}, {"O", Key::O}, {"R", Key::R}, {"Y", Key::Y}, {"Z", Key::Z},
+        {"F", Key::F}, {"G", Key::G}, {"N", Key::N}, {"O", Key::O}, {"R", Key::R}, {"V", Key::V},
+        {"X", Key::X}, {"Y", Key::Y}, {"Z", Key::Z}, {"1", Key::Digit1}, {"2", Key::Digit2},
         {"Space", Key::Space}, {"Enter", Key::Enter}, {"Escape", Key::Escape}, {"Tab", Key::Tab},
         {"Left", Key::Left}, {"Right", Key::Right}, {"Up", Key::Up}, {"Down", Key::Down},
         {"LeftShift", Key::LeftShift}, {"RightShift", Key::RightShift}, {"LeftControl", Key::LeftControl},
@@ -155,19 +315,46 @@ platform::KeyCode keyCode(const std::string& name) {
     const auto found = keys.find(name);
     return found == keys.end() ? Key::Unknown : found->second;
 }
-} // namespace
+
+platform::MouseButton mouseButton(const std::string_view name) {
+    using Button = platform::MouseButton;
+    if (name == "Left") return Button::Left;
+    if (name == "Right") return Button::Right;
+    if (name == "Middle") return Button::Middle;
+    return Button::Count;
+}
+}
 
 struct ScriptingSystem::Impl final {
-    struct Module final { int ref{LUA_NOREF}; std::string bytecode; };
+    struct Module final { int ref{LUA_NOREF}; };
     struct Instance final { int ref{LUA_NOREF}; std::string path; bool failed{false}; Json fields; };
     struct Reload final { std::unordered_map<std::string, std::string> bytecode; std::string error; };
-    enum class Api : int { Alive, Position, SetPosition, Rotation, SetRotation, Velocity, SetVelocity, Force, Tag, Find, Radius, Spawn, Destroy, Status, ReadStatus, KeyDown, KeyPressed, KeyReleased, MousePosition };
+    enum class Api : int { Alive, Position, SetPosition, Rotation, SetRotation, Velocity, SetVelocity, Force, Tag, Find, Radius,
+        Spawn, Destroy, Status, ReadStatus, KeyDown, KeyPressed, KeyReleased, MousePosition, MouseDelta, MouseDown,
+        MousePressed, CursorLock, CursorLocked, SetCameraFov, PlaySound, MouseSensitivity, SetMouseSensitivity,
+        SetRenderInterpolation, SnapRenderInterpolation };
+    enum class NetworkApi : int {
+        Role, Connected, LocalPeer, IsHost, UsesSteam, Peers, Stats, Bind, Unbind, RegisterPrefab, Entity, SetState, State,
+        RawState, LocalMotion, NextInputSequence, SetPeerMotion,
+        SetInput, Input, SetControls, Controls, SetPeerValue, PeerValue, NormalizePeerName, SetPeerName, PeerName, PeerAvatar, Request
+    };
+    enum class SteamQuery { Available, LocalUser, Friends, Session, Sessions, Avatar };
+    struct RpcInvocation final {
+        uint32_t peer;
+        uint8_t action;
+        int32_t argument;
+        std::string_view text;
+        ScriptRpcReply reply{};
+    };
 
     Limits limits;
     std::size_t allocated{};
     lua_State* vm{};
     ecs::World* world{};
     core::JobSystem* jobs{};
+    ScriptNetwork* network{};
+    ScriptSteam* steam{};
+    platform::Window* inputWindow{};
     std::filesystem::path root;
     std::thread::id owner{std::this_thread::get_id()};
     std::unordered_map<std::string, Module> modules;
@@ -178,12 +365,18 @@ struct ScriptingSystem::Impl final {
     std::unordered_map<ecs::EntityId, Instance> instances;
     std::unordered_set<std::string> behaviorPaths;
     std::unordered_set<ecs::EntityId> pendingDestroy;
-    std::vector<std::pair<std::string, Json>> events;
+    std::vector<Json> events;
     std::vector<ScriptMessage> messages;
+    ScriptAudio audio;
     Json status = Json::object();
     bool playing{};
     bool allowMutation{};
+    bool allowCleanupDestroy{};
+    bool flushingDestroy{};
     bool inputEnabled{true};
+    bool pointerInputEnabled{true};
+    bool ownsCursorLock{};
+    std::optional<double> mouseSensitivity;
     Clock::time_point deadline{Clock::time_point::max()};
     unsigned protectedDepth{};
     int errorRef{LUA_NOREF};
@@ -198,8 +391,6 @@ struct ScriptingSystem::Impl final {
     std::unordered_set<std::string> reloadQueue;
     const std::unordered_map<std::string, std::string>* prepared{};
 
-    // File I/O and compilation are host services, not VM instruction execution.
-    // Keep their cost out of the callback deadline; evaluating modules is guarded.
     struct NativePreparation final {
         Impl& self;
         Clock::time_point begin{Clock::now()};
@@ -242,8 +433,6 @@ struct ScriptingSystem::Impl final {
     static int errorHandler(lua_State* state) {
         const char* error = lua_tostring(state, 1);
         std::string text = error != nullptr ? error : "Script error";
-        // Upstream React raises Error objects rather than strings. Read only
-        // their raw message: calling __tostring here could raise another error.
         if (!error && lua_istable(state, 1)) {
             lua_rawgetfield(state, 1, "message");
             if (lua_type(state, -1) == LUA_TSTRING) text = lua_tostring(state, -1);
@@ -278,7 +467,7 @@ struct ScriptingSystem::Impl final {
         return 1;
     }
     std::filesystem::path resolve(const std::string& input) const {
-        std::filesystem::path path(input);
+        std::filesystem::path path = std::filesystem::u8path(input);
         if (path.empty() || path.is_absolute() || path.has_root_name()) { throw std::invalid_argument("Asset path must be relative to assets"); }
         if (*path.begin() == "assets") { path = path.lexically_relative("assets"); }
         const auto resolved = std::filesystem::weakly_canonical(root / path);
@@ -287,16 +476,13 @@ struct ScriptingSystem::Impl final {
         return resolved;
     }
     std::string moduleKey(const std::string& name) const {
-        return registered.contains(name) ? name : resolve(name).lexically_relative(root).generic_string();
+        return registered.contains(name) ? name : utf8Path(resolve(name).lexically_relative(root));
     }
     std::string readSource(const std::string& name) {
         if (const auto found = registered.find(name); found != registered.end()) { return found->second; }
         const auto path = resolve(name);
         watcher.watch(path);
-        if (std::filesystem::file_size(path) > limits.sourceBytes) { throw std::invalid_argument("Script exceeds source size limit"); }
-        std::ifstream file(path, std::ios::binary);
-        if (!file) { throw std::runtime_error("Cannot open " + path.string()); }
-        return std::string(std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>());
+        return readAssetBytes(path, limits.sourceBytes, "Script");
     }
     bool protectedCall(lua_State* state, const int arguments, const int results, const int errorIndex) {
         const bool outermost = protectedDepth++ == 0U;
@@ -314,10 +500,6 @@ struct ScriptingSystem::Impl final {
         }
         return true;
     }
-    // pcall protects the Lua callback, but host preparation can allocate too
-    // (JSON arguments, instances, fields) or fail on a frozen script table.
-    // Keep that entire boundary inside a protected C entry point. Reuse the
-    // closure so every entity update does not add a new GC allocation.
     template<class Function> bool protectedHost(const std::string& context, Function&& function) {
         const int base = lua_gettop(vm);
         if (!lua_checkstack(vm, 3)) {
@@ -403,25 +585,124 @@ struct ScriptingSystem::Impl final {
         if (!result) { failedModules.insert(name); return false; }
         if (lua_isnil(state, -1)) { lua_pop(state, 1); lua_pushboolean(state, true); }
         const int ref = lua_ref(state, -1);
-        modules.emplace(name, Module{ref, std::move(bytes)});
+        modules.emplace(name, Module{ref});
         return true;
     }
     bool alive(const ecs::EntityId entity) const { return world != nullptr && world->isAlive(entity) && !pendingDestroy.contains(entity); }
     void requireMutation(lua_State* state) const {
         if (!allowMutation || world == nullptr) { luaL_error(state, "World mutation is only available during Play or an explicit command"); }
     }
+    bool hasPointerInput() const {
+        return inputEnabled && pointerInputEnabled && (!inputWindow || inputWindow->focused());
+    }
+    bool cursorLocked() const {
+        return ownsCursorLock && inputWindow && inputWindow->cursorMode() == platform::CursorMode::Disabled;
+    }
+    bool releaseCursorLock() {
+        const bool locked = cursorLocked();
+        ownsCursorLock = false;
+        if (locked) {
+            inputWindow->setCursorMode(platform::CursorMode::Normal);
+            platform::InputManager::resetMouseDelta();
+        }
+        return locked;
+    }
+    std::filesystem::path mouseSettingsPath() const {
+        std::uint64_t identity = 14695981039346656037ULL;
+        for (const unsigned char byte : utf8Path(root)) {
+            identity = (identity ^ byte) * 1099511628211ULL;
+        }
+        return core::ProjectManager::defaultRegistryPath().parent_path() / "player-input" /
+            (std::to_string(identity) + ".json");
+    }
+    double loadMouseSensitivity() {
+        if (mouseSensitivity) return *mouseSensitivity;
+        mouseSensitivity = 1.0;
+        try {
+            const NativePreparation preparation(*this);
+            const auto data = Json::parse(readAssetBytes(mouseSettingsPath(), 128, "Mouse settings"), nullptr, false);
+            if (data.is_number()) {
+                const auto value = data.get<double>();
+                if (std::isfinite(value) && value >= MinMouseSensitivity && value <= MaxMouseSensitivity) {
+                    mouseSensitivity = value;
+                }
+            }
+        } catch (const std::exception&) {}
+        return *mouseSensitivity;
+    }
+    bool saveMouseSensitivity(const double value) {
+        if (!playing || !inputWindow) return false;
+        mouseSensitivity = value;
+        try {
+            const NativePreparation preparation(*this);
+            const auto path = mouseSettingsPath();
+            std::filesystem::create_directories(path.parent_path());
+            std::string error;
+            return core::writeFileAtomically(path, Json(value).dump(), error);
+        } catch (const std::exception&) { return false; }
+    }
     static int api(lua_State* state) {
         auto& self = from(state);
         const auto operation = static_cast<Api>(lua_tointeger(state, lua_upvalueindex(1)));
         if (operation == Api::KeyDown || operation == Api::KeyPressed || operation == Api::KeyReleased) {
             const auto key = keyCode(luaL_checkstring(state, 1));
-            const bool value = self.inputEnabled && (operation == Api::KeyDown ? platform::InputManager::isKeyDownRaw(key) :
-                operation == Api::KeyPressed ? platform::InputManager::wasKeyPressedRaw(key) : platform::InputManager::wasKeyReleasedRaw(key));
+            using Input = platform::InputManager;
+            bool value = false;
+            if (self.inputEnabled) {
+                const bool fixedInput = Input::fixedTickActive() || (self.network && self.network->role() == "client");
+                if (operation == Api::KeyDown) value = Input::isKeyDownRaw(key);
+                else if (operation == Api::KeyPressed) {
+                    value = fixedInput ? Input::wasKeyPressedForTickRaw(key) : Input::wasKeyPressedRaw(key);
+                } else {
+                    value = fixedInput ? Input::wasKeyReleasedForTickRaw(key) : Input::wasKeyReleasedRaw(key);
+                }
+            }
             lua_pushboolean(state, value); return 1;
         }
         if (operation == Api::MousePosition) {
             const auto [x, y] = platform::InputManager::mousePosition();
             lua_pushnumber(state, x); lua_pushnumber(state, y); return 2;
+        }
+        if (operation == Api::MouseDelta) {
+            const auto [x, y] = self.hasPointerInput() ? platform::InputManager::mouseDeltaForTickRaw() :
+                std::pair{0.0, 0.0};
+            lua_pushnumber(state, x); lua_pushnumber(state, y); return 2;
+        }
+        if (operation == Api::MouseSensitivity) {
+            lua_pushnumber(state, self.loadMouseSensitivity()); return 1;
+        }
+        if (operation == Api::SetMouseSensitivity) {
+            const auto value = luaL_checknumber(state, 1);
+            if (!std::isfinite(value) || value < MinMouseSensitivity || value > MaxMouseSensitivity) {
+                luaL_argerror(state, 1, "Mouse sensitivity must be between 0.25 and 4");
+            }
+            lua_pushboolean(state, self.saveMouseSensitivity(value)); return 1;
+        }
+        if (operation == Api::MouseDown || operation == Api::MousePressed) {
+            size_t size = 0;
+            const char* name = luaL_checklstring(state, 1, &size);
+            const auto button = mouseButton(std::string_view{name, size});
+            using Input = platform::InputManager;
+            lua_pushboolean(state, self.hasPointerInput() && (operation == Api::MouseDown ?
+                Input::isMouseButtonDownRaw(button) : Input::wasMouseButtonPressedForTickRaw(button)));
+            return 1;
+        }
+        if (operation == Api::CursorLocked) {
+            lua_pushboolean(state, self.cursorLocked()); return 1;
+        }
+        if (operation == Api::CursorLock) {
+            luaL_checktype(state, 1, LUA_TBOOLEAN);
+            if (!lua_toboolean(state, 1)) {
+                self.releaseCursorLock();
+                lua_pushboolean(state, self.inputWindow != nullptr); return 1;
+            }
+            if (!self.cursorLocked() && self.playing && self.allowMutation && self.inputWindow &&
+                self.hasPointerInput() && self.inputWindow->cursorMode() == platform::CursorMode::Normal) {
+                self.ownsCursorLock = true;
+                self.inputWindow->setCursorMode(platform::CursorMode::Disabled);
+                platform::InputManager::resetMouseDelta();
+            }
+            lua_pushboolean(state, self.cursorLocked()); return 1;
         }
         if (operation == Api::Status) {
             const std::string key = luaL_checkstring(state, 1);
@@ -439,9 +720,24 @@ struct ScriptingSystem::Impl final {
         if (operation == Api::Spawn) {
             self.requireMutation(state);
             const std::string path = luaL_checkstring(state, 1);
-            const Json overrides = lua_isnoneornil(state, 2) ? Json::object() : readJson(state, 2);
+            const Json overrides = lua_isnoneornil(state, 2) ? Json::object() : readJson(state, 2, 0U, nullptr, true);
             try { lua_pushunsigned(state, self.spawnPrefab(path, overrides)); }
             catch (const std::exception& error) { luaL_error(state, "Prefab '%s': %s", path.c_str(), error.what()); }
+            return 1;
+        }
+        if (operation == Api::PlaySound) {
+            std::size_t length{};
+            const char* rawPath = luaL_checklstring(state, 1, &length);
+            const auto gain = luaL_optnumber(state, 2, 1.0);
+            bool started = false;
+            if (length != 0U && std::string_view(rawPath, length).find('\0') == std::string_view::npos &&
+                std::isfinite(gain) && gain >= 0.0 && gain <= 1.0 && self.playing && self.inputWindow) {
+                try {
+                    const NativePreparation preparation(self);
+                    started = self.audio.play(self.resolve(std::string(rawPath, length)), static_cast<float>(gain));
+                } catch (const std::exception&) {}
+            }
+            lua_pushboolean(state, started);
             return 1;
         }
         if (operation == Api::Find || operation == Api::Radius) {
@@ -468,11 +764,43 @@ struct ScriptingSystem::Impl final {
         if (operation == Api::Alive) { lua_pushboolean(state, self.alive(entity)); return 1; }
         if (!self.alive(entity)) { lua_pushnil(state); return 1; }
         if (operation == Api::Destroy) {
-            self.requireMutation(state); self.pendingDestroy.insert(entity); return 0;
+            if (!self.allowCleanupDestroy) self.requireMutation(state);
+            self.pendingDestroy.insert(entity); return 0;
         }
         if (operation == Api::Tag) {
             const auto* tag = self.world->getComponent<ecs::Tag>(entity);
             if (tag == nullptr) { lua_pushnil(state); } else { lua_pushlstring(state, tag->value.data(), tag->value.size()); }
+            return 1;
+        }
+        if (operation == Api::SetCameraFov) {
+            self.requireMutation(state);
+            const auto fov = luaL_checknumber(state, 2);
+            if (!std::isfinite(fov) || fov < glm::radians(1.0) || fov > glm::radians(179.0)) {
+                luaL_argerror(state, 2, "Expected a vertical field of view between 1 and 179 degrees in radians");
+            }
+            auto* camera = self.world->getComponent<ecs::Camera>(entity);
+            if (camera) { camera->verticalFovRadians = static_cast<float>(fov); }
+            lua_pushboolean(state, camera != nullptr);
+            return 1;
+        }
+        if (operation == Api::SetRenderInterpolation || operation == Api::SnapRenderInterpolation) {
+            self.requireMutation(state);
+            const auto* transform = self.world->getComponent<ecs::Transform>(entity);
+            if (!transform) { lua_pushboolean(state, false); return 1; }
+            auto* history = self.world->getComponent<ecs::RenderPoseHistory>(entity);
+            if (operation == Api::SnapRenderInterpolation) {
+                if (history) *history = ecs::captureRenderPose(*self.world, entity, *transform);
+                lua_pushboolean(state, history != nullptr);
+            } else {
+                luaL_checktype(state, 2, LUA_TBOOLEAN);
+                if (lua_toboolean(state, 2)) {
+                    if (!history) self.world->addComponent<ecs::RenderPoseHistory>(
+                        entity, ecs::captureRenderPose(*self.world, entity, *transform));
+                } else if (history) {
+                    self.world->removeComponent<ecs::RenderPoseHistory>(entity);
+                }
+                lua_pushboolean(state, true);
+            }
             return 1;
         }
         if (operation == Api::Position || operation == Api::SetPosition || operation == Api::Rotation || operation == Api::SetRotation) {
@@ -496,18 +824,411 @@ struct ScriptingSystem::Impl final {
         lua_pushcclosure(state, &api, name, 1);
         lua_setfield(state, -2, name);
     }
+
+    static int networkApi(lua_State* state) {
+        auto& self = from(state);
+        auto* network = self.network;
+        const bool writable = network && self.playing && self.allowMutation;
+        const auto operation = static_cast<NetworkApi>(lua_tointeger(state, lua_upvalueindex(1)));
+        switch (operation) {
+        case NetworkApi::Role: {
+            const std::string_view role = network ? network->role() : "offline";
+            lua_pushlstring(state, role.data(), role.size());
+            return 1;
+        }
+        case NetworkApi::Connected:
+            lua_pushboolean(state, network && network->connected());
+            return 1;
+        case NetworkApi::LocalPeer: {
+            const auto peer = network ? network->localPeer() : 0U;
+            if (peer) lua_pushunsigned(state, peer);
+            else lua_pushnil(state);
+            return 1;
+        }
+        case NetworkApi::IsHost: {
+            const auto peer = lua_isnoneornil(state, 1) ? 0U : checkNetworkKey(state, 1);
+            lua_pushboolean(state, network && network->isHost(peer));
+            return 1;
+        }
+        case NetworkApi::UsesSteam:
+            lua_pushboolean(state, network && network->usesSteam());
+            return 1;
+        case NetworkApi::Peers: {
+            const auto peers = network ? network->peers() : std::vector<uint32_t>{};
+            lua_createtable(state, static_cast<int>(peers.size()), 0);
+            int index = 0;
+            for (const auto peer : peers) {
+                lua_pushunsigned(state, peer);
+                lua_rawseti(state, -2, ++index);
+            }
+            return 1;
+        }
+        case NetworkApi::Stats:
+            if (network) pushJson(state, network->stats());
+            else lua_newtable(state);
+            return 1;
+        case NetworkApi::Bind: {
+            const auto entity = checkNetworkInteger<ecs::EntityId>(state, 1, 1);
+            const auto key = checkNetworkKey(state, 2);
+            lua_pushboolean(state, writable && self.alive(entity) && network->bind(entity, key));
+            return 1;
+        }
+        case NetworkApi::Unbind: {
+            const auto key = checkNetworkKey(state, 1);
+            lua_pushboolean(state, network && self.playing && (self.allowMutation || self.allowCleanupDestroy) &&
+                network->unbind(key));
+            return 1;
+        }
+        case NetworkApi::RegisterPrefab: {
+            const auto key = checkNetworkKey(state, 1);
+            luaL_checktype(state, 2, LUA_TSTRING);
+            std::size_t size{};
+            const auto* text = lua_tolstring(state, 2, &size);
+            const std::string_view path(text, size);
+            if (path.empty() || path.size() > 1024 || path.find('\0') != std::string_view::npos) {
+                luaL_argerror(state, 2, "expected a prefab path of 1 to 1024 bytes without NUL");
+            }
+            lua_pushboolean(state, writable && network->registerPrefab(key, path));
+            return 1;
+        }
+        case NetworkApi::Entity: {
+            const auto key = checkNetworkKey(state, 1);
+            const auto entity = network ? network->entity(key) : ecs::kInvalidEntity;
+            if (self.alive(entity)) lua_pushunsigned(state, entity);
+            else lua_pushnil(state);
+            return 1;
+        }
+        case NetworkApi::SetState: {
+            const auto key = checkNetworkKey(state, 1);
+            const auto value = checkNetworkInteger<uint16_t>(state, 2, 0);
+            const auto flags = checkNetworkInteger<uint8_t>(state, 3, 0);
+            lua_pushboolean(state, writable && network->setState(key, value, flags));
+            return 1;
+        }
+        case NetworkApi::State:
+        case NetworkApi::RawState: {
+            const auto key = checkNetworkKey(state, 1);
+            const auto replica = network ? (operation == NetworkApi::RawState ? network->rawState(key) : network->state(key)) :
+                std::nullopt;
+            if (!replica) { lua_pushnil(state); return 1; }
+            lua_createtable(state, 0, 9);
+            const auto field = [state](const char* name, double value) {
+                lua_pushnumber(state, value);
+                lua_rawsetfield(state, -2, name);
+            };
+            field("x", replica->x);
+            field("y", replica->y);
+            field("z", replica->z);
+            field("pitch", replica->pitch);
+            field("yaw", replica->yaw);
+            field("roll", replica->roll);
+            field("value", replica->value);
+            field("flags", replica->flags);
+            field("sampledFlags", replica->sampledFlags);
+            return 1;
+        }
+        case NetworkApi::LocalMotion: {
+            const auto motion = network ? network->localMotion() : std::nullopt;
+            if (!motion) { lua_pushnil(state); return 1; }
+            lua_createtable(state, 0, 7);
+            const auto field = [state](const char* name, double value) {
+                lua_pushnumber(state, value);
+                lua_rawsetfield(state, -2, name);
+            };
+            field("x", motion->x);
+            field("y", motion->y);
+            field("z", motion->z);
+            field("jumpBuffer", motion->jumpBuffer);
+            field("coyote", motion->coyote);
+            field("tick", static_cast<double>(motion->tick));
+            field("inputAck", static_cast<double>(motion->inputAck));
+            return 1;
+        }
+        case NetworkApi::NextInputSequence: {
+            const auto sequence = network ? network->nextInputSequence() : 0;
+            if (sequence) lua_pushnumber(state, static_cast<double>(sequence));
+            else lua_pushnil(state);
+            return 1;
+        }
+        case NetworkApi::SetPeerMotion: {
+            const auto peer = checkNetworkKey(state, 1);
+            std::array<float, 5> values{};
+            for (std::size_t index = 0; index < values.size(); ++index) {
+                const auto argument = static_cast<int>(index) + 2;
+                luaL_checktype(state, argument, LUA_TNUMBER);
+                const auto value = lua_tonumber(state, argument);
+                if (!std::isfinite(value) || std::abs(value) > std::numeric_limits<float>::max()) {
+                    luaL_argerror(state, argument, "expected a finite motion value");
+                }
+                values[index] = static_cast<float>(value);
+            }
+            lua_pushboolean(state, writable && network->role() == "server" &&
+                network->setPeerMotion(peer, {values[0], values[1], values[2], values[3], values[4]}));
+            return 1;
+        }
+        case NetworkApi::SetInput: {
+            const auto x = checkNetworkAxis(state, 1);
+            const auto z = checkNetworkAxis(state, 2);
+            lua_pushboolean(state, writable && network->setInput(x, z));
+            return 1;
+        }
+        case NetworkApi::Input: {
+            const auto peer = checkNetworkInteger<uint32_t>(state, 1, 1);
+            const auto input = network ? network->input(peer) : std::nullopt;
+            if (!input) { lua_pushnil(state); return 1; }
+            lua_pushnumber(state, (*input)[0]);
+            lua_pushnumber(state, (*input)[1]);
+            return 2;
+        }
+        case NetworkApi::SetControls: {
+            const auto x = checkNetworkAxis(state, 1);
+            const auto z = checkNetworkAxis(state, 2);
+            luaL_checktype(state, 3, LUA_TNUMBER);
+            luaL_checktype(state, 4, LUA_TNUMBER);
+            const auto yaw = lua_tonumber(state, 3);
+            const auto pitch = lua_tonumber(state, 4);
+            if (!std::isfinite(yaw)) luaL_argerror(state, 3, "expected a finite yaw in radians");
+            if (!std::isfinite(pitch) || std::abs(pitch) > std::numbers::pi / 2) {
+                luaL_argerror(state, 4, "expected pitch within +/- pi/2 radians");
+            }
+            const auto buttons = checkNetworkInteger<uint16_t>(state, 5, 0);
+            const auto pressed = checkNetworkInteger<uint8_t>(state, 6, 0);
+            lua_pushboolean(state, writable && network->setControls({x, z,
+                float(std::remainder(yaw, 2 * std::numbers::pi)), float(pitch), buttons, pressed}));
+            return 1;
+        }
+        case NetworkApi::Controls: {
+            const auto peer = checkNetworkKey(state, 1);
+            const auto controls = network ? network->controls(peer) : std::nullopt;
+            if (!controls) { lua_pushnil(state); return 1; }
+            lua_createtable(state, 0, 6);
+            const auto field = [state](const char* name, double value) {
+                lua_pushnumber(state, value);
+                lua_rawsetfield(state, -2, name);
+            };
+            field("x", controls->x);
+            field("z", controls->z);
+            field("yaw", controls->yaw);
+            field("pitch", controls->pitch);
+            field("buttons", controls->buttons);
+            field("pressed", controls->pressed);
+            return 1;
+        }
+        case NetworkApi::SetPeerValue: {
+            const auto peer = checkNetworkKey(state, 1);
+            const auto value = checkNetworkInteger<uint16_t>(state, 2, 0);
+            lua_pushboolean(state, writable && network->role() == "server" && network->setPeerValue(peer, value));
+            return 1;
+        }
+        case NetworkApi::PeerValue: {
+            const auto peer = checkNetworkKey(state, 1);
+            const auto value = network ? network->peerValue(peer) : std::nullopt;
+            if (value) lua_pushunsigned(state, *value);
+            else lua_pushnil(state);
+            return 1;
+        }
+        case NetworkApi::NormalizePeerName:
+        case NetworkApi::SetPeerName: {
+            const bool set = operation == NetworkApi::SetPeerName;
+            const auto peer = set ? checkNetworkKey(state, 1) : 0U;
+            const auto argument = set ? 2 : 1;
+            luaL_checktype(state, argument, LUA_TSTRING);
+            size_t size{};
+            const auto* text = lua_tolstring(state, argument, &size);
+            const auto name = net::normalizePeerName({text, size});
+            if (set) {
+                lua_pushboolean(state, name && writable && network->role() == "server" && network->setPeerName(peer, *name));
+            } else if (name) {
+                lua_pushlstring(state, name->empty() ? "" : name->data(), name->size());
+            } else {
+                lua_pushnil(state);
+            }
+            return 1;
+        }
+        case NetworkApi::PeerName: {
+            const auto peer = checkNetworkKey(state, 1);
+            const auto name = network ? network->peerName(peer) : std::string_view{};
+            if (name.empty()) lua_pushnil(state);
+            else lua_pushlstring(state, name.data(), name.size());
+            return 1;
+        }
+        case NetworkApi::PeerAvatar: {
+            const auto peer = checkNetworkKey(state, 1);
+            const auto image = network ? network->peerAvatar(peer) : std::string{};
+            if (image.empty()) lua_pushnil(state);
+            else lua_pushlstring(state, image.data(), image.size());
+            return 1;
+        }
+        case NetworkApi::Request: {
+            const auto key = checkNetworkKey(state, 1);
+            const auto action = checkNetworkInteger<uint8_t>(state, 2, 0);
+            const auto argument = checkNetworkInteger<int32_t>(state, 3, std::numeric_limits<int32_t>::min());
+            std::string_view text;
+            if (!lua_isnoneornil(state, 4)) {
+                luaL_checktype(state, 4, LUA_TSTRING);
+                size_t size{};
+                const auto* bytes = lua_tolstring(state, 4, &size);
+                if (size > net::MaxPeerNameBytes) luaL_argerror(state, 4, "network RPC text exceeds 128 bytes");
+                text = {bytes, size};
+            }
+            const auto request = writable ? network->request(key, action, argument, text) : 0U;
+            if (request) lua_pushunsigned(state, request);
+            else lua_pushnil(state);
+            return 1;
+        }
+        }
+        return 0;
+    }
+
+    void installNetworkBindings() {
+        static constexpr std::pair<const char*, NetworkApi> bindings[] = {
+            {"role", NetworkApi::Role}, {"connected", NetworkApi::Connected},
+            {"localPeer", NetworkApi::LocalPeer}, {"isHost", NetworkApi::IsHost}, {"usesSteam", NetworkApi::UsesSteam},
+            {"peers", NetworkApi::Peers}, {"stats", NetworkApi::Stats},
+            {"bind", NetworkApi::Bind}, {"unbind", NetworkApi::Unbind}, {"registerPrefab", NetworkApi::RegisterPrefab},
+            {"entity", NetworkApi::Entity}, {"setState", NetworkApi::SetState}, {"state", NetworkApi::State},
+            {"rawState", NetworkApi::RawState}, {"localMotion", NetworkApi::LocalMotion},
+            {"nextInputSequence", NetworkApi::NextInputSequence}, {"setPeerMotion", NetworkApi::SetPeerMotion},
+            {"setInput", NetworkApi::SetInput}, {"input", NetworkApi::Input},
+            {"setControls", NetworkApi::SetControls}, {"controls", NetworkApi::Controls},
+            {"setPeerValue", NetworkApi::SetPeerValue}, {"peerValue", NetworkApi::PeerValue},
+            {"normalizePeerName", NetworkApi::NormalizePeerName}, {"setPeerName", NetworkApi::SetPeerName},
+            {"peerName", NetworkApi::PeerName}, {"peerAvatar", NetworkApi::PeerAvatar},
+            {"request", NetworkApi::Request}
+        };
+        lua_createtable(vm, 0, static_cast<int>(std::size(bindings)));
+        for (const auto& [name, operation] : bindings) {
+            lua_pushinteger(vm, static_cast<int>(operation));
+            lua_pushcclosure(vm, &networkApi, name, 1);
+            lua_rawsetfield(vm, -2, name);
+        }
+        lua_setglobal(vm, "Network");
+    }
+
+    static int steamQuery(lua_State* state) {
+        auto* steam = from(state).steam;
+        const bool available = steam && steam->available();
+        const auto query = static_cast<SteamQuery>(lua_tointeger(state, lua_upvalueindex(1)));
+        switch (query) {
+        case SteamQuery::Available:
+            lua_pushboolean(state, available);
+            break;
+        case SteamQuery::LocalUser:
+            if (available) pushJson(state, steam->localUser());
+            else lua_pushnil(state);
+            break;
+        case SteamQuery::Session:
+            if (available) pushJson(state, steam->session());
+            else lua_pushnil(state);
+            break;
+        case SteamQuery::Friends:
+        case SteamQuery::Sessions: {
+            const auto offset = lua_isnoneornil(state, 1) ? 0U : checkNetworkInteger<unsigned>(state, 1, 0);
+            const auto limit = steamPageLimit(state, 2);
+            if (available) pushJson(state, query == SteamQuery::Friends ? steam->friends(offset, limit) : steam->sessions(offset, limit));
+            else lua_newtable(state);
+            break;
+        }
+        case SteamQuery::Avatar: {
+            const auto friendId = checkSteamId(state, 1);
+            const auto image = available ? steam->avatar(friendId) : std::string{};
+            if (image.empty()) lua_pushnil(state);
+            else lua_pushlstring(state, image.data(), image.size());
+            break;
+        }
+        }
+        return 1;
+    }
+
+    static int steamRequest(lua_State* state) {
+        auto& self = from(state);
+        ScriptSteamRequest request;
+        request.action = static_cast<ScriptSteamAction>(lua_tointeger(state, lua_upvalueindex(1)));
+        switch (request.action) {
+        case ScriptSteamAction::CreateSession:
+        case ScriptSteamAction::UpdateSession:
+            request.options = checkSteamOptions(state);
+            break;
+        case ScriptSteamAction::FindSessions:
+            request.limit = steamPageLimit(state, 1);
+            break;
+        case ScriptSteamAction::JoinSession:
+        case ScriptSteamAction::InviteFriend:
+        case ScriptSteamAction::OpenProfile:
+            request.id = checkSteamId(state, 1);
+            break;
+        case ScriptSteamAction::SetRichPresence:
+            request.key = checkSteamString(state, 1, 63, true, 1);
+            request.value = checkSteamString(state, 2, 255, false, 2);
+            break;
+        case ScriptSteamAction::LeaveSession:
+        case ScriptSteamAction::OpenInviteOverlay:
+            break;
+        }
+
+        std::uint32_t id{};
+        std::string error;
+        if (!self.steam) error = "Steam is unavailable in this scene.";
+        else if (!self.playing || !self.allowMutation) error = "Steam requests require a running behavior or game UI callback.";
+        else id = self.steam->submit(std::move(request), error);
+        if (id) {
+            lua_pushunsigned(state, id);
+            return 1;
+        }
+        if (error.empty()) error = "Steam request rejected.";
+        lua_pushnil(state);
+        lua_pushlstring(state, error.data(), error.size());
+        return 2;
+    }
+
+    void installSteamBindings() {
+        static constexpr std::pair<const char*, SteamQuery> queries[] = {
+            {"available", SteamQuery::Available}, {"localUser", SteamQuery::LocalUser},
+            {"friends", SteamQuery::Friends}, {"session", SteamQuery::Session},
+            {"sessions", SteamQuery::Sessions}, {"avatar", SteamQuery::Avatar}
+        };
+        static constexpr std::pair<const char*, ScriptSteamAction> requests[] = {
+            {"createSession", ScriptSteamAction::CreateSession}, {"findSessions", ScriptSteamAction::FindSessions},
+            {"joinSession", ScriptSteamAction::JoinSession}, {"leaveSession", ScriptSteamAction::LeaveSession},
+            {"updateSession", ScriptSteamAction::UpdateSession}, {"inviteFriend", ScriptSteamAction::InviteFriend},
+            {"openProfile", ScriptSteamAction::OpenProfile}, {"openInviteOverlay", ScriptSteamAction::OpenInviteOverlay},
+            {"setRichPresence", ScriptSteamAction::SetRichPresence}
+        };
+        lua_createtable(vm, 0, static_cast<int>(std::size(queries) + std::size(requests)));
+        const auto install = [this](const auto& entries, lua_CFunction handler) {
+            for (const auto& [name, operation] : entries) {
+                lua_pushinteger(vm, static_cast<int>(operation));
+                lua_pushcclosure(vm, handler, name, 1);
+                lua_rawsetfield(vm, -2, name);
+            }
+        };
+        install(queries, &steamQuery);
+        install(requests, &steamRequest);
+        lua_setglobal(vm, "Steam");
+    }
+
     void installBindings() {
         lua_newtable(vm);
         bind(vm, "isAlive", Api::Alive); bind(vm, "getPosition", Api::Position); bind(vm, "setPosition", Api::SetPosition);
         bind(vm, "getRotation", Api::Rotation); bind(vm, "setRotation", Api::SetRotation);
+        bind(vm, "setCameraFov", Api::SetCameraFov);
+        bind(vm, "setRenderInterpolation", Api::SetRenderInterpolation);
+        bind(vm, "snapRenderInterpolation", Api::SnapRenderInterpolation);
         bind(vm, "getVelocity", Api::Velocity); bind(vm, "setVelocity", Api::SetVelocity); bind(vm, "applyForce", Api::Force);
         bind(vm, "getTag", Api::Tag); bind(vm, "find", Api::Find); bind(vm, "queryRadius", Api::Radius);
         bind(vm, "spawnPrefab", Api::Spawn); bind(vm, "destroy", Api::Destroy); bind(vm, "setStatus", Api::Status);
+        bind(vm, "playSound", Api::PlaySound);
         bind(vm, "getStatus", Api::ReadStatus);
         lua_setglobal(vm, "Engine");
         lua_newtable(vm);
         bind(vm, "isKeyDown", Api::KeyDown); bind(vm, "wasKeyPressed", Api::KeyPressed); bind(vm, "wasKeyReleased", Api::KeyReleased);
-        bind(vm, "mousePosition", Api::MousePosition); lua_setglobal(vm, "Input");
+        bind(vm, "mousePosition", Api::MousePosition); bind(vm, "mouseDelta", Api::MouseDelta);
+        bind(vm, "mouseSensitivity", Api::MouseSensitivity); bind(vm, "setMouseSensitivity", Api::SetMouseSensitivity);
+        bind(vm, "isMouseButtonDown", Api::MouseDown); bind(vm, "wasMouseButtonPressed", Api::MousePressed);
+        bind(vm, "setCursorLocked", Api::CursorLock); bind(vm, "isCursorLocked", Api::CursorLocked);
+        lua_setglobal(vm, "Input");
+        installNetworkBindings();
+        installSteamBindings();
         lua_pushcfunction(vm, &print, "print"); lua_setglobal(vm, "print");
         lua_pushcfunction(vm, &requireModule, "require"); lua_setglobal(vm, "require");
         lua_pushcfunction(vm, &errorHandler, "traceback"); errorRef = lua_ref(vm, -1); lua_pop(vm, 1);
@@ -529,8 +1250,55 @@ struct ScriptingSystem::Impl final {
             if (fieldErrors.insert(diagnostic).second) { message(ScriptMessage::Kind::Error, diagnostic); }
         };
         if (lua_istable(vm, -1)) {
-            const Json definitions = readJson(vm, -1);
+            const int fieldsIndex=lua_absindex(vm,-1);
+            const auto scalar=[](int type) { return type==LUA_TNUMBER || type==LUA_TBOOLEAN || type==LUA_TSTRING; };
+            Json definitions = Json::object();
+            std::size_t declarations = 0;
+            lua_pushnil(vm);
+            while (lua_next(vm, fieldsIndex)) {
+                if (++declarations > 128U) {
+                    invalid({}, "A behavior may declare at most 128 fields");
+                    definitions.clear();
+                    lua_pop(vm, 2);
+                    break;
+                }
+                if (lua_type(vm, -2) != LUA_TSTRING) {
+                    invalid({}, "Field names must be strings");
+                    lua_pop(vm, 1);
+                    continue;
+                }
+                std::size_t nameLength = 0;
+                const char* rawName = lua_tolstring(vm, -2, &nameLength);
+                const std::string name(rawName, nameLength);
+                Json definition;
+                if (lua_istable(vm, -1)) {
+                    definition = Json::object();
+                    for (const auto* key : {"default", "type", "min", "max", "step", "label", "description", "category"}) {
+                        lua_rawgetfield(vm, -1, key);
+                        if (!lua_isnil(vm, -1)) definition[key] = scalar(lua_type(vm, -1)) ? readJson(vm, -1) : Json{};
+                        lua_pop(vm, 1);
+                    }
+                } else if (scalar(lua_type(vm, -1))) {
+                    definition = readJson(vm, -1);
+                }
+                definitions[name] = std::move(definition);
+                lua_pop(vm, 1);
+            }
             for (const auto& [name, definition] : definitions.items()) {
+                lua_pushlstring(vm,name.data(),name.size()); lua_rawget(vm,fieldsIndex);
+                std::string rawError;
+                if (lua_istable(vm,-1)) {
+                    lua_rawgetfield(vm,-1,"default");
+                    if (!scalar(lua_type(vm,-1))) rawError="Declaration requires a scalar default";
+                    lua_pop(vm,1);
+                    for (const auto* key : {"type","label","description","category"}) {
+                        lua_rawgetfield(vm,-1,key);
+                        if (!lua_isnil(vm,-1) && lua_type(vm,-1)!=LUA_TSTRING) rawError=std::string(key)+" must be a string";
+                        lua_pop(vm,1);
+                    }
+                } else if (!scalar(lua_type(vm,-1))) rawError="Declaration requires a scalar value or a field table";
+                lua_pop(vm,1);
+                if (!rawError.empty()) { invalid(name,rawError); continue; }
                 ScriptField field; field.name = name;
                 if (definition.is_object()) {
                     const auto defaultValue = definition.find("default");
@@ -549,7 +1317,20 @@ struct ScriptingSystem::Impl final {
                         }
                     };
                     bound("min", field.minimum); bound("max", field.maximum);
+                    bound("step", field.step);
                     if (!validBounds) { continue; }
+                    bool validMetadata = true;
+                    const auto text = [&](const char* key, std::string& value) {
+                        if (const auto metadata = definition.find(key); metadata != definition.end()) {
+                            if (!metadata->is_string()) { invalid(name, std::string(key) + " must be a string"); validMetadata = false; }
+                            else { value = metadata->get<std::string>(); }
+                        }
+                    };
+                    text("label", field.label); text("description", field.description); text("category", field.category);
+                    if (!validMetadata || field.step <= 0.0 || field.step > 1000000.0) {
+                        if (validMetadata) invalid(name, "step must be positive and at most 1000000");
+                        continue;
+                    }
                 } else { field.defaultValue = definition; }
                 if (field.type.empty()) {
                     field.type = field.defaultValue.is_boolean() ? "boolean" : field.defaultValue.is_number() ? "number" :
@@ -557,10 +1338,14 @@ struct ScriptingSystem::Impl final {
                 }
                 if (field.type == "bool") { field.type = "boolean"; }
                 if (field.type == "integer") { field.type = "number"; field.integer = true; }
+                if (field.integer && field.step < 1.0) { field.step = 1.0; }
                 const bool matches = field.type == "number" ? field.defaultValue.is_number() && std::isfinite(field.defaultValue.get<double>()) :
                     field.type == "boolean" ? field.defaultValue.is_boolean() : field.type == "string" && field.defaultValue.is_string();
                 if (!matches) { invalid(name, "default must match supported type number, integer, boolean, bool or string"); continue; }
                 if (field.minimum > field.maximum) { invalid(name, "min must not exceed max"); continue; }
+                if (field.type == "number" && (field.defaultValue.get<double>() < field.minimum || field.defaultValue.get<double>() > field.maximum)) {
+                    invalid(name, "default must be inside min/max"); continue;
+                }
                 if (field.integer) {
                     field.minimum = std::ceil(field.minimum); field.maximum = std::floor(field.maximum);
                     if (field.minimum > field.maximum || std::round(field.defaultValue.get<double>()) != field.defaultValue.get<double>()) {
@@ -571,6 +1356,9 @@ struct ScriptingSystem::Impl final {
             }
         } else if (!lua_isnil(vm, -1)) { invalid({}, "Declaration must be a table"); }
         lua_pop(vm, 2);
+        std::stable_sort(result.begin(), result.end(), [](const ScriptField& left, const ScriptField& right) {
+            return left.category != right.category ? left.category < right.category : left.name < right.name;
+        });
         return result;
     }
     void defaults(ScriptComponent& component) {
@@ -611,11 +1399,16 @@ struct ScriptingSystem::Impl final {
         instances.emplace(entity, Instance{ref, component.path, false, component.fields});
         callback(entity, "Init", 0.0, nullptr);
     }
-    void callback(const ecs::EntityId entity, const char* method, const double dt, const Json* event, const bool mutation = true) {
+    void callback(const ecs::EntityId entity, const char* method, const double dt, const Json* event,
+                  const bool mutation = true, RpcInvocation* rpc = nullptr) {
         ENGINE_PROFILE_ZONE("Luau Behavior Entry Point");
         const auto found = instances.find(entity);
         const bool cleanup = std::string(method) == "Destroy";
         if (found == instances.end() || (!cleanup && (found->second.failed || !alive(entity)))) { return; }
+        if (!cleanup) {
+            const auto* component = world->getComponent<ScriptComponent>(entity);
+            if (!component || !component->enabled || component->path != found->second.path) return;
+        }
         const bool entered = protectedHost(found->second.path, [&] {
         const int base = lua_gettop(vm);
         lua_getref(vm, errorRef);
@@ -632,20 +1425,46 @@ struct ScriptingSystem::Impl final {
         lua_getref(vm, found->second.ref);
         lua_remove(vm, base + 2);
         int arguments = 1;
-        if (event != nullptr) { pushJson(vm, *event); ++arguments; }
+        if (rpc) {
+            rpc->reply.handled = true;
+            lua_pushunsigned(vm, rpc->peer);
+            lua_pushunsigned(vm, rpc->action);
+            lua_pushnumber(vm, rpc->argument);
+            arguments += 3;
+            if (!rpc->text.empty()) {
+                lua_pushlstring(vm, rpc->text.data(), rpc->text.size());
+                ++arguments;
+            }
+        } else if (event != nullptr) { pushJson(vm, *event); ++arguments; }
         else if (std::string(method) == "Update") { lua_pushnumber(vm, dt); ++arguments; }
-        const bool oldMutation = allowMutation;
+        struct PermissionRestore final {
+            Impl& self;
+            bool mutation;
+            bool cleanupDestroy;
+            ~PermissionRestore() { self.allowMutation = mutation; self.allowCleanupDestroy = cleanupDestroy; }
+        } restore{*this, allowMutation, allowCleanupDestroy};
         allowMutation = mutation;
+        allowCleanupDestroy = cleanup;
         const auto callbackPath = found->second.path;
         evaluating.push_back(callbackPath);
-        const bool ok = protectedCall(vm, arguments, 0, base + 1);
+        const bool ok = protectedCall(vm, arguments, rpc ? 2 : 0, base + 1);
         evaluating.pop_back();
-        allowMutation = oldMutation;
+        if (rpc && ok) {
+            const auto value = lua_isnil(vm, -1) ? std::optional<uint16_t>{0} : networkInteger<uint16_t>(vm, -1, 0);
+            if (lua_type(vm, -2) != LUA_TBOOLEAN || !value) {
+                message(ScriptMessage::Kind::Error, callbackPath + ": OnNetworkRpc must return a boolean and an optional integer from 0 to 65535");
+            } else if (lua_toboolean(vm, -2)) {
+                rpc->reply.accepted = true;
+                rpc->reply.value = *value;
+            }
+        }
         lua_settop(vm, base);
-        // A callback can spawn other instances and rehash the map.
-        if (!ok) { if (const auto current = instances.find(entity); current != instances.end()) { current->second.failed = true; } }
+        if (!ok && !rpc) { if (const auto current = instances.find(entity); current != instances.end()) { current->second.failed = true; } }
         });
-        if (!entered) { if (const auto current = instances.find(entity); current != instances.end()) current->second.failed = true; }
+        if (!entered) {
+            if (rpc) rpc->reply = {true, false, 0};
+            else if (const auto current = instances.find(entity); current != instances.end()) current->second.failed = true;
+        }
     }
     void instantiateNew() {
         std::vector<ecs::EntityId> entities;
@@ -656,13 +1475,19 @@ struct ScriptingSystem::Impl final {
         }
     }
     void flushDestroy() {
-        const auto queued = std::move(pendingDestroy);
-        pendingDestroy.clear();
-        for (const auto entity : queued) {
+        if (flushingDestroy || world == nullptr) return;
+        struct FlushRestore final {
+            bool& active;
+            ~FlushRestore() { active = false; }
+        } restore{flushingDestroy};
+        flushingDestroy = true;
+        while (!pendingDestroy.empty()) {
+            const auto entity = *pendingDestroy.begin();
             callback(entity, "Destroy", 0.0, nullptr, false);
             const auto found = instances.find(entity);
             if (found != instances.end()) { lua_unref(vm, found->second.ref); instances.erase(found); }
             if (world->isAlive(entity)) { if (destroy) { destroy(entity); } else { world->destroyEntity(entity); } }
+            pendingDestroy.erase(entity);
         }
     }
     ecs::EntityId spawnPrefab(const std::string& path, const Json& overrides) {
@@ -670,21 +1495,17 @@ struct ScriptingSystem::Impl final {
         {
             const NativePreparation preparation(*this);
             const auto resolved = resolve(path);
-            if (std::filesystem::file_size(resolved) > limits.sourceBytes) { throw std::invalid_argument("Prefab exceeds size limit"); }
-            std::ifstream file(resolved);
-            if (!file) { throw std::runtime_error("Cannot open prefab"); }
-            file >> prefab;
+            prefab = Json::parse(readAssetBytes(resolved, limits.sourceBytes, "Prefab"));
         }
         if (!prefab.is_object()) { throw std::invalid_argument("Prefab must be an object"); }
         if (!overrides.is_object()) { throw std::invalid_argument("Prefab overrides must be an object"); }
         prefab.merge_patch(overrides);
-        // Fully parse before touching the ECS: malformed data cannot leave half an entity.
         const auto& data = prefab.contains("components") ? prefab["components"] : prefab;
         ecs::Transform transform;
         if (data.contains("transform")) {
             const auto& item = data["transform"];
             transform.position = jsonVector(item.value("position", Json::array()), transform.position);
-            transform.rotationEulerRadians = jsonVector(item.value("rotation", Json::array()), transform.rotationEulerRadians);
+            transform.rotationEulerRadians = jsonVector(item.value("rotationEulerRadians", item.value("rotation", Json::array())), transform.rotationEulerRadians);
             transform.scale = jsonVector(item.value("scale", Json::array()), transform.scale);
         }
         std::optional<ecs::Rigidbody> rigidbody;
@@ -694,6 +1515,13 @@ struct ScriptingSystem::Impl final {
             rigidbody->isStatic = item.value("isStatic", false); rigidbody->isKinematic = item.value("isKinematic", false);
             rigidbody->useGravity = item.value("useGravity", true);
             rigidbody->velocity = jsonVector(item.value("velocity", Json::array()), glm::vec3(0.0F));
+            rigidbody->acceleration = jsonVector(item.value("acceleration", Json::array()), rigidbody->acceleration);
+            rigidbody->angularVelocity = jsonVector(item.value("angularVelocity", Json::array()), rigidbody->angularVelocity);
+            rigidbody->linearDamping = item.value("linearDamping", rigidbody->linearDamping);
+            rigidbody->angularDamping = item.value("angularDamping", rigidbody->angularDamping);
+            rigidbody->restitution = item.value("restitution", rigidbody->restitution);
+            rigidbody->friction = item.value("friction", rigidbody->friction);
+            rigidbody->canSleep = item.value("canSleep", rigidbody->canSleep);
             rigidbody->recalculateMassProperties();
         }
         std::optional<ecs::Collider> collider;
@@ -702,6 +1530,7 @@ struct ScriptingSystem::Impl final {
             collider->type = item.value("type", std::string("aabb")) == "sphere" ? ecs::ColliderType::Sphere : ecs::ColliderType::Aabb;
             collider->sphere.radius = std::max(0.001F, item.value("radius", 0.5F));
             collider->aabb.halfExtents = jsonVector(item.value("halfExtents", Json::array()), glm::vec3(0.5F));
+            collider->offset = jsonVector(item.value("offset", Json::array()), collider->offset);
             collider->enabled = item.value("enabled", true);
         }
         std::optional<ecs::MeshRenderer> mesh;
@@ -710,6 +1539,12 @@ struct ScriptingSystem::Impl final {
             mesh->meshId = item.value("meshId", std::string("__diligent_cube__"));
             mesh->textureId = item.value("textureId", std::string("assets/textures/arena_wall.ppm"));
             mesh->shaderId = item.value("shaderId", std::string("assets/shaders_hlsl/textured.shader.json"));
+            mesh->materialId = item.value("materialId", std::string{});
+            mesh->visible = item.value("visible", true);
+            mesh->primitiveType = static_cast<ecs::PrimitiveType>(item.value("primitiveType", static_cast<int>(mesh->primitiveType)));
+            if (item.contains("uvScale") && item["uvScale"].is_array() && item["uvScale"].size() == 2U) {
+                mesh->uvScale = {item["uvScale"][0].get<float>(), item["uvScale"][1].get<float>()};
+            }
             if (item.contains("tint") && item["tint"].is_array() && item["tint"].size() == 4U) {
                 mesh->tint = {item["tint"][0].get<float>(), item["tint"][1].get<float>(), item["tint"][2].get<float>(), item["tint"][3].get<float>()};
             }
@@ -720,6 +1555,16 @@ struct ScriptingSystem::Impl final {
             script->path = item.at("path").get<std::string>(); script->enabled = item.value("enabled", true);
             script->fields = item.value("fields", Json::object()); defaults(*script);
         }
+        std::optional<ecs::Camera> camera;
+        if (data.contains("camera")) {
+            const auto& item = data["camera"]; camera.emplace();
+            camera->verticalFovRadians = item.value("verticalFovRadians", camera->verticalFovRadians);
+            camera->nearPlane = item.value("nearPlane", camera->nearPlane);
+            camera->farPlane = item.value("farPlane", camera->farPlane);
+            camera->active = item.value("active", camera->active);
+        }
+        std::optional<ecs::Light> light;
+        if (data.contains("light")) light = ecs::lightFromJson(data["light"]);
         std::string tag = prefab.value("name", std::string("Prefab"));
         if (data.contains("tag")) { tag = data["tag"].is_string() ? data["tag"].get<std::string>() : data["tag"].value("value", tag); }
         const auto entity = world->createEntity();
@@ -729,6 +1574,8 @@ struct ScriptingSystem::Impl final {
             if (collider) { world->addComponent<ecs::Collider>(entity, *collider); }
             if (mesh) { world->addComponent<ecs::MeshRenderer>(entity, *mesh); }
             if (script) { world->addComponent<ScriptComponent>(entity, *script); }
+            if (camera) { world->addComponent<ecs::Camera>(entity, *camera); }
+            if (light) { world->addComponent<ecs::Light>(entity, *light); }
         } catch (...) { world->destroyEntity(entity); throw; }
         return entity;
     }
@@ -740,6 +1587,7 @@ bool ScriptingSystem::initialize(ecs::World& world, core::JobSystem* jobs, std::
     auto& self = *m_impl; self.requireOwner();
     if (self.vm != nullptr) { return true; }
     self.world = &world; self.jobs = jobs; self.root = std::filesystem::weakly_canonical(assetRoot);
+    self.mouseSensitivity.reset();
     self.watcher.initialize(jobs);
     self.vm = lua_newstate(&Impl::allocate, &self);
     if (self.vm == nullptr) { self.message(ScriptMessage::Kind::Error, "Cannot create Luau VM"); return false; }
@@ -757,7 +1605,7 @@ void ScriptingSystem::shutdown() {
     self.reloadQueue.clear(); self.dependencies.clear(); self.evaluating.clear(); self.prepared = nullptr;
     stop(); self.modules.clear(); self.loading.clear(); self.failedModules.clear(); self.fieldErrors.clear(); self.behaviorPaths.clear();
     if (self.vm != nullptr) { lua_close(self.vm); self.vm = nullptr; }
-    self.world = nullptr; self.jobs = nullptr;
+    self.world = nullptr; self.jobs = nullptr; self.network = nullptr; self.steam = nullptr; self.inputWindow = nullptr;
 }
 void ScriptingSystem::setLimits(Limits limits) {
     m_impl->requireOwner();
@@ -767,12 +1615,32 @@ void ScriptingSystem::setLimits(Limits limits) {
 }
 ScriptingSystem::Limits ScriptingSystem::limits() const { return m_impl->limits; }
 void ScriptingSystem::setInputEnabled(const bool enabled) { m_impl->requireOwner(); m_impl->inputEnabled = enabled; }
+void ScriptingSystem::setPointerInputEnabled(const bool enabled) { m_impl->requireOwner(); m_impl->pointerInputEnabled = enabled; }
+void ScriptingSystem::setInputWindow(platform::Window* window) {
+    auto& self = *m_impl; self.requireOwner();
+    if (self.inputWindow != window) self.releaseCursorLock();
+    self.inputWindow = window;
+}
+bool ScriptingSystem::cursorLocked() const { return m_impl->cursorLocked(); }
+bool ScriptingSystem::releaseCursorLock() { m_impl->requireOwner(); return m_impl->releaseCursorLock(); }
 void ScriptingSystem::setDestroyCallback(std::function<void(ecs::EntityId)> callback) { m_impl->requireOwner(); m_impl->destroy = std::move(callback); }
+void ScriptingSystem::setNetwork(ScriptNetwork* network) { m_impl->requireOwner(); m_impl->network = network; }
+void ScriptingSystem::setSteam(ScriptSteam* steam) { m_impl->requireOwner(); m_impl->steam = steam; }
+ScriptRpcReply ScriptingSystem::invokeNetworkRpc(ecs::EntityId entity, uint32_t peer, uint8_t action, int32_t argument,
+                                                std::string_view text) {
+    auto& self = *m_impl;
+    self.requireOwner();
+    if (!self.vm || !self.playing || self.protectedDepth || !self.network || self.network->role() != "server" || !peer) {
+        return {};
+    }
+    Impl::RpcInvocation rpc{peer, action, argument, text};
+    self.callback(entity, "OnNetworkRpc", 0.0, nullptr, true, &rpc);
+    return rpc.reply;
+}
 void ScriptingSystem::start() {
     auto& self = *m_impl; self.requireOwner(); if (self.vm == nullptr) { return; }
     stop();
     self.failedModules.clear();
-    // Edits made on disk also take effect at the next Play without a manual reload.
     std::vector<std::string> paths;
     self.world->forEach<ScriptComponent>([&](const ecs::EntityId, const ScriptComponent& component) {
         if (!component.path.empty() && std::find(paths.begin(), paths.end(), component.path) == paths.end()) { paths.push_back(component.path); }
@@ -797,7 +1665,9 @@ void ScriptingSystem::stop() {
         for (const auto entity : entities) { self.callback(entity, "Destroy", 0.0, nullptr, false); }
         for (const auto& [entity, instance] : self.instances) { (void)entity; lua_unref(self.vm, instance.ref); }
     }
-    self.instances.clear(); self.events.clear(); self.pendingDestroy.clear(); self.playing = false;
+    self.instances.clear(); self.events.clear(); self.flushDestroy(); self.playing = false;
+    self.releaseCursorLock();
+    self.audio.clear();
 }
 void ScriptingSystem::update(const double dt) {
     auto& self = *m_impl; self.requireOwner(); pollReload();
@@ -824,15 +1694,14 @@ void ScriptingSystem::update(const double dt) {
 }
 void ScriptingSystem::queueEvent(std::string type, Json payload) {
     auto& self = *m_impl; self.requireOwner(); if (!self.playing || self.events.size() >= 1024U) { return; }
-    payload["type"] = type; self.events.emplace_back(std::move(type), std::move(payload));
+    payload["type"] = std::move(type); self.events.push_back(std::move(payload));
 }
 void ScriptingSystem::dispatchEvents() {
     auto& self = *m_impl; self.requireOwner(); if (!self.playing || self.vm == nullptr) { return; }
     const auto events = std::move(self.events); self.events.clear();
     std::vector<ecs::EntityId> entities;
     for (const auto& [entity, instance] : self.instances) { (void)instance; entities.push_back(entity); }
-    for (const auto& [type, payload] : events) {
-        (void)type;
+    for (const auto& payload : events) {
         for (const auto entity : entities) { self.callback(entity, "OnEvent", 0.0, &payload); }
     }
     self.flushDestroy();
@@ -842,9 +1711,6 @@ void ScriptingSystem::forgetEntity(const ecs::EntityId entity) {
     if (self.instances.contains(entity)) { self.callback(entity, "Destroy", 0.0, nullptr, false); }
     const auto found = self.instances.find(entity);
     if (found != self.instances.end()) { lua_unref(self.vm, found->second.ref); self.instances.erase(found); }
-    // Releasing the behavior must not cancel an already requested ECS destroy.
-    // update() also forgets later instances marked dead by an earlier callback;
-    // flushDestroy() still owns those entities until the safe mutation boundary.
 }
 bool ScriptingSystem::loadBehavior(const std::string& path) {
     auto& self = *m_impl; self.requireOwner(); if (self.vm == nullptr) { return false; }
@@ -865,6 +1731,21 @@ void ScriptingSystem::populateDefaults(ScriptComponent& component) {
     auto& self = *m_impl; self.requireOwner();
     if (self.vm) self.protectedHost(component.path, [&] { self.defaults(component); });
 }
+bool ScriptingSystem::setField(ScriptComponent& component, const std::string& name, const Json& value) {
+    const auto definitions = fields(component.path);
+    const auto found = std::find_if(definitions.begin(), definitions.end(), [&](const ScriptField& field) { return field.name == name; });
+    if (found == definitions.end()) return false;
+    Json normalized = value;
+    if (found->type == "number") {
+        if (!value.is_number() || !std::isfinite(value.get<double>())) return false;
+        double number = std::clamp(value.get<double>(), found->minimum, found->maximum);
+        normalized = found->integer ? std::round(number) : number;
+    } else if (found->type == "boolean" ? !value.is_boolean() : !value.is_string()) return false;
+    if (!component.fields.is_object()) component.fields = Json::object();
+    if (component.fields.contains(name) && component.fields.at(name) == normalized) return false;
+    component.fields[name] = std::move(normalized);
+    return true;
+}
 bool ScriptingSystem::requestReload(const std::string& path) {
     auto& self = *m_impl; self.requireOwner(); if (self.vm == nullptr) { return false; }
     std::string key;
@@ -872,7 +1753,6 @@ bool ScriptingSystem::requestReload(const std::string& path) {
     catch (const std::exception& error) { self.message(ScriptMessage::Kind::Error, error.what()); return false; }
     self.reloadQueue.insert(key);
     if (self.reload) return true;
-    // Re-evaluate consumers too: their local require() bindings may contain functions/scalars.
     bool expanded = true;
     while (expanded) {
         expanded = false;
@@ -892,10 +1772,7 @@ bool ScriptingSystem::requestReload(const std::string& path) {
     const auto compile = [result, files = std::move(files), sourceLimit] {
         ENGINE_PROFILE_ZONE("Luau Hot Reload Read and Compile");
         for (const auto& [name, resolved] : files) try {
-            if (std::filesystem::file_size(resolved) > sourceLimit) { throw std::runtime_error("Script exceeds source size limit"); }
-            std::ifstream file(resolved, std::ios::binary);
-            if (!file) { throw std::runtime_error("Cannot read script"); }
-            auto bytes = compileSource(std::string(std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>()));
+            auto bytes = compileSource(readAssetBytes(resolved, sourceLimit, "Script"));
             const auto error = compileError(bytes);
             if (!error.empty()) { result->error = name + ": " + error; break; }
             result->bytecode.emplace(name, std::move(bytes));
@@ -909,7 +1786,7 @@ bool ScriptingSystem::requestReload(const std::string& path) {
 void ScriptingSystem::pollReload() {
     auto& self = *m_impl; self.requireOwner(); if (!self.vm) return;
     for (const auto& change : self.watcher.poll()) {
-        const auto key = change.path.lexically_relative(self.root).generic_string();
+        const auto key = utf8Path(change.path.lexically_relative(self.root));
         self.reloadQueue.insert(key);
     }
     if (!self.reload && !self.reloadQueue.empty()) requestReload(*self.reloadQueue.begin());
@@ -952,7 +1829,6 @@ void ScriptingSystem::pollReload() {
         self.modules = previous; self.dependencies = previousDependencies; self.failedModules = previousFailed;
         self.message(ScriptMessage::Kind::Error, "Live reload failed; previous code retained"); return;
     }
-    // Give React a mapping of exported component functions, including nested exports.
     self.protectedHost("Live React export refresh", [&] {
     const int refreshBase = lua_gettop(self.vm);
     lua_newtable(self.vm);
@@ -965,8 +1841,6 @@ void ScriptingSystem::pollReload() {
         if ((lua_istable(self.vm, oldValue) || lua_isfunction(self.vm, oldValue)) && !visited.insert(lua_topointer(self.vm, oldValue)).second) return;
         if (lua_isfunction(self.vm, oldValue) && lua_isfunction(self.vm, newValue)) {
             lua_pushvalue(self.vm, oldValue); lua_pushvalue(self.vm, newValue); lua_rawset(self.vm, replacements);
-            // Module-local React components are commonly captured by Init/Update.
-            // Pair named upvalues, rather than rerunning Init and spawning a second game.
             if (!lua_iscfunction(self.vm, oldValue) && !lua_iscfunction(self.vm, newValue)) {
                 for (int i=1; i<=200; ++i) {
                     const char* oldName = lua_getupvalue(self.vm, oldValue, i);
@@ -1016,7 +1890,6 @@ void ScriptingSystem::pollReload() {
     self.world->forEach<ScriptComponent>([&](const ecs::EntityId, ScriptComponent& component) {
         if (reload->bytecode.contains(component.path)) self.defaults(component);
     });
-    // Preserve self.state and update the method table; declared scene fields remain data-owned.
     for (auto& [entity, instance] : self.instances) {
         if (!reload->bytecode.contains(instance.path)) { continue; }
         const bool attached = self.protectedHost(instance.path, [&] {
@@ -1096,4 +1969,4 @@ const Json& ScriptingSystem::status() const { return m_impl->status; }
 bool ScriptingSystem::playing() const { return m_impl->playing; }
 std::size_t ScriptingSystem::memoryUsed() const { return m_impl->allocated; }
 
-} // namespace engine::scripting
+}

@@ -1,5 +1,3 @@
--- A deliberately bounded Roblox UI facade, not a simulation of Roblox services.
--- Raw host fields stay readable without metamethods from the native draw pass.
 local originalTypeof = typeof
 local knownTypes = setmetatable({}, { __mode = "k" })
 local function tagged(value, name, meta)
@@ -68,7 +66,6 @@ Vector2.zero = Vector2.new(0, 0)
 Vector2.one = Vector2.new(1, 1)
 Vector2.xAxis = Vector2.new(1, 0)
 Vector2.yAxis = Vector2.new(0, 1)
--- Native geometry publication attaches this exact metadata without calling Lua.
 __turboVector2Metatable = table.freeze(vectorMeta)
 local colorMeta = valueMeta("Color3", { "R", "G", "B" })
 Color3 = {
@@ -161,8 +158,6 @@ NumberSequence = table.freeze({ new = function(first, last)
     return sequence(first, "NumberSequence", numberSequenceMeta)
 end })
 
--- Numeric identities are from Roblox/creator-docs engine enum definitions.
--- Fonts are accepted as portable hints; ImGui supplies the actual local font.
 local definitions = {
     FillDirection = { Horizontal = 0, Vertical = 1 },
     HorizontalAlignment = { Center = 0, Left = 1, Right = 2 },
@@ -331,6 +326,7 @@ facade.isEvent = function(instance, name) return events[name] == true or (isA(in
 facade.hasProperty = function(instance, name) return propertyType(instance, name) ~= nil end
 facade.isReadonlyProperty = function(instance, name) return propertyType(instance, name) == "readonly" end
 local instances = setmetatable({}, { __mode = "k" })
+local resetCreated
 local destroyObservers = {}
 local treeObserver = function() end
 local nextId = 0
@@ -376,8 +372,6 @@ local function signal()
     knownTypes[result] = "RBXScriptSignal"
     return result
 end
--- Trusted service adapters share type tags and guarded signal implementation;
--- they never install per-object native/Heartbeat callbacks.
 facade.tagValue = tagged
 facade.registerType = function(value, name) knownTypes[value] = name; return value end
 facade.createSignal = signal
@@ -493,7 +487,6 @@ function facade.disconnectBindings(instance) for _, disconnect in pairs(instance
 function methods:Destroy()
     if self.disposed or rawget(self, "_destroying") then return end
     rawset(self, "_destroying", true)
-    -- Notify during this protected Lua call, before disconnecting the tree.
     local failure
     for _, observer in ipairs(destroyObservers) do local ok, message = pcall(observer, self); if not ok then failure = failure or message end end
     if self._signals.Destroying then local ok, message = pcall(self._signals.Destroying._fire); if not ok then failure = message end end
@@ -540,10 +533,12 @@ end
 instanceMeta.__tostring = function(instance) return instance.props.Name end
 function facade.create(className)
     assert(hosts[className], "Unsupported Roblox UI class: " .. tostring(className))
+    assert(not resetCreated or #resetCreated < 16384, "UI reset creation limit exceeded")
     nextId += 1
     local instance = { type = className, id = nextId, children = {}, props = { Name = className, Archivable = true }, events = {}, bindings = {}, hidden = false, disposed = false, _signals = {} }
     if className == "CanvasGroup" then instance.props.ClipsDescendants = true end
     instances[instance] = true; knownTypes[instance] = "Instance"
+    if resetCreated then table.insert(resetCreated, instance) end
     return setmetatable(instance, instanceMeta)
 end
 local defaultTemplates = {}
@@ -588,9 +583,6 @@ local function canDispatchInput(instance)
 end
 function facade.dispatch(instance, name, value, args)
     if instance.disposed then return end
-    -- The engine deliberately gates transparent/disabled groups as a subtree.
-    -- Recheck queued activations after edits/tweens; property and FocusLost /
-    -- MouseLeave cleanup notifications still reach their protected callbacks.
     if gatedInput[name] and not canDispatchInput(instance) then return end
     if string.sub(name, 1, 7) == "Change." then
         local property = string.sub(name, 8)
@@ -620,8 +612,6 @@ facade.isInstance = function(value) return instances[value] == true end
 facade.setTreeObserver = function(observer) treeObserver = observer end
 Instance = table.freeze({ new = function(className, parent)
     local instance = facade.applyDefaults(facade.create(className))
-    -- Explicit Instances use Roblox-style absolute layout. React's historical
-    -- Width/Height flow widgets retain their existing native default behavior.
     if parent ~= nil then setParent(instance, parent) end
     return instance
 end })
@@ -631,10 +621,25 @@ local players = { LocalPlayer = { Name = "LocalPlayer", PlayerGui = facade.playe
 function players.LocalPlayer:FindFirstChild(name) return if name == "PlayerGui" then facade.playerGui else nil end
 function players.LocalPlayer:WaitForChild(name) assert(name == "PlayerGui", "Only LocalPlayer.PlayerGui is available"); return facade.playerGui end
 facade.reset = function()
+    assert(not resetCreated, "UI reset is already in progress")
     local failure
-    for instance in pairs(instances) do
-        if not instance.disposed then local ok, message = pcall(methods.Destroy, instance); if not ok then failure = failure or message end end
+    local original = {}
+    for instance in pairs(instances) do table.insert(original, instance) end
+    local function disposeAll()
+        for _, instance in ipairs(original) do
+            if not instance.disposed then local ok, message = pcall(methods.Destroy, instance); if not ok then failure = failure or message end end
+        end
+        local index = 1
+        while index <= #resetCreated do
+            local instance = resetCreated[index]
+            if not instance.disposed then local ok, message = pcall(methods.Destroy, instance); if not ok then failure = failure or message end end
+            index += 1
+        end
     end
+    resetCreated = {}
+    local ok, message = pcall(disposeAll)
+    resetCreated = nil
+    if not ok then failure = failure or message end
     table.clear(facade.pendingEvents)
     facade.playerGui = facade.create("PlayerGui")
     players.LocalPlayer.PlayerGui = facade.playerGui

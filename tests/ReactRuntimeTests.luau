@@ -92,7 +92,7 @@ assert(not pcall(function() imageInstance.ImageRectSize = Vector2.new(-1, 20) en
 assert(not pcall(function() extendedRoot.container.children[1].Scale.Scale = -1 end) and not pcall(function() scrollRef.current.Grid.FillDirectionMaxCells = 1.5 end), "Invalid scale/grid properties were accepted")
 updateColors(ColorSequence.new(blue))
 assert(gradientInstance.Color.Keypoints[1].Value == blue, "Gradient binding update failed")
-imageInstance.props.IsLoaded = true -- simulate the native readonly property publication
+imageInstance.props.IsLoaded = true
 extendedRoot:render(extendedElements("Second"))
 UI.pump(0)
 assert(imageRef.current == imageInstance and imageInstance.IsLoaded and changedText == "Second", "Host updates lost identity/readonly native state/Text change events")
@@ -378,4 +378,70 @@ local leakedConnection = resetButton.Activated:Connect(function() error("Stale m
 assert(not pcall(UI.reset), "Destroy callback failures must reach the protected reset caller")
 assert(#UI.getRoots() == 0 and #UI.events == 0 and not failedDestroy.Connected and not leakedConnection.Connected, "A failing Destroy callback stranded roots/signals")
 assert(not game:GetService("Players").LocalPlayer.PlayerGui.disposed, "Reset did not recreate the local UI mount")
+do
+    local function resetCreationTests()
+        for _=1,16 do
+            local createdDuringReset,grandchild
+            local resetOwner=Instance.new("Frame")
+            resetOwner.Destroying:Connect(function()
+                createdDuringReset=Instance.new("Frame")
+                createdDuringReset.Destroying:Connect(function() grandchild=Instance.new("Frame") end)
+            end)
+            UI.reset()
+            assert(createdDuringReset and createdDuringReset.disposed,"An Instance created by Destroying survived reset")
+            assert(grandchild and grandchild.disposed,"Nested cleanup-created Instances survived reset")
+        end
+        local recursiveOwner=Instance.new("Frame")
+        recursiveOwner.Destroying:Connect(function() UI.reset() end)
+        assert(not pcall(UI.reset),"A recursive UI reset silently corrupted the reset generation")
+        assert(recursiveOwner.disposed and not game:GetService("Players").LocalPlayer.PlayerGui.disposed,"Recursive reset stranded UI cleanup")
+        UI.reset()
+        local fresh=Instance.new("Frame")
+        assert(not fresh.disposed,"Reset guard was not released after recursive cleanup failure")
+        UI.reset()
+    end
+    resetCreationTests()
+end
+do
+    local function resetRootGuards()
+        local owner = UI.createRoot()
+        local cleanups = 0
+        local creationRejected, renderRejected, recursionRejected = false, false, false
+        owner:render(e(function()
+            React.useEffect(function()
+                return function()
+                    cleanups += 1
+                    local ok, message = pcall(UI.createRoot)
+                    creationRejected = not ok and string.find(tostring(message), "during UI reset", 1, true) ~= nil
+                    ok, message = pcall(function() owner:render(e("Frame")) end)
+                    renderRejected = not ok and string.find(tostring(message), "during UI reset", 1, true) ~= nil
+                    ok, message = pcall(UI.reset)
+                    recursionRejected = not ok and string.find(tostring(message), "already in progress", 1, true) ~= nil
+                end
+            end, {})
+            return e("TextLabel", { Text = "Reset owner" })
+        end))
+        UI.pump(0)
+        UI.reset()
+        assert(cleanups == 1 and creationRejected and renderRejected and recursionRejected,
+            "Effect cleanup escaped or reentered the React reset generation")
+        assert(not owner.mounted and #UI.getRoots() == 0 and #UI.events == 0,
+            "Reset retained a mounted fiber or pending events")
+        local manual = Instance.new("Frame")
+        local manualRejected = false
+        manual.Destroying:Connect(function()
+            local ok, message = pcall(UI.createRoot)
+            manualRejected = not ok and string.find(tostring(message), "during UI reset", 1, true) ~= nil
+        end)
+        UI.reset()
+        assert(manualRejected and manual.disposed, "Destroying callback created a root during reset")
+        local fresh = UI.createRoot()
+        fresh:render(e("TextLabel", { Text = "Recovered after reset" }))
+        UI.pump(0)
+        assert(#UI.getRoots() == 1 and fresh.container.children[1].Text == "Recovered after reset",
+            "Reset guard remained active after cleanup")
+        UI.reset()
+    end
+    resetRootGuards()
+end
 print("ReactRuntimeTests passed: upstream hooks, events, keys, bindings, effects and cleanup")

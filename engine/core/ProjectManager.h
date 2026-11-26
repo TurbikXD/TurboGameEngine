@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdint>
 #include <filesystem>
 #include <optional>
 #include <string>
@@ -14,8 +15,8 @@ struct Project final {
     std::filesystem::path assetRoot;
     std::filesystem::path scenePath;
     std::filesystem::path layoutPath;
-    // Standalone Play starts from scenePath, then observes the original authoring scene.
     std::filesystem::path liveScenePath;
+    unsigned networkPlayerLimit{};
 };
 
 struct RecentProject final {
@@ -29,14 +30,15 @@ public:
 
     static std::filesystem::path defaultRegistryPath();
     static std::filesystem::path defaultProjectsDirectory();
+    static std::optional<Project> load(const std::filesystem::path& manifestOrDirectory,
+                                       std::string& error, std::uint64_t* networkCompatibility = nullptr,
+                                       std::string* startupSceneContents = nullptr);
 
-    // On success, error may contain a nonfatal recent-registry warning.
     std::optional<Project> createBlank(const std::filesystem::path& parentDirectory,
                                      const std::string& name, std::string& error);
     std::optional<Project> open(const std::filesystem::path& manifestOrDirectory,
                                std::string& error);
     const std::vector<RecentProject>& recent() const;
-    // Read-only registry refresh; corrupt/unavailable caches produce an empty list.
     void refresh();
 
 private:
@@ -47,4 +49,4 @@ private:
     std::vector<RecentProject> m_recent;
 };
 
-} // namespace engine::core
+}

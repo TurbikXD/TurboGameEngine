@@ -30,4 +30,4 @@ public:
     virtual ~IBindGroup() = default;
 };
 
-} // namespace engine::rhi
+}

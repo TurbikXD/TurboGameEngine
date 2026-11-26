@@ -1,0 +1,138 @@
+name: Lab 5 Windows build and release
+
+on:
+  push:
+    branches:
+      - '**'
+    tags:
+      - 'lab5-v*'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-2022
+    timeout-minutes: 60
+    outputs:
+      build-id: ${{ steps.identity.outputs.build-id }}
+      commit-sha: ${{ steps.identity.outputs.commit-sha }}
+    steps:
+      - name: Check out sources and dependencies
+        uses: actions/checkout@v6
+        with:
+          submodules: recursive
+          persist-credentials: false
+
+      - name: Identify the checked-out build
+        id: identity
+        shell: pwsh
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $true
+          $buildId = "$env:GITHUB_RUN_ID.$env:GITHUB_RUN_ATTEMPT"
+          $commit = (git rev-parse HEAD).Trim()
+          "build-id=$buildId" >> $env:GITHUB_OUTPUT
+          "commit-sha=$commit" >> $env:GITHUB_OUTPUT
+          "TGE_BUILD_ID=$buildId" >> $env:GITHUB_ENV
+          "TGE_BUILD_COMMIT=$commit" >> $env:GITHUB_ENV
+          "TGE_BUILD_DIRECTORY=C:/tge/lab5-$buildId" >> $env:GITHUB_ENV
+
+      - name: Build Windows x64 with full PDBs
+        shell: pwsh
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $true
+          cmake -S . -B $env:TGE_BUILD_DIRECTORY -G 'Visual Studio 17 2022' -A x64 `
+            -DENGINE_BUILD_DILIGENT_SAMPLES=OFF -DENGINE_ENABLE_TRACY=OFF `
+            -DENGINE_PACKAGED_RUNTIME=ON -DDILIGENT_NO_DIRECT3D12=ON `
+            -DDILIGENT_NO_OPENGL=ON -DDILIGENT_NO_VULKAN=ON `
+            "-DENGINE_BUILD_ID=$env:TGE_BUILD_ID" "-DENGINE_BUILD_COMMIT=$env:TGE_BUILD_COMMIT"
+          cmake --build $env:TGE_BUILD_DIRECTORY --config RelWithDebInfo --target app --parallel 4
+
+      - name: Build and verify both ZIPs
+        shell: pwsh
+        run: |
+          $package = ./tools/lab5/New-Lab5Package.ps1 -BuildDirectory $env:TGE_BUILD_DIRECTORY `
+            -OutputDirectory out/lab5 -ExpectedBuildId $env:TGE_BUILD_ID -ExpectedCommitSha $env:TGE_BUILD_COMMIT
+          $cdb = (Get-Command cdb.exe -CommandType Application -ErrorAction SilentlyContinue).Source
+          if (!$cdb) {
+            $sdkDebugger = Join-Path ${env:ProgramFiles(x86)} 'Windows Kits/10/Debuggers/x64/cdb.exe'
+            if (Test-Path -LiteralPath $sdkDebugger -PathType Leaf) { $cdb = $sdkDebugger }
+          }
+          $stackOptions = @{}
+          if ($cdb) { $stackOptions = @{ CheckStack = $true; Cdb = $cdb } }
+          ./tools/lab5/Test-Lab5Package.ps1 -GameZip $package.GameZip -SymbolsZip $package.SymbolsZip `
+            -EvidenceDirectory out/lab5 @stackOptions
+          $checks = Get-Content -Raw -LiteralPath out/lab5/verification.json | ConvertFrom-Json
+          @"
+          ### Lab 5 package verification
+
+          Build $env:TGE_BUILD_ID from $env:TGE_BUILD_COMMIT.
+
+          - Scene loaded and calibrated $($checks.calibratedChannels) channels from extracted ZIP.
+          - Normal exit produced no crash report.
+          - $(@($checks.crashReports).Count) distinct reports matched their process exit, faulting thread and embedded build identity.
+          - Missing resource and missing dump were rejected.
+          - CDB stack check executed ($($checks.stackChecked)).
+          "@ >> $env:GITHUB_STEP_SUMMARY
+
+      - name: Save packages and verification evidence
+        uses: actions/upload-artifact@v7
+        with:
+          name: lab5-${{ steps.identity.outputs.build-id }}
+          path: |
+            out/lab5/*-win64.zip
+            out/lab5/*-symbols.zip
+            out/lab5/verification.json
+          compression-level: 0
+          if-no-files-found: error
+
+  publish:
+    if: github.ref_type == 'tag' && startsWith(github.ref_name, 'lab5-v')
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    concurrency:
+      group: lab5-release-${{ github.ref }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/download-artifact@v7
+        with:
+          name: lab5-${{ needs.build.outputs.build-id }}
+          path: packages
+
+      - name: Publish verified game and symbols
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BUILD_ID: ${{ needs.build.outputs.build-id }}
+          COMMIT_SHA: ${{ needs.build.outputs.commit-sha }}
+        run: |
+          set -euo pipefail
+          game="TurboGameEngine-Lab5-${BUILD_ID}-win64.zip"
+          symbols="TurboGameEngine-Lab5-${BUILD_ID}-symbols.zip"
+          test -s "packages/$game"
+          test -s "packages/$symbols"
+          tag_ref=$(jq -rn --arg tag "tags/$GITHUB_REF_NAME" '$tag | @uri')
+          tag_commit=$(gh api "repos/$GITHUB_REPOSITORY/commits/$tag_ref" --jq .sha)
+          test "$tag_commit" = "$COMMIT_SHA"
+          if gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "::error::Release $GITHUB_REF_NAME already exists."
+            exit 1
+          fi
+          cat > release-notes.md <<EOF
+          Build ID (buildId): $BUILD_ID
+
+          Commit SHA: $COMMIT_SHA
+
+          [GitHub Actions build](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/attempts/${GITHUB_RUN_ATTEMPT})
+
+          Extract the Win64 ZIP into an empty directory and open Play-Lab5.cmd. The package includes TESTER.md.
+          EOF
+          gh release create "$GITHUB_REF_NAME" "packages/$game" "packages/$symbols" \
+            --repo "$GITHUB_REPOSITORY" --verify-tag \
+            --title "TurboGameEngine Lab 5 $GITHUB_REF_NAME" --notes-file release-notes.md
+          gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --json isDraft,assets |
+            jq -e --arg game "$game" --arg symbols "$symbols" \
+              '.isDraft == false and ([.assets[] | select(.size > 0) | .name] | sort) == ([$game, $symbols] | sort)'

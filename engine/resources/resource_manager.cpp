@@ -14,4 +14,4 @@ void ResourceManager::clear() {
     m_fallbackByType.clear();
 }
 
-} // namespace engine::resources
+}

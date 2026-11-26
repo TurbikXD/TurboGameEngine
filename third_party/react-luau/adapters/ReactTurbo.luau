@@ -1,5 +1,3 @@
--- Custom retained host renderer. React, hooks, scheduling and reconciliation
--- are the actual vendored Roblox/react-luau implementation.
 local React = require("React")
 local Shared = require("Shared")
 local Scheduler = require("Scheduler")
@@ -10,6 +8,7 @@ local roots = {}
 local pendingEvents = Instances.pendingEvents
 local hostTypes = Instances.hostTypes
 local mountedRoots = {}
+local resetting = false
 local wrappers = setmetatable({}, { __mode = "kv" })
 local function rebuildRoots()
     table.clear(roots)
@@ -60,8 +59,6 @@ local function applyProps(instance, props)
             assigned[key] = true
         end
     end
-    -- Install all handlers before changing properties; pairs order must not
-    -- decide whether React.Change observes a commit or a binding update.
     for key, value in pairs(values) do
         if type(value) == "table" and rawget(value, "$$typeof") == Shared.ReactSymbols.REACT_BINDING_TYPE then
             Instances.setProperty(instance, key, value:getValue())
@@ -73,8 +70,6 @@ local function applyProps(instance, props)
     for key in pairs(previousAssigned) do
         if not assigned[key] and not Instances.isReadonlyProperty(instance, key) then Instances.setProperty(instance, key, defaultProps[key]) end
     end
-    -- Native-owned/uncontrolled Text and CanvasPosition survive unrelated React
-    -- commits. Only a prop previously assigned by React is removed/reset here.
     rawset(instance, "_assignedProps", assigned)
     rawset(instance, "_reactPropsValues", values)
 end
@@ -85,7 +80,6 @@ local function remove(parent, child)
 end
 local function append(parent, child)
     parent = rawget(parent, "_portalTarget") or parent
-    -- Reconciliation can append an existing child to reorder keyed siblings.
     if rawget(child, "parent") == parent then Instances.setParent(child, nil) end
     Instances.setParent(child, parent)
 end
@@ -171,6 +165,7 @@ local nativeFeatures = table.freeze({ version = nativeVersion, images = nativeVe
 function Renderer.getNativeFeatures() return nativeFeatures end
 
 function Renderer.createRoot(options)
+    assert(not resetting, "Cannot create a React root during UI reset")
     options = options or {}
     local explicit = Instances.isInstance(options)
     local container = if explicit then options else Instances.create("Folder")
@@ -185,6 +180,7 @@ function Renderer.createRoot(options)
     rawset(container, "root", root)
     rebuildRoots()
     function root:render(element)
+        assert(not resetting, "Cannot render a React root during UI reset")
         assert(mounted, "Cannot render an unmounted root")
         assert(not container.disposed, "Cannot render into a destroyed UI container")
         self.element = element
@@ -233,8 +229,6 @@ Renderer.createPortal = function(element, container, key)
 end
 Renderer.flushSync = Reconciler.flushSync
 Renderer.unstable_batchedUpdates = Reconciler.batchedUpdates
--- All facade roots intentionally render synchronously. Do not claim concurrent
--- Roblox scheduling from aliases for the portable bootstrap API.
 Renderer.ReactRoblox = {
     createRoot = Renderer.createRoot, createLegacyRoot = Renderer.createRoot,
     createPortal = Renderer.createPortal, flushSync = Renderer.flushSync,
@@ -244,8 +238,6 @@ Renderer.ReactRoblox = {
 local portablePortals = setmetatable({}, { __mode = "kv" })
 function Renderer.ReactRoblox.createPortal(element, container, key)
     assert(Instances.isInstance(container) and not container.disposed, "Portal target must be a live UI Instance")
-    -- Keep portable defaults local to this portal's host context. The real
-    -- target retains identity/parentage and other legacy roots keep defaults.
     local wrapper = portablePortals[container]
     if not wrapper then
         wrapper = { _portalTarget = container, _robloxRoot = true, children = container.children }
@@ -256,8 +248,6 @@ end
 Renderer.getRoots = function() return roots end
 Renderer.hostTypes = hostTypes
 Renderer.events = pendingEvents
--- Refresh exported component types in roots mounted once from a behavior's Init.
--- Ordinary Update-driven UI also picks up private/local components on its next render.
 function Renderer.refresh(replacements)
     local function refreshElement(element)
         if type(element) ~= "table" then return element end
@@ -282,19 +272,23 @@ function Renderer.refresh(replacements)
         if root.element then root:render(refreshElement(root.element)) end
     end
 end
-function Renderer.reset()
+local function resetRenderer()
     local failure
     if __turboTweenReset then local ok, message = pcall(__turboTweenReset); if not ok then failure = message end end
     for _, root in pairs(table.clone(mountedRoots)) do local ok, message = pcall(root.unmount, root); if not ok then failure = failure or message end end
     local ok, message = pcall(Instances.reset)
     if not ok then failure = failure or message end
-    -- Unmount/effect/Destroying cleanup is user code and can create new tweens.
-    -- Drain that generation too before returning from Stop; callbacks remain
-    -- suppressed even when a preceding cleanup reported an error.
     if __turboTweenReset then local resetOk, resetMessage = pcall(__turboTweenReset); if not resetOk then failure = failure or resetMessage end end
     rebuildRoots()
     table.clear(pendingEvents)
     __turboReactResetTasks()
     if failure then error(failure) end
+end
+function Renderer.reset()
+    assert(not resetting, "UI reset is already in progress")
+    resetting = true
+    local ok, message = pcall(resetRenderer)
+    resetting = false
+    if not ok then error(message, 0) end
 end
 return Renderer

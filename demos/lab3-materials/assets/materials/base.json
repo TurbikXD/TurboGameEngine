@@ -1,0 +1,17 @@
+{
+  "shader": "shaders_hlsl/textured.shader.json",
+  "texture": "textures/checker.ppm",
+  "tint": [
+    1,
+    1,
+    1,
+    1
+  ],
+  "uvScale": [
+    2,
+    2
+  ],
+  "blend": "opaque",
+  "depthTest": true,
+  "depthWrite": true
+}

@@ -1,0 +1,9 @@
+{
+  "base": "materials/stage.json",
+  "tint": [
+    0.21,
+    0.29,
+    0.39,
+    1
+  ]
+}

@@ -1,0 +1,14 @@
+diff --git a/src/win32_window.c b/src/win32_window.c
+--- a/src/win32_window.c
++++ b/src/win32_window.c
+@@ -2135,7 +2135,9 @@ void _glfwPollEventsWin32(void)
+     // NOTE: The other half of this is in the WM_*KEY* handler in windowProc
+     handle = GetActiveWindow();
+     if (handle)
+     {
+-        window = GetPropW(handle, L"GLFW");
++        window = _glfw.windowListHead;
++        while (window && window->win32.handle != handle)
++            window = window->next;
+         if (window)
+         {

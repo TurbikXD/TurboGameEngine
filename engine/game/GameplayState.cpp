@@ -1,6 +1,7 @@
 #include "engine/game/GameplayState.h"
 #include "engine/core/AtomicFile.h"
 #include "engine/editor/EditorTheme.h"
+#include "engine/editor/MaterialInspector.h"
 
 #include <algorithm>
 #include <array>
@@ -28,26 +29,42 @@
 #include <nlohmann/json.hpp>
 
 #include "engine/core/Log.h"
+#include "engine/core/CrashReport.h"
 #include "engine/core/JobSystem.h"
 #include "engine/core/LabOptions.h"
+#include "engine/core/PlaySession.h"
 #include "engine/core/Profiling.h"
 #include "engine/ecs/collision_utils.h"
 #include "engine/ecs/components.h"
+#include "engine/ecs/light_json.h"
+#include "engine/ecs/render_interpolation.h"
 #include "engine/ecs/transform_utils.h"
 #include "engine/scripting/react/ReactRuntime.h"
 #include "engine/scripting/react/ReactUI.h"
 #include "engine/game/StateStack.h"
+#include "engine/game/SceneNetwork.h"
 #include "engine/platform/Input.h"
 #include "engine/platform/Window.h"
 #include "engine/renderer/RenderAdapter.h"
 #include "engine/renderer/Renderer.h"
 #include "third_party/DiligentEngine/DiligentTools/ThirdParty/imgui/imgui.h"
+#include "third_party/DiligentEngine/DiligentTools/ThirdParty/imgui/imgui_internal.h"
 #include "third_party/DiligentEngine/DiligentTools/ThirdParty/imgui/misc/cpp/imgui_stdlib.h"
 #include "ImGuizmo.h"
 
 namespace {
 
 using engine::ecs::EntityId;
+
+std::uint32_t nextReplicaKey(const engine::ecs::World& world) {
+    std::unordered_set<std::uint32_t> used;
+    world.forEach<engine::net::NetworkReplica>([&](EntityId, const engine::net::NetworkReplica& replica) {
+        used.insert(replica.key);
+    });
+    std::uint32_t key = 1;
+    while (key <= engine::net::MaxReplicaKey && used.contains(key)) ++key;
+    return key <= engine::net::MaxReplicaKey ? key : 0;
+}
 
 constexpr const char* kCubeMeshId = "__diligent_cube__";
 
@@ -74,6 +91,7 @@ constexpr std::size_t kMaxEditorHistory = 64U;
 constexpr float kWindowMargin = 1.0F;
 constexpr float kStatusBarHeight = 68.0F;
 constexpr float kViewportHeaderHeight = 68.0F;
+constexpr float kMaterialGraphSplitterSize = 8.0F;
 constexpr float kMinGizmoScale = 0.05F;
 constexpr float kMaxGizmoScale = 200.0F;
 constexpr const char* kEditorDockPayload = "TGE_DOCK_PANEL";
@@ -97,7 +115,6 @@ struct EditorLayout final {
     ImVec2 statusSize;
 };
 
-// Native dock bodies share geometry; editor/VM mutations remain at the call sites.
 struct PanelBody final {
     explicit PanelBody(const ImVec2 padding = ImVec2(6, 2)) {
         ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, padding);
@@ -142,16 +159,14 @@ struct PropertySection final {
     explicit operator bool() const { return open; }
 };
 struct PropertyCell final {
-    explicit PropertyCell(const char* label, const float labelInset = 24.0F) {
+    explicit PropertyCell(const char* label, const float labelInset = 24.0F, const char* id = nullptr) {
         ImGui::TableNextRow(0, engine::editor::kPropertyRowHeight);
         ImGui::TableSetColumnIndex(0); ImGui::SetCursorPosX(ImGui::GetCursorPosX() + labelInset);
         ImGui::AlignTextToFramePadding(); ImGui::TextUnformatted(label);
-        ImGui::TableSetColumnIndex(1); ImGui::SetNextItemWidth(-1); ImGui::PushID(label);
+        ImGui::TableSetColumnIndex(1); ImGui::SetNextItemWidth(-1); ImGui::PushID(id ? id : label);
     }
     ~PropertyCell() { ImGui::PopID(); }
 };
-// These wrappers leave LastItemData on the actual edit widget. History tracking
-// must run immediately afterwards, before advancing the next table row.
 bool propertyCheckbox(const char* name, bool* value) { PropertyCell cell(name); return ImGui::Checkbox("##Value", value); }
 bool propertyInput(const char* name, std::string* value) { PropertyCell cell(name); return ImGui::InputText("##Value", value); }
 bool propertyColor(const char* name, float* value) { PropertyCell cell(name); return ImGui::ColorEdit4("##Value", value, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaPreview); }
@@ -643,6 +658,7 @@ nlohmann::json meshRendererToJson(const engine::ecs::MeshRenderer& meshRenderer)
         {"meshId", meshRenderer.meshId},
         {"textureId", meshRenderer.textureId},
         {"shaderId", meshRenderer.shaderId},
+        {"materialId", meshRenderer.materialId},
         {"visible", meshRenderer.visible}};
 }
 
@@ -655,6 +671,7 @@ engine::ecs::MeshRenderer meshRendererFromJson(const nlohmann::json& value) {
     meshRenderer.meshId = value.value("meshId", meshRenderer.meshId);
     meshRenderer.textureId = value.value("textureId", meshRenderer.textureId);
     meshRenderer.shaderId = value.value("shaderId", meshRenderer.shaderId);
+    meshRenderer.materialId = value.value("materialId", meshRenderer.materialId);
     meshRenderer.visible = value.value("visible", meshRenderer.visible);
     return meshRenderer;
 }
@@ -689,7 +706,6 @@ EditorLayout computeEditorLayout(
     const bool rightTop, const bool rightBottom, const bool assistant,
     const bool toolbar, const bool status) {
     const ImGuiViewport* viewport = ImGui::GetMainViewport();
-    // The native menu uses this explicit role/size even when another UI font is active.
     ImGui::PushFont(engine::editor::nativeFont(), engine::editor::kEditorFontSize);
     const float menuBarHeight = ImGui::GetFrameHeight();
     ImGui::PopFont();
@@ -736,32 +752,12 @@ EditorLayout computeEditorLayout(
     return layout;
 }
 
-bool isHierarchyParentValid(const engine::ecs::World& world, const EntityId entity, EntityId candidateParent) {
-    if (candidateParent == engine::ecs::kInvalidEntity || candidateParent == entity) {
-        return candidateParent == engine::ecs::kInvalidEntity;
-    }
-
-    EntityId current = candidateParent;
-    int depth = 0;
-    while (current != engine::ecs::kInvalidEntity && depth < 64) {
-        if (current == entity) {
-            return false;
-        }
-        const auto* hierarchy = world.getComponent<engine::ecs::Hierarchy>(current);
-        if (hierarchy == nullptr || hierarchy->parent == current) {
-            break;
-        }
-        current = hierarchy->parent;
-        ++depth;
-    }
-    return true;
-}
-
 std::string componentSubtitle(const engine::ecs::World& world, const EntityId entity) {
     std::string subtitle = "#" + std::to_string(entity);
     if (world.hasComponent<engine::ecs::Camera>(entity)) {
         subtitle += "  CAM";
     }
+    if (world.hasComponent<engine::ecs::Light>(entity)) subtitle += "  LIGHT";
     if (const auto* rigidbody = world.getComponent<engine::ecs::Rigidbody>(entity);
         rigidbody != nullptr && rigidbody->isDynamic()) {
         subtitle += "  RB";
@@ -1102,28 +1098,54 @@ void placeEditorPanel(const EditorLayout& layout, const EditorDockSlot slot, con
     ImGui::SetNextWindowSize(dockedPanelSize(layout, slot), condition);
 }
 
-bool renderSplitterHandle(const char* id, const ImVec2& position, const ImVec2& size, const bool vertical) {
+std::optional<engine::editor::MaterialGraphSession> readMaterialGraphSession(const nlohmann::json& graph) {
+    const auto session = graph.find("session");
+    if (session == graph.end() || !session->is_object()) return std::nullopt;
+    const auto materialId = session->find("materialId");
+    if (materialId == session->end() || !materialId->is_string() || materialId->get_ref<const std::string&>().empty()) {
+        return std::nullopt;
+    }
+
+    engine::editor::MaterialGraphSession result{materialId->get<std::string>(), std::nullopt};
+    const auto canvas = session->find("canvas");
+    if (canvas == session->end() || !canvas->is_object()) return result;
+    const auto pan = canvas->find("pan");
+    const auto zoom = canvas->find("zoom");
+    if (pan == canvas->end() || !pan->is_array() || pan->size() != 2 ||
+        !(*pan)[0].is_number() || !(*pan)[1].is_number() || zoom == canvas->end() || !zoom->is_number()) {
+        return result;
+    }
+
+    const glm::vec2 offset{(*pan)[0].get<float>(), (*pan)[1].get<float>()};
+    const float scale = zoom->get<float>();
+    if (std::isfinite(offset.x) && std::isfinite(offset.y) && std::isfinite(scale)) {
+        result.canvas = engine::editor::MaterialGraphCanvasState{offset, scale};
+    }
+    return result;
+}
+
+bool renderSplitterHandle(const char* id, const ImVec2& position, const ImVec2& size, const bool vertical,
+                          const bool applyReleaseDelta = false) {
     ImGui::SetNextWindowPos(position, ImGuiCond_Always);
     ImGui::SetNextWindowSize(size, ImGuiCond_Always);
     ImGui::SetNextWindowBgAlpha(0.0F);
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0F, 0.0F));
     ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0F);
     ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0F);
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowMinSize, ImVec2(1.0F, 1.0F));
     const ImGuiWindowFlags flags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove |
                                     ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoFocusOnAppearing |
                                     ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoBackground |
                                     ImGuiWindowFlags_NoScrollWithMouse;
 
-    bool active = false;
+    bool dragging = false;
     if (ImGui::Begin(id, nullptr, flags)) {
         ImGui::InvisibleButton("##DockSplitter", size);
         const bool hovered = ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenBlockedByActiveItem);
-        active = ImGui::IsItemActive();
+        const bool active = ImGui::IsItemActive();
+        dragging = active || (applyReleaseDelta && ImGui::IsItemDeactivated() && ImGui::IsMouseReleased(ImGuiMouseButton_Left));
         if (hovered || active) {
             ImGui::SetMouseCursor(vertical ? ImGuiMouseCursor_ResizeEW : ImGuiMouseCursor_ResizeNS);
-        }
-
-        if (hovered || active) {
             ImDrawList* drawList = ImGui::GetWindowDrawList();
             const ImVec2 min = ImGui::GetWindowPos();
             const ImVec2 max(min.x + size.x, min.y + size.y);
@@ -1142,11 +1164,11 @@ bool renderSplitterHandle(const char* id, const ImVec2& position, const ImVec2& 
         }
     }
     ImGui::End();
-    ImGui::PopStyleVar(3);
-    return active;
+    ImGui::PopStyleVar(4);
+    return dragging;
 }
 
-} // namespace
+}
 
 namespace engine::game {
 
@@ -1157,6 +1179,16 @@ GameplayState::GameplayState(StateStack& stack) : IGameState(stack) {
     m_physicsSystem.setJobSystem(jobs);
     m_renderSystem.setJobSystem(jobs);
     initializeEditorCommands();
+}
+
+GameplayState::~GameplayState() = default;
+
+uint16_t GameplayState::networkScenePort() const {
+    return m_sceneNetwork ? m_sceneNetwork->localPort() : 0;
+}
+
+void GameplayState::queueScriptEvent(std::string event, nlohmann::json payload) {
+    m_scripts.queueEvent(std::move(event), std::move(payload));
 }
 
 std::filesystem::path GameplayState::editorAssetsRoot() const {
@@ -1183,8 +1215,17 @@ bool GameplayState::labActive() const {
 }
 
 void GameplayState::onEnter() {
+    const auto sceneName = editorScenePath().filename().u8string();
+    core::CrashReport::setScene(std::string_view(reinterpret_cast<const char*>(sceneName.data()), sceneName.size()));
+    core::CrashReport::setAction("scene-enter");
     ENGINE_LOG_INFO("Entered GameplayState editor scene");
     m_eventBus.clear();
+    if (const auto* launch = stack().sceneNetworkLaunch()) {
+        if (!initializeNetworkScene(*launch)) {
+            ENGINE_LOG_ERROR("Network scene initialization failed: {}", m_networkSceneError);
+        }
+        return;
+    }
     if (!labActive() && !stack().standalone()) { loadEditorLayout(); }
     bindCollisionEventHandlers();
     resetDemoScene();
@@ -1195,8 +1236,7 @@ void GameplayState::onEnter() {
     }
     if (!labActive()) {
         m_scripts.initialize(m_world, stack().jobs(), editorAssetsRoot());
-        // Scripting flushes its queue after callbacks, outside stable ECS
-        // queries. Apply here so destroyed handles are invalid immediately.
+        m_scripts.setInputWindow(stack().window());
         m_scripts.setDestroyCallback([this](const ecs::EntityId entity) { deleteEntityNow(entity); });
         scripting::ReactRuntime::install(m_scripts);
         m_scriptWorkspace.initialize(editorAssetsRoot(), m_scripts, {
@@ -1250,13 +1290,53 @@ void GameplayState::onEnter() {
         options != nullptr && options->stressActive());
 }
 
+bool GameplayState::initializeNetworkScene(const core::PlayLaunch& launch) {
+    m_networkSceneError.clear();
+    bindCollisionEventHandlers();
+    if (!loadSceneFromDisk()) {
+        m_networkSceneError = "Could not load the network scene.";
+        return false;
+    }
+    if (!m_scripts.initialize(m_world, stack().jobs(), editorAssetsRoot()) ||
+        !scripting::ReactRuntime::install(m_scripts, launch.reactPackage)) {
+        m_networkSceneError = "Could not initialize the scene's Luau runtime.";
+        return false;
+    }
+    m_scripts.setDestroyCallback([this](ecs::EntityId entity) { deleteEntityNow(entity, false); });
+    m_scripts.setInputWindow(stack().window());
+    m_scripts.setInputEnabled(false);
+    auto network = std::make_unique<SceneNetwork>(m_world, m_scripts,
+        [this](ecs::EntityId entity) { deleteEntityNow(entity, false); });
+    if (!network->start(launch, m_networkSceneError)) return false;
+    m_sceneNetwork = std::move(network);
+    m_scripts.setNetwork(m_sceneNetwork.get());
+    m_scripts.setSteam(m_sceneNetwork->steam());
+    m_editorMode = EditorMode::Play;
+    m_scripts.start();
+    startSimulation();
+    m_sceneNetwork->endTick();
+    ENGINE_LOG_INFO("Network scene ready: role={} entities={}", m_sceneNetwork->role(), m_world.aliveCount());
+    return true;
+}
+
 void GameplayState::onExit() {
     ENGINE_LOG_INFO("Exited GameplayState editor scene");
-    if (!labActive() && !stack().standalone()) { saveEditorLayout(); }
+    if (!labActive() && !stack().standalone()) {
+        if (m_materialGraphDraftsInitialized) {
+            editor::flushMaterialGraphDrafts(true);
+            editor::closeMaterialGraphDrafts();
+            m_materialGraphDraftsInitialized = false;
+        }
+        saveEditorLayout();
+        editor::closeMaterialGraphEditor();
+    }
     setCameraLookActive(false);
     m_codexAssistant.shutdown();
     m_sceneWatcher.clear();
     m_scripts.shutdown();
+    m_scripts.setNetwork(nullptr);
+    m_scripts.setSteam(nullptr);
+    m_sceneNetwork.reset();
     m_pendingSpawnJobs.clear();
     m_pendingRuntimeDeletes.clear();
     m_undoStack.clear();
@@ -1274,6 +1354,8 @@ void GameplayState::onExit() {
     m_sceneInitialized = false;
     m_simulationRunning = false;
     m_selectedEntity = ecs::kInvalidEntity;
+    m_materialPreviewEntity = ecs::kInvalidEntity;
+    m_materialPreview.reset();
     m_hoveredEntity = ecs::kInvalidEntity;
     m_lastHoverPickMouse = glm::vec2(-100000.0F);
     m_hoverPickFrame = 0U;
@@ -1286,15 +1368,23 @@ void GameplayState::onExit() {
 }
 
 void GameplayState::handleEvent(const platform::Event& event) {
+    const bool escapePressed = event.type == platform::EventType::KeyPressed &&
+        event.key == platform::KeyCode::Escape && !event.repeat;
+    if (event.type == platform::EventType::FocusLost) {
+        m_scripts.releaseCursorLock();
+        setCameraLookActive(false);
+        return;
+    }
+    if (escapePressed && m_scripts.releaseCursorLock()) return;
     if (stack().standalone()) {
-        if (event.type == platform::EventType::KeyPressed && event.key == platform::KeyCode::Escape && stack().window()) {
+        if (escapePressed && stack().window()) {
             stack().window()->requestClose();
         }
         return;
     }
-    if (labActive()) { return; }
+    if (labActive() || m_scripts.cursorLocked()) { return; }
     if (event.type == platform::EventType::MouseButtonPressed && event.mouseButton == platform::MouseButton::Right) {
-        if (m_viewportHovered) {
+        if (m_viewportHovered && !m_viewportUiCaptured) {
             setCameraLookActive(true);
         }
         return;
@@ -1311,6 +1401,7 @@ void GameplayState::handleEvent(const platform::Event& event) {
 
     using Command = editor::EditorCommandId;
     if (sceneShortcutsBlocked()) return;
+    if (m_viewportUiCaptured && event.key != platform::KeyCode::Escape && event.key != platform::KeyCode::F1) return;
     if (event.key == platform::KeyCode::Delete) { m_editorCommands.execute(Command::Delete); return; }
     if (event.key == platform::KeyCode::Escape) {
         if (m_cameraLookActive) setCameraLookActive(false);
@@ -1607,7 +1698,6 @@ void GameplayState::createDemoScene() {
         0.42F,
         glm::vec2(1.0F, 1.0F));
 
-    // Opt-in stress load. Compiling/connecting Tracy must not add physics bodies.
     const auto* options = stack().labOptions();
     if (options != nullptr && options->stressActive()) {
         for (int row = 0; row < 32; ++row) {
@@ -1637,7 +1727,6 @@ void GameplayState::createLabScene() {
     m_labEntities.reserve(count);
     const std::size_t columns = ecsScene ? static_cast<std::size_t>(std::ceil(std::sqrt(static_cast<double>(count)))) : 4U;
 
-    // A scene root and row groups exercise the existing hierarchy transform path.
     const auto root = m_world.createEntity();
     m_world.addComponent<ecs::Transform>(root, ecs::Transform{});
     m_world.addComponent<ecs::Tag>(root, ecs::Tag{"lab_scene_root"});
@@ -1758,6 +1847,7 @@ void GameplayState::resetDemoScene() {
     m_hoverPickFrame = 0U;
     m_sceneInitialized = false;
     m_editorMode = EditorMode::Edit;
+    m_viewportUiCaptured = false;
     m_simulationRunning = false;
     m_pendingSpawnJobs.clear();
     m_editModeSnapshot.reset();
@@ -1779,11 +1869,9 @@ void GameplayState::resetDemoScene() {
 void GameplayState::createScriptDemo() {
     if (!canEditScene()) { m_editorStatusMessage = "Stop Play before loading the Lab 2 demo."; return; }
     if (m_project) {
-        // Import the sample only when explicitly requested. A new project
-        // stays empty and its editable scripts never share the engine demo.
         try {
             const auto assets = std::filesystem::weakly_canonical(editorAssetsRoot());
-            for (const auto* relative : {"scripts/Collectathon.luau", "scripts/ui/demo_ui.luau",
+            for (const auto* relative : {"scripts/Collectathon.luau", "scripts/Collectible.luau", "scripts/ui/demo_ui.luau",
                     "prefabs/collectathon_controller.json", "prefabs/collectathon_player.json",
                     "prefabs/collectible.json", "prefabs/react_ui.json"}) {
                 const auto target = std::filesystem::weakly_canonical(assets / relative);
@@ -1843,6 +1931,7 @@ void GameplayState::startSimulation(const bool relaunchStriker) {
 
 void GameplayState::pauseSimulation() {
     m_simulationRunning = false;
+    m_scripts.releaseCursorLock();
     m_lastCollisionMessage = "Simulation paused.";
 }
 
@@ -1944,7 +2033,6 @@ void GameplayState::stopPlayMode() {
         return;
     }
 
-    // A pending Play deletion must never target the restored Edit scene's IDs.
     scripting::ReactRuntime::reset(m_scripts);
     m_scripts.stop();
     m_stepScriptTick = false;
@@ -1955,6 +2043,7 @@ void GameplayState::stopPlayMode() {
     }
     m_editorMode = EditorMode::Edit;
     m_undoStack = std::move(m_editUndoStack);
+    m_viewportUiCaptured = false;
     m_redoStack = std::move(m_editRedoStack);
     setCameraLookActive(false);
     m_lastCollisionMessage = "Returned to Edit mode.";
@@ -1967,10 +2056,12 @@ GameplayState::EntitySnapshot GameplayState::captureEntitySnapshot(const ecs::En
     if (const auto* component = m_world.getComponent<ecs::Tag>(entity)) { snapshot.tag = *component; }
     if (const auto* component = m_world.getComponent<ecs::Hierarchy>(entity)) { snapshot.hierarchy = *component; }
     if (const auto* component = m_world.getComponent<ecs::Camera>(entity)) { snapshot.camera = *component; }
+    if (const auto* component = m_world.getComponent<ecs::Light>(entity)) { snapshot.light = *component; }
     if (const auto* component = m_world.getComponent<ecs::Rigidbody>(entity)) { snapshot.rigidbody = *component; }
     if (const auto* component = m_world.getComponent<ecs::Collider>(entity)) { snapshot.collider = *component; }
     if (const auto* component = m_world.getComponent<ecs::MeshRenderer>(entity)) { snapshot.meshRenderer = *component; }
     if (const auto* component = m_world.getComponent<scripting::ScriptComponent>(entity)) { snapshot.script = *component; }
+    if (const auto* component = m_world.getComponent<net::NetworkReplica>(entity)) { snapshot.networkReplica = *component; }
     return snapshot;
 }
 
@@ -1989,6 +2080,30 @@ GameplayState::SceneSnapshot GameplayState::captureSceneSnapshot() const {
     m_world.forEachEntity([&](const ecs::EntityId entity) {
         snapshot.entities.push_back(captureEntitySnapshot(entity));
     });
+
+    if (m_editorMode == EditorMode::Edit) {
+        std::unordered_set<ecs::EntityId> sources, mappedEntities;
+        for (const auto& [source, entity] : snapshot.fileEntities) {
+            sources.insert(source);
+            mappedEntities.insert(entity);
+        }
+        std::vector<ecs::EntityId> unmapped;
+        for (const auto& entity : snapshot.entities) if (!mappedEntities.contains(entity.sourceId)) unmapped.push_back(entity.sourceId);
+        std::sort(unmapped.begin(), unmapped.end());
+        ecs::EntityId available = 1;
+        for (const auto entity : unmapped) {
+            auto source = entity;
+            if (sources.contains(source)) {
+                while (sources.contains(available)) {
+                    if (available == std::numeric_limits<ecs::EntityId>::max()) throw std::runtime_error("Scene source ID space exhausted");
+                    ++available;
+                }
+                source = available;
+            }
+            sources.insert(source);
+            snapshot.fileEntities.emplace(source, entity);
+        }
+    }
 
     return snapshot;
 }
@@ -2038,6 +2153,7 @@ void GameplayState::restoreSceneSnapshot(const SceneSnapshot& snapshot) {
         if (entitySnapshot.camera.has_value()) {
             m_world.addComponent<ecs::Camera>(entity, *entitySnapshot.camera);
         }
+        if (entitySnapshot.light) m_world.addComponent<ecs::Light>(entity, *entitySnapshot.light);
         if (entitySnapshot.rigidbody.has_value()) {
             m_world.addComponent<ecs::Rigidbody>(entity, *entitySnapshot.rigidbody);
         }
@@ -2049,6 +2165,9 @@ void GameplayState::restoreSceneSnapshot(const SceneSnapshot& snapshot) {
         }
         if (entitySnapshot.script.has_value()) {
             m_world.addComponent<scripting::ScriptComponent>(entity, *entitySnapshot.script);
+        }
+        if (entitySnapshot.networkReplica) {
+            m_world.addComponent<net::NetworkReplica>(entity, *entitySnapshot.networkReplica);
         }
     }
 
@@ -2145,9 +2264,6 @@ void GameplayState::trackEditedItem(const std::string& label, const bool changed
         commitSceneEdit();
     }
     if ((activated || changed) && !m_pendingSceneEdit.has_value()) {
-        // Widgets may already have changed their value. Capture the rest of the
-        // scene lazily, then restore this entity's pre-widget data in the snapshot.
-        // Idle widgets and subsequent drag frames never copy the whole scene.
         SceneSnapshot snapshot = captureSceneSnapshot();
         const auto entity = std::find_if(snapshot.entities.begin(), snapshot.entities.end(), [&](const EntitySnapshot& item) {
             return item.sourceId == before.sourceId;
@@ -2228,16 +2344,22 @@ void GameplayState::redoSceneEdit() {
 }
 
 std::string GameplayState::serializeScene(const SceneSnapshot& snapshot, const bool playSession) const {
+    std::unordered_map<ecs::EntityId, ecs::EntityId> authoredIds;
+    if (!playSession) for (const auto& [source, entity] : snapshot.fileEntities) authoredIds.emplace(entity, source);
+    const auto serializedId = [&](const ecs::EntityId entity) {
+        const auto found = authoredIds.find(entity);
+        return found == authoredIds.end() ? entity : found->second;
+    };
     nlohmann::json sceneJson;
     sceneJson["version"] = 1;
     if (playSession) {
         sceneJson["liveSourceMap"] = nlohmann::json::object();
         for (const auto& [source, entity] : snapshot.fileEntities) sceneJson["liveSourceMap"][std::to_string(source)] = entity;
     }
-    sceneJson["cameraEntity"] = snapshot.cameraEntity;
-    sceneJson["strikerEntity"] = snapshot.strikerEntity;
-    sceneJson["showcaseSphereEntity"] = snapshot.showcaseSphereEntity;
-    sceneJson["selectedEntity"] = snapshot.selectedEntity;
+    sceneJson["cameraEntity"] = serializedId(snapshot.cameraEntity);
+    sceneJson["strikerEntity"] = serializedId(snapshot.strikerEntity);
+    sceneJson["showcaseSphereEntity"] = serializedId(snapshot.showcaseSphereEntity);
+    sceneJson["selectedEntity"] = serializedId(snapshot.selectedEntity);
     sceneJson["spawnSequence"] = snapshot.spawnSequence;
     sceneJson["showColliderDebug"] = snapshot.showColliderDebug;
     sceneJson["showcaseSphereLaunched"] = snapshot.showcaseSphereLaunched;
@@ -2245,17 +2367,21 @@ std::string GameplayState::serializeScene(const SceneSnapshot& snapshot, const b
 
     for (const EntitySnapshot& entitySnapshot : snapshot.entities) {
         nlohmann::json entityJson;
-        entityJson["sourceId"] = entitySnapshot.sourceId;
+        entityJson["sourceId"] = serializedId(entitySnapshot.sourceId);
         if (entitySnapshot.transform) entityJson["transform"] = transformToJson(*entitySnapshot.transform);
         if (entitySnapshot.tag) entityJson["tag"] = {{"value", entitySnapshot.tag->value}};
-        if (entitySnapshot.hierarchy) entityJson["hierarchy"] = {{"parent", entitySnapshot.hierarchy->parent}};
+        if (entitySnapshot.hierarchy) entityJson["hierarchy"] = {{"parent", serializedId(entitySnapshot.hierarchy->parent)}};
         if (entitySnapshot.camera) entityJson["camera"] = cameraToJson(*entitySnapshot.camera);
+        if (entitySnapshot.light) entityJson["light"] = ecs::lightToJson(*entitySnapshot.light);
         if (entitySnapshot.rigidbody) entityJson["rigidbody"] = rigidbodyToJson(*entitySnapshot.rigidbody);
         if (entitySnapshot.collider) entityJson["collider"] = colliderToJson(*entitySnapshot.collider);
         if (entitySnapshot.meshRenderer) entityJson["meshRenderer"] = meshRendererToJson(*entitySnapshot.meshRenderer);
         if (entitySnapshot.script) {
             const auto& script = *entitySnapshot.script;
             entityJson["script"] = {{"path", script.path}, {"enabled", script.enabled}, {"fields", script.fields}};
+        }
+        if (entitySnapshot.networkReplica) {
+            entityJson["networkReplica"] = {{"key", entitySnapshot.networkReplica->key}};
         }
         sceneJson["entities"].push_back(std::move(entityJson));
     }
@@ -2287,14 +2413,16 @@ bool GameplayState::saveSceneToDisk() {
         }
 
         std::string error;
-        if (!core::writeFileAtomically(scenePath, serializeScene(captureSceneSnapshot()), error)) {
+        const auto snapshot = captureSceneSnapshot();
+        const auto contents = serializeScene(snapshot);
+        if (!core::writeFileAtomically(scenePath, contents, error)) {
             m_editorStatusMessage = "Failed to save scene.";
             ENGINE_LOG_WARN("Failed to save scene '{}': {}", scenePath.string(), error);
             return false;
         }
-        m_diskScene = nlohmann::json::parse(serializeScene(captureSceneSnapshot()));
+        m_diskScene = nlohmann::json::parse(contents);
         m_fileEntities.clear();
-        m_world.forEachEntity([&](const ecs::EntityId entity) { m_fileEntities.emplace(entity, entity); });
+        for (const auto& [source, entity] : snapshot.fileEntities) if (m_world.isAlive(entity)) m_fileEntities.emplace(source, entity);
         m_projectAssetsDirty = true;
         m_editorStatusMessage = "Saved scene to " + scenePath.string();
         ENGINE_LOG_INFO("Saved editor scene to '{}'", scenePath.string());
@@ -2340,6 +2468,7 @@ GameplayState::SceneSnapshot GameplayState::parseScene(const nlohmann::json& sce
         if (entityJson.contains("camera")) {
             entitySnapshot.camera = cameraFromJson(entityJson["camera"]);
         }
+        if (entityJson.contains("light")) entitySnapshot.light = ecs::lightFromJson(entityJson["light"]);
         if (entityJson.contains("rigidbody")) {
             entitySnapshot.rigidbody = rigidbodyFromJson(entityJson["rigidbody"]);
         }
@@ -2357,6 +2486,15 @@ GameplayState::SceneSnapshot GameplayState::parseScene(const nlohmann::json& sce
             component.fields = script.value("fields", nlohmann::json::object());
             if (!component.fields.is_object()) { throw std::runtime_error("Script fields must be an object"); }
             entitySnapshot.script = std::move(component);
+        }
+        if (entityJson.contains("networkReplica")) {
+            const auto& replica = entityJson.at("networkReplica");
+            const auto key = replica.contains("key") && replica.at("key").is_number_integer()
+                ? replica.at("key").get<std::uint64_t>() : 0;
+            if (key == 0 || key > net::MaxReplicaKey) {
+                throw std::runtime_error("Network Replica key must be an integer from 1 to 2147483647");
+            }
+            entitySnapshot.networkReplica = net::NetworkReplica{static_cast<std::uint32_t>(key)};
         }
         snapshot.fileEntities.emplace(entitySnapshot.sourceId, entitySnapshot.sourceId);
         snapshot.entities.push_back(std::move(entitySnapshot));
@@ -2383,13 +2521,19 @@ void GameplayState::pollSceneChanges() {
 }
 
 void GameplayState::applyLiveScene(const nlohmann::json& scene) {
-    // Validate the complete file before modifying a live World.
-    (void)parseScene(scene);
     using Json = nlohmann::json;
+    const auto normalized = [&](const Json& value) {
+        auto snapshot = parseScene(value);
+        snapshot.fileEntities.clear();
+        return Json::parse(serializeScene(snapshot));
+    };
+    const auto nextScene = normalized(scene);
     std::unordered_map<ecs::EntityId, Json> oldEntities, newEntities;
-    if (m_diskScene.contains("entities")) for (const auto& entity : m_diskScene["entities"])
-        oldEntities.emplace(entity.at("sourceId").get<ecs::EntityId>(), entity);
-    for (const auto& entity : scene.at("entities")) newEntities.emplace(entity.at("sourceId").get<ecs::EntityId>(), entity);
+    if (m_diskScene.contains("entities")) {
+        const auto previousScene = normalized(m_diskScene);
+        for (const auto& entity : previousScene.at("entities")) oldEntities.emplace(entity.at("sourceId").get<ecs::EntityId>(), entity);
+    }
+    for (const auto& entity : nextScene.at("entities")) newEntities.emplace(entity.at("sourceId").get<ecs::EntityId>(), entity);
     const auto merge = [&](auto&& visit, Json current, const Json& old, const Json& next) -> Json {
         if (old == next) return current;
         if (!old.is_object() || !next.is_object()) return next;
@@ -2423,8 +2567,8 @@ void GameplayState::applyLiveScene(const nlohmann::json& scene) {
         (void)previous;
         if (newEntities.contains(source)) continue;
         if (const auto found = m_fileEntities.find(source); found != m_fileEntities.end()) {
-            m_scripts.forgetEntity(found->second);
-            m_world.destroyEntity(found->second); m_fileEntities.erase(found);
+            deleteEntityNow(found->second, false);
+            m_fileEntities.erase(source);
         }
     }
     for (const auto& edit : edits) {
@@ -2439,12 +2583,15 @@ void GameplayState::applyLiveScene(const nlohmann::json& scene) {
         const auto entity = m_fileEntities.at(edit.source);
         auto& data = edit.snapshot;
         if (data.hierarchy && edit.remapParent) data.hierarchy->parent = remap(data.hierarchy->parent);
+        if (data.hierarchy && !m_world.isAlive(data.hierarchy->parent)) data.hierarchy->parent = ecs::kInvalidEntity;
         const auto assign = [&]<class T>(const std::optional<T>& component) {
             if (component) m_world.addComponent<T>(entity, *component);
             else m_world.removeComponent<T>(entity);
         };
         assign(data.transform); assign(data.tag); assign(data.hierarchy); assign(data.camera);
+        assign(data.light);
         assign(data.rigidbody); assign(data.collider); assign(data.meshRenderer); assign(data.script);
+        assign(data.networkReplica);
     }
     if (scene.value("cameraEntity", ecs::kInvalidEntity) != m_diskScene.value("cameraEntity", ecs::kInvalidEntity))
         m_cameraEntity = remap(scene.value("cameraEntity", ecs::kInvalidEntity));
@@ -2455,17 +2602,17 @@ void GameplayState::applyLiveScene(const nlohmann::json& scene) {
     ENGINE_LOG_INFO("Live scene applied: {} changes, {} entities", edits.size(), m_world.aliveCount());
 }
 
-void GameplayState::loadSceneFromDisk() {
+bool GameplayState::loadSceneFromDisk() {
     if (m_editorMode != EditorMode::Edit) {
         m_editorStatusMessage = "Stop Play mode before loading.";
-        return;
+        return false;
     }
 
     const std::filesystem::path scenePath = editorScenePath();
     if (!std::filesystem::exists(scenePath)) {
         m_editorStatusMessage = "Scene file not found.";
         ENGINE_LOG_WARN("Scene file '{}' not found", scenePath.string());
-        return;
+        return false;
     }
 
     try {
@@ -2473,7 +2620,7 @@ void GameplayState::loadSceneFromDisk() {
         if (!file.is_open()) {
             m_editorStatusMessage = "Failed to load scene.";
             ENGINE_LOG_WARN("Failed to open scene '{}' for reading", scenePath.string());
-            return;
+            return false;
         }
 
         nlohmann::json sceneJson;
@@ -2487,9 +2634,11 @@ void GameplayState::loadSceneFromDisk() {
         m_diskScene = sceneJson;
         m_editorStatusMessage = "Loaded scene from " + scenePath.string();
         ENGINE_LOG_INFO("Loaded editor scene from '{}'", scenePath.string());
+        return true;
     } catch (const std::exception& ex) {
         m_editorStatusMessage = "Failed to load scene.";
         ENGINE_LOG_WARN("Failed loading scene '{}': {}", scenePath.string(), ex.what());
+        return false;
     }
 }
 
@@ -2645,6 +2794,7 @@ ecs::EntityId GameplayState::duplicateEntity(const ecs::EntityId entity) {
         copiedCamera.active = false;
         m_world.addComponent<ecs::Camera>(copy, copiedCamera);
     }
+    if (const auto* light = m_world.getComponent<ecs::Light>(entity)) m_world.addComponent<ecs::Light>(copy, *light);
     if (const auto* meshRenderer = m_world.getComponent<ecs::MeshRenderer>(entity)) {
         m_world.addComponent<ecs::MeshRenderer>(copy, *meshRenderer);
     }
@@ -2653,6 +2803,11 @@ ecs::EntityId GameplayState::duplicateEntity(const ecs::EntityId entity) {
     }
     if (const auto* script = m_world.getComponent<scripting::ScriptComponent>(entity)) {
         m_world.addComponent<scripting::ScriptComponent>(copy, *script);
+    }
+    if (m_world.hasComponent<net::NetworkReplica>(entity)) {
+        if (const auto key = nextReplicaKey(m_world); key != 0) {
+            m_world.addComponent<net::NetworkReplica>(copy, net::NetworkReplica{key});
+        }
     }
     if (const auto* rigidbody = m_world.getComponent<ecs::Rigidbody>(entity)) {
         ecs::Rigidbody copiedRigidbody = *rigidbody;
@@ -2676,8 +2831,6 @@ void GameplayState::deleteEntity(const ecs::EntityId entity) {
     }
 
     if (m_editorMode == EditorMode::Play) {
-        // UI/input never mutate component storage during the frame. Drain on
-        // the main thread before the next physics/spawn step, after prior jobs.
         if (std::find(m_pendingRuntimeDeletes.begin(), m_pendingRuntimeDeletes.end(), entity) ==
             m_pendingRuntimeDeletes.end()) {
             recordSceneHistory("Delete Entity");
@@ -2697,9 +2850,9 @@ void GameplayState::applyPendingRuntimeDeletes() {
     }
 }
 
-void GameplayState::deleteEntityNow(const ecs::EntityId entity) {
+void GameplayState::deleteEntityNow(const ecs::EntityId entity, const bool recordHistory) {
     if (!m_world.isAlive(entity)) { return; }
-    if (m_editorMode == EditorMode::Edit && canEditScene()) { recordSceneHistory("Delete Entity"); }
+    if (recordHistory && m_editorMode == EditorMode::Edit && canEditScene()) { recordSceneHistory("Delete Entity"); }
     m_world.forEachEntity([&](const ecs::EntityId candidate) {
         if (auto* hierarchy = m_world.getComponent<ecs::Hierarchy>(candidate);
             hierarchy != nullptr && hierarchy->parent == entity) {
@@ -2708,7 +2861,6 @@ void GameplayState::deleteEntityNow(const ecs::EntityId entity) {
     });
 
     const std::string deletedName = entityDisplayName(entity);
-    // Drop cached contact pairs before the free-list can reuse this entity ID.
     m_physicsSystem.forgetEntity(entity, m_eventBus);
     m_scripts.forgetEntity(entity);
     m_world.destroyEntity(entity);
@@ -2735,7 +2887,7 @@ void GameplayState::deleteEntityNow(const ecs::EntityId entity) {
 }
 
 void GameplayState::setCameraLookActive(const bool active) {
-    if (m_cameraLookActive == active) {
+    if (m_cameraLookActive == active || (active && m_scripts.cursorLocked())) {
         return;
     }
 
@@ -2780,9 +2932,9 @@ void GameplayState::processEditorShortcuts() {
             if (!m_editorCommands.state(Command::ScriptFind).checked) m_editorCommands.execute(Command::ScriptFind);
         }
         else if (ImGui::GetCurrentContext() && ImGui::IsKeyPressed(ImGuiKey_G, false)) m_editorCommands.execute(Command::ScriptGoToLine);
-        return; // TextEditor retains document Undo/Redo and editing shortcuts.
+        return;
     }
-    if (sceneShortcutsBlocked() || m_cameraLookActive) return;
+    if (sceneShortcutsBlocked() || m_cameraLookActive || m_scripts.cursorLocked()) return;
     if (pressed(platform::KeyCode::S)) m_editorCommands.execute(Command::SaveScene);
     else if (pressed(platform::KeyCode::O)) m_editorCommands.execute(Command::LoadScene);
     else if (pressed(platform::KeyCode::N)) m_editorCommands.execute(Command::CreateEmpty);
@@ -2792,7 +2944,8 @@ void GameplayState::processEditorShortcuts() {
 }
 
 void GameplayState::applyViewportHotkeys() {
-    if (!(m_viewportHovered || m_viewportFocused) || sceneShortcutsBlocked() || m_cameraLookActive) return;
+    if (!(m_viewportHovered || m_viewportFocused) || m_viewportUiCaptured || sceneShortcutsBlocked() ||
+        m_cameraLookActive || m_scripts.cursorLocked()) return;
     const bool modified = platform::InputManager::isKeyDownRaw(platform::KeyCode::LeftControl) ||
         platform::InputManager::isKeyDownRaw(platform::KeyCode::RightControl) ||
         platform::InputManager::isKeyDownRaw(platform::KeyCode::LeftAlt) ||
@@ -3179,6 +3332,7 @@ void GameplayState::resetEditorLayout() {
     m_showStatsPanel = false;
     m_showAssistant = true;
     m_showViewportPanel = true;
+    m_materialGraphDocked = true;
     m_showStatusPanel = true;
     m_toolbarDockSlot = EditorDockSlot::Top;
     m_hierarchyDockSlot = EditorDockSlot::RightTop;
@@ -3191,11 +3345,16 @@ void GameplayState::resetEditorLayout() {
     m_editorRightWidth = 0.0F;
     m_editorLeftSplit = 0.72F;
     m_editorRightSplit = 0.76F;
+    m_materialGraphSplit = 0.55F;
     m_resetEditorLayout = true;
     markEditorLayoutDirty();
 }
 
 void GameplayState::loadEditorLayout() {
+    m_materialGraphSession.reset();
+    m_materialGraphSelectionSource = ecs::kInvalidEntity;
+    m_restoreMaterialGraphPending = false;
+    m_ribbonState.networkTest = net::NetworkTestOptions{};
     const std::filesystem::path path = editorLayoutPath();
     std::ifstream file(path);
     if (!file.is_open()) {
@@ -3250,6 +3409,28 @@ void GameplayState::loadEditorLayout() {
             m_editorRightSplit = std::clamp(sizing->value("rightSplit", m_editorRightSplit), 0.22F, 0.82F);
         }
 
+        if (const auto graph = layout.find("materialGraph"); graph != layout.end() && graph->is_object()) {
+            if (const auto dock = graph->find("dockBesideViewport"); dock != graph->end() && dock->is_boolean()) {
+                m_materialGraphDocked = dock->get<bool>();
+            }
+            if (const auto split = graph->find("split"); split != graph->end() && split->is_number()) {
+                const float value = split->get<float>();
+                if (std::isfinite(value)) m_materialGraphSplit = std::clamp(value, 0.20F, 0.80F);
+            }
+            if (m_project && m_materialGraphDocked) {
+                m_materialGraphSession = readMaterialGraphSession(*graph);
+                m_restoreMaterialGraphPending = m_materialGraphSession.has_value();
+                if (m_materialGraphSession) {
+                    const auto& session = graph->at("session");
+                    const auto selected = session.find("selectedSourceId");
+                    if (selected != session.end() && selected->is_number_unsigned() &&
+                        selected->get<std::uint64_t>() <= std::numeric_limits<ecs::EntityId>::max()) {
+                        m_materialGraphSelectionSource = selected->get<ecs::EntityId>();
+                    }
+                }
+            }
+        }
+
         if (const auto ribbon = layout.find("ribbon"); ribbon != layout.end() && ribbon->is_object()) {
             m_ribbonState.tab = static_cast<editor::EditorRibbonTab>(ribbon->value("tab", 0));
             m_ribbonState.compact = ribbon->value("compact", false);
@@ -3259,6 +3440,25 @@ void GameplayState::loadEditorLayout() {
             m_ribbonState.moveSnap = ribbon->value("moveSnap", 0.5F);
             m_ribbonState.rotateSnap = ribbon->value("rotateSnap", 15.0F);
             m_ribbonState.scaleSnap = ribbon->value("scaleSnap", 0.1F);
+            if (const auto options = ribbon->find("networkTest"); options != ribbon->end() && options->is_object()) {
+                const auto readOption = [&options](const char* name, const int fallback, const int minimum, const int maximum) {
+                    const auto value = options->find(name);
+                    if (value == options->end()) return fallback;
+                    if (value->is_number_unsigned()) {
+                        return static_cast<int>(std::clamp(value->get<std::uint64_t>(),
+                            static_cast<std::uint64_t>(minimum), static_cast<std::uint64_t>(maximum)));
+                    }
+                    if (value->is_number_integer()) {
+                        return static_cast<int>(std::clamp(value->get<std::int64_t>(),
+                            static_cast<std::int64_t>(minimum), static_cast<std::int64_t>(maximum)));
+                    }
+                    return fallback;
+                };
+                auto& network = m_ribbonState.networkTest;
+                network.clientCount = readOption("clientCount", network.clientCount, 1, net::MaxNetworkTestClients);
+                network.latencyMs = readOption("latencyMs", network.latencyMs, 0, net::MaxNetworkTestLatencyMs);
+                network.lossPercent = readOption("lossPercent", network.lossPercent, 0, net::MaxNetworkTestLossPercent);
+            }
             editor::EditorRibbon::sanitizeState(m_ribbonState);
             m_useLocalGizmoSpace = ribbon->value("localSpace", m_useLocalGizmoSpace);
             m_snapEnabled = ribbon->value("snap", m_snapEnabled);
@@ -3282,7 +3482,12 @@ void GameplayState::saveEditorLayout() const {
         {"tab", static_cast<int>(m_ribbonState.tab)}, {"compact", m_ribbonState.compact}, {"showLabels", m_ribbonState.showLabels},
         {"createCommand", static_cast<int>(m_ribbonState.createCommand)}, {"playCommand", static_cast<int>(m_ribbonState.playCommand)},
         {"moveSnap", m_ribbonState.moveSnap}, {"rotateSnap", m_ribbonState.rotateSnap}, {"scaleSnap", m_ribbonState.scaleSnap},
-        {"localSpace", m_useLocalGizmoSpace}, {"snap", m_snapEnabled}
+        {"localSpace", m_useLocalGizmoSpace}, {"snap", m_snapEnabled},
+        {"networkTest", {
+            {"clientCount", m_ribbonState.networkTest.clientCount},
+            {"latencyMs", m_ribbonState.networkTest.latencyMs},
+            {"lossPercent", m_ribbonState.networkTest.lossPercent}
+        }}
     };
     layout["visibility"] = {
         {"toolbar", m_showToolbarPanel},
@@ -3309,6 +3514,20 @@ void GameplayState::saveEditorLayout() const {
         {"leftSplit", m_editorLeftSplit},
         {"rightSplit", m_editorRightSplit},
     };
+    layout["materialGraph"] = {
+        {"dockBesideViewport", m_materialGraphDocked},
+        {"split", m_materialGraphSplit},
+    };
+    if (m_materialGraphDocked && m_materialGraphSession) {
+        auto& session = layout["materialGraph"]["session"];
+        session["materialId"] = m_materialGraphSession->materialId;
+        if (const auto& canvas = m_materialGraphSession->canvas) {
+            session["canvas"] = {{"pan", {canvas->pan.x, canvas->pan.y}}, {"zoom", canvas->zoom}};
+        }
+        if (m_materialGraphSelectionSource != ecs::kInvalidEntity) {
+            session["selectedSourceId"] = m_materialGraphSelectionSource;
+        }
+    }
 
     std::string failure;
     if (!core::writeFileAtomically(path, layout.dump(2) + "\n", failure)) {
@@ -3332,9 +3551,21 @@ void GameplayState::updateFrameHistory() {
 
 void GameplayState::update(const double dt) {
     ENGINE_PROFILE_ZONE("Gameplay Update");
-    // Physics/transform parallelFor calls are joined before returning. Input
-    // and ImGui run on this same main thread; no ECS worker survives this boundary.
     applyPendingRuntimeDeletes();
+    m_world.forEach<ecs::RenderPoseHistory, ecs::Transform>(
+        [&](ecs::EntityId entity, ecs::RenderPoseHistory& history, const ecs::Transform& transform) {
+            history = ecs::captureRenderPose(m_world, entity, transform);
+        });
+    if (stack().sceneNetworkLaunch()) {
+        if (!m_sceneNetwork) return;
+        m_sceneNetwork->beginTick();
+        m_scripts.setInputEnabled(m_sceneNetwork->acceptsLocalInput() && !m_viewportUiCaptured &&
+            !(ImGui::GetCurrentContext() && ImGui::GetIO().WantTextInput));
+        updateSimulation(dt);
+        m_sceneNetwork->endTick();
+        if (m_sceneNetwork->acceptsLocalInput()) platform::InputManager::clearTickKeyEdges();
+        return;
+    }
     if (!m_sceneInitialized) {
         createDemoScene();
     }
@@ -3354,10 +3585,13 @@ void GameplayState::update(const double dt) {
     m_scriptWorkspace.update();
     pollSceneChanges();
     m_scripts.pollReload();
-    m_scripts.setInputEnabled(m_editorMode == EditorMode::Play && (stack().standalone() || m_viewportHovered || m_viewportFocused) &&
+    const bool cursorLocked = m_scripts.cursorLocked();
+    const bool gameViewportInput = (stack().standalone() || m_viewportHovered || m_viewportFocused) && !m_viewportUiCaptured;
+    m_scripts.setInputEnabled(m_editorMode == EditorMode::Play && (cursorLocked || gameViewportInput) &&
         !m_cameraLookActive && !(ImGui::GetCurrentContext() && ImGui::GetIO().WantTextInput));
+    m_scripts.setPointerInputEnabled(cursorLocked || ((stack().standalone() || m_viewportHovered) && !m_viewportUiCaptured));
 
-    if ((m_viewportHovered || m_cameraLookActive) && stack().window() != nullptr) {
+    if (((m_viewportHovered && !m_viewportUiCaptured) || m_cameraLookActive) && stack().window() != nullptr) {
         const auto [scrollX, scrollY] = platform::InputManager::scrollDelta();
         (void)scrollX;
         if (scrollY != 0.0) {
@@ -3381,21 +3615,24 @@ void GameplayState::update(const double dt) {
         m_skipNextCameraLookDelta = false;
     }
 
-    if (m_editorMode == EditorMode::Play) {
-        processPendingSpawns();
-        if (m_simulationRunning || m_stepScriptTick) {
-            const double tickDt = m_stepScriptTick ? 1.0 / 60.0 : dt;
-            m_stepScriptTick = false;
-            m_scripts.update(tickDt);
-            ENGINE_PROFILE_ZONE("Physics");
-            m_physicsSystem.update(m_world, tickDt, m_eventBus);
-            m_scripts.dispatchEvents();
-            scripting::ReactRuntime::pump(m_scripts, tickDt);
-        }
-    }
+    if (m_editorMode == EditorMode::Play) updateSimulation(dt);
 }
 
-GameplayState::CameraFrame GameplayState::buildActiveCameraFrame(const renderer::Renderer& renderer) const {
+void GameplayState::updateSimulation(double dt) {
+    processPendingSpawns();
+    if (!m_simulationRunning && !m_stepScriptTick) return;
+    const double tickDt = m_stepScriptTick ? 1.0 / 60.0 : dt;
+    m_stepScriptTick = false;
+    m_scripts.update(tickDt);
+    if (!m_sceneNetwork || !m_sceneNetwork->isClient()) {
+        ENGINE_PROFILE_ZONE("Physics");
+        m_physicsSystem.update(m_world, tickDt, m_eventBus);
+    }
+    m_scripts.dispatchEvents();
+    scripting::ReactRuntime::pump(m_scripts, tickDt);
+}
+
+GameplayState::CameraFrame GameplayState::buildActiveCameraFrame(const renderer::Renderer& renderer, float renderFraction) const {
     const rhi::Extent2D frameExtent = renderer.frameExtent();
     const float viewportWidth = m_viewportSize.x > 1.0F ? m_viewportSize.x : static_cast<float>(frameExtent.width);
     const float viewportHeight = m_viewportSize.y > 1.0F ? m_viewportSize.y : static_cast<float>(frameExtent.height);
@@ -3406,16 +3643,17 @@ GameplayState::CameraFrame GameplayState::buildActiveCameraFrame(const renderer:
 
     bool foundCamera = false;
     m_world.forEach<ecs::Transform, ecs::Camera>([&](ecs::EntityId entity, const ecs::Transform& transform, const ecs::Camera& camera) {
-        (void)entity;
         if (foundCamera || !camera.active) {
             return;
         }
 
-        const glm::vec3 forward = ecs::forwardFromEuler(transform.rotationEulerRadians);
-        const glm::vec3 up = ecs::upFromEuler(transform.rotationEulerRadians);
+        const auto pose = ecs::sampleRenderTransform(m_world, entity, transform, renderFraction);
+        const float fov = ecs::sampleRenderCameraFov(m_world, entity, camera.verticalFovRadians, renderFraction);
+        const glm::vec3 forward = ecs::forwardFromEuler(pose.rotationEulerRadians);
+        const glm::vec3 up = ecs::upFromEuler(pose.rotationEulerRadians);
         cameraFrame.projection =
-            glm::perspectiveRH_ZO(camera.verticalFovRadians, aspectRatio, camera.nearPlane, camera.farPlane);
-        cameraFrame.view = glm::lookAtRH(transform.position, transform.position + forward, up);
+            glm::perspectiveRH_ZO(fov, aspectRatio, camera.nearPlane, camera.farPlane);
+        cameraFrame.view = glm::lookAtRH(pose.position, pose.position + forward, up);
         cameraFrame.viewProjection = cameraFrame.projection * cameraFrame.view;
         foundCamera = true;
     });
@@ -3440,8 +3678,10 @@ std::optional<GameplayState::PickRay> GameplayState::buildPickRay(
     }
 
     const ImGuiViewport* mainViewport = ImGui::GetMainViewport();
-    const glm::vec2 renderPosition(mainViewport->Pos.x, mainViewport->Pos.y);
-    const glm::vec2 renderSize(mainViewport->Size.x, mainViewport->Size.y);
+    const glm::vec2 renderPosition = m_viewportUsesContentRect
+        ? m_viewportPosition : glm::vec2(mainViewport->Pos.x, mainViewport->Pos.y);
+    const glm::vec2 renderSize = m_viewportUsesContentRect
+        ? m_viewportSize : glm::vec2(mainViewport->Size.x, mainViewport->Size.y);
     if (renderSize.x <= 1.0F || renderSize.y <= 1.0F) {
         return std::nullopt;
     }
@@ -3500,7 +3740,8 @@ std::optional<GameplayState::PickResult> GameplayState::pickEntity(const PickRay
 }
 
 void GameplayState::handleViewportPicking(const CameraFrame& cameraFrame) {
-    if (!m_viewportHovered || m_cameraLookActive || ImGuizmo::IsUsing() || ImGuizmo::IsOver()) {
+    if (!m_viewportHovered || m_viewportUiCaptured || m_cameraLookActive || m_scripts.cursorLocked() ||
+        ImGuizmo::IsUsing() || ImGuizmo::IsOver()) {
         return;
     }
 
@@ -3520,12 +3761,12 @@ void GameplayState::handleViewportPicking(const CameraFrame& cameraFrame) {
         return;
     }
 
-    m_selectedEntity = hit->entity;
+    inspectEntity(hit->entity);
     m_editorStatusMessage = "Selected " + entityDisplayName(hit->entity);
 }
 
 void GameplayState::updateHoveredEntity(const CameraFrame& cameraFrame) {
-    if (!m_viewportHovered || m_cameraLookActive || ImGuizmo::IsUsing()) {
+    if (!m_viewportHovered || m_viewportUiCaptured || m_cameraLookActive || m_scripts.cursorLocked() || ImGuizmo::IsUsing()) {
         m_hoveredEntity = ecs::kInvalidEntity;
         return;
     }
@@ -3580,11 +3821,28 @@ void GameplayState::renderSelectionOutline(
 void GameplayState::render(renderer::Renderer& rendererInstance) {
     ENGINE_PROFILE_ZONE("Gameplay Render");
     const auto renderStart = std::chrono::high_resolution_clock::now();
-    const CameraFrame cameraFrame = buildActiveCameraFrame(rendererInstance);
-    renderer::RenderAdapter renderAdapter{rendererInstance};
+    m_viewportUsesContentRect = false;
+    if (rendererInstance.isImGuiEnabled()) restoreMaterialGraphLayout(rendererInstance.materialLibrary());
+    if (rendererInstance.isImGuiEnabled() && m_materialGraphDocked &&
+        editor::materialGraphEditorOpen(rendererInstance.materialLibrary())) {
+        if (const auto workspace = materialGraphWorkspace()) {
+            m_viewportPosition = workspace->viewportPos + glm::vec2(0.0F, kViewportHeaderHeight);
+            m_viewportSize = workspace->viewportSize - glm::vec2(0.0F, kViewportHeaderHeight);
+            const ImVec2 framePosition = ImGui::GetMainViewport()->Pos;
+            rendererInstance.setSceneViewport(m_viewportPosition - glm::vec2(framePosition.x, framePosition.y), m_viewportSize);
+            m_viewportUsesContentRect = true;
+        }
+    }
+    const float renderFraction = m_simulationRunning ? stack().renderInterpolationFraction(*this) : 1.0F;
+    const CameraFrame cameraFrame = buildActiveCameraFrame(rendererInstance, renderFraction);
+    renderer::RenderAdapter renderAdapter{rendererInstance, glm::vec3(glm::inverse(cameraFrame.view)[3])};
     {
         ENGINE_PROFILE_ZONE("Scene Render");
-        m_renderSystem.render(m_world, renderAdapter, cameraFrame.viewProjection);
+        const bool previewSelected = m_materialPreview && m_materialPreviewEntity == m_selectedEntity &&
+            materialGraphViewportVisible() && rendererInstance.isImGuiEnabled();
+        m_renderSystem.render(m_world, renderAdapter, cameraFrame.viewProjection,
+            previewSelected ? m_materialPreviewEntity : ecs::kInvalidEntity,
+            previewSelected ? m_materialPreview : nullptr, renderFraction);
     }
     if (m_showColliderDebug && !stack().standalone()) {
         ENGINE_PROFILE_ZONE("Collider Debug Render");
@@ -3594,6 +3852,7 @@ void GameplayState::render(renderer::Renderer& rendererInstance) {
         ENGINE_PROFILE_ZONE("Selection Outline");
         if (!stack().standalone()) renderSelectionOutline(renderAdapter, cameraFrame.viewProjection);
     }
+    if (m_viewportUsesContentRect) rendererInstance.resetSceneViewport();
 
     m_lastSceneRenderMs = std::chrono::duration<double, std::milli>(
                               std::chrono::high_resolution_clock::now() - renderStart)
@@ -3649,6 +3908,11 @@ void GameplayState::renderAddComponentMenu(const ecs::EntityId entity) {
         m_world.addComponent<ecs::Camera>(entity, camera);
         m_editorStatusMessage = "Added Camera";
     }
+    if (m_world.hasComponent<ecs::Transform>(entity) && !m_world.hasComponent<ecs::Light>(entity) && ImGui::MenuItem("Light")) {
+        recordSceneHistory("Add Light");
+        m_world.addComponent<ecs::Light>(entity, ecs::Light{});
+        m_editorStatusMessage = "Added Light";
+    }
     if (!m_world.hasComponent<ecs::Rigidbody>(entity) && ImGui::MenuItem("Rigidbody")) {
         recordSceneHistory("Add Rigidbody");
         ecs::Rigidbody rigidbody{};
@@ -3670,6 +3934,15 @@ void GameplayState::renderAddComponentMenu(const ecs::EntityId entity) {
     if (!m_world.hasComponent<scripting::ScriptComponent>(entity) && ImGui::MenuItem("Luau Behavior")) {
         recordSceneHistory("Add Luau Behavior");
         m_world.addComponent<scripting::ScriptComponent>(entity, scripting::ScriptComponent{});
+        inspectEntity(entity);
+    }
+    if (!m_world.hasComponent<net::NetworkReplica>(entity) && ImGui::MenuItem("Network Replica")) {
+        if (const auto key = nextReplicaKey(m_world); key != 0) {
+            recordSceneHistory("Add Network Replica");
+            m_world.addComponent<net::NetworkReplica>(entity, net::NetworkReplica{key});
+            m_editorStatusMessage = "Added Network Replica.";
+            inspectEntity(entity);
+        }
     }
 
     if (!canEditScene() || !m_world.isAlive(entity)) {
@@ -3705,6 +3978,11 @@ void GameplayState::renderRemoveComponentMenu(const ecs::EntityId entity) {
         }
         m_editorStatusMessage = "Removed Camera";
     }
+    if (m_world.hasComponent<ecs::Light>(entity) && ImGui::MenuItem("Light")) {
+        recordSceneHistory("Remove Light");
+        m_world.removeComponent<ecs::Light>(entity);
+        m_editorStatusMessage = "Removed Light";
+    }
     if (m_world.hasComponent<ecs::Rigidbody>(entity) && ImGui::MenuItem("Rigidbody")) {
         recordSceneHistory("Remove Rigidbody");
         m_world.removeComponent<ecs::Rigidbody>(entity);
@@ -3725,6 +4003,11 @@ void GameplayState::renderRemoveComponentMenu(const ecs::EntityId entity) {
         m_scripts.forgetEntity(entity);
         m_world.removeComponent<scripting::ScriptComponent>(entity);
     }
+    if (m_world.hasComponent<net::NetworkReplica>(entity) && ImGui::MenuItem("Network Replica")) {
+        recordSceneHistory("Remove Network Replica");
+        m_world.removeComponent<net::NetworkReplica>(entity);
+        m_editorStatusMessage = "Removed Network Replica.";
+    }
 
     if (!canEditScene() || !m_world.isAlive(entity)) {
         ImGui::EndDisabled();
@@ -3734,8 +4017,9 @@ void GameplayState::renderRemoveComponentMenu(const ecs::EntityId entity) {
 void GameplayState::renderEntityContextMenu(const ecs::EntityId entity) {
     m_selectedEntity = entity;
     if (ImGui::MenuItem("Select")) {
-        m_selectedEntity = entity;
+        inspectEntity(entity);
     }
+    if (ImGui::MenuItem("Properties")) inspectEntity(entity);
     renderCommandMenuItem(editor::EditorCommandId::Duplicate);
     if (ImGui::BeginMenu("Create")) {
         renderCreateEntityMenu();
@@ -4124,6 +4408,9 @@ void GameplayState::renderMainMenuBar() {
     }
     if (ImGui::BeginMenu("Scene")) {
         for (const auto id : {Command::Play, Command::Pause, Command::Stop, Command::StepTick, Command::PlayWindow, Command::StopWindow}) renderCommandMenuItem(id);
+        ImGui::Separator();
+        renderCommandMenuItem(Command::StartNetworkTest);
+        renderCommandMenuItem(Command::StopNetworkTest);
         if (m_editorMode == EditorMode::Play) {
             if (ImGui::MenuItem("Launch Striker")) launchStriker();
             if (ImGui::MenuItem("Spawn Drop Wave")) spawnDropWave();
@@ -4205,7 +4492,71 @@ void GameplayState::renderToolbar(renderer::Renderer* renderer) {
             const auto image = renderer->resolveEditorIcon(id);
             return editor::EditorIcons::Image{image.textureId, image.width, image.height};
         };
-        if (m_editorRibbon.render(m_editorCommands, m_ribbonState, resolveIcon)) markEditorLayoutDirty();
+        const editor::NetworkTestRibbonActions networkActions{
+            [this] { return stack().networkTestClients(); },
+            [this](unsigned clientIndex, net::NetworkTestConditions conditions, std::string& error) {
+                return stack().setNetworkTestConditions(clientIndex, conditions, error);
+            },
+            [this](unsigned clientIndex) { return stack().networkTestHistory(clientIndex); },
+            [this] { return stack().hasNetworkTestHistory(); },
+            [this](const std::filesystem::path& path, std::string& error) {
+                return stack().exportNetworkTestHistory(path, error);
+            }
+        };
+        const auto& online = stack().onlinePlayCallbacks();
+        editor::MultiplayerRibbonActions multiplayer;
+        if (online.start) {
+            using core::SceneNetworkRole;
+            const bool canLaunch = m_editorMode == EditorMode::Edit && m_project && !m_project->manifestPath.empty();
+            multiplayer = {
+                [&online, canLaunch] {
+                    const auto& server = online.status(SceneNetworkRole::Server);
+                    const auto& client = online.status(SceneNetworkRole::Client);
+                    editor::MultiplayerRibbonStatus status;
+                    status.canLaunch = canLaunch;
+                    status.serverRunning = server.role == SceneNetworkRole::Server;
+                    status.serverReady = server.ready;
+                    status.serverSteam = server.endpoint.steamId != 0;
+                    status.clientRunning = client.role == SceneNetworkRole::Client;
+                    status.invitePending = server.invitePending;
+                    status.friends = server.friends;
+                    status.serverStatus = server.error;
+                    status.clientStatus = client.error;
+                    status.inviteStatus = server.inviteStatus;
+                    if (status.serverRunning) {
+                        if (status.serverStatus.empty()) status.serverStatus = server.ready ? "Listening" : "Starting server...";
+                        if (server.ready) status.serverEndpoint = server.endpoint.steamId
+                            ? std::to_string(server.endpoint.steamId) : net::formatEndpoint(server.endpoint);
+                    }
+                    if (status.clientRunning && status.clientStatus.empty()) {
+                        status.clientStatus = client.ready ? "Game window open" : "Opening game window...";
+                    }
+                    return status;
+                },
+                [&online](bool steam, std::string_view address, unsigned capacity, std::string& error) {
+                    return online.start(SceneNetworkRole::Server, steam, address, capacity, error);
+                },
+                [&online] { online.stop(SceneNetworkRole::Server); },
+                [&online](bool steam, std::string_view address, std::string& error) {
+                    return online.start(SceneNetworkRole::Client, steam, address, 0, error);
+                },
+                [&online] { online.stop(SceneNetworkRole::Client); },
+                online.invite,
+                [this](std::string& error) {
+                    if (saveSceneToDisk()) return true;
+                    error = m_editorStatusMessage;
+                    return false;
+                },
+                [&online, renderer](std::uint64_t friendId) -> editor::EditorIcons::Image {
+                    if (!renderer || !online.steamAvatar) return {};
+                    const auto image = renderer->resolveSteamFriendAvatar(online.steamAvatar(friendId));
+                    return {image.textureId, image.width, image.height};
+                }
+            };
+        }
+        const auto* project = stack().project();
+        if (m_editorRibbon.render(m_editorCommands, m_ribbonState, resolveIcon, networkActions, multiplayer,
+                project ? project->networkPlayerLimit : 0)) markEditorLayoutDirty();
     }
     ImGui::End();
     ImGui::PopStyleVar();
@@ -4250,7 +4601,7 @@ void GameplayState::renderHierarchyPanel(renderer::Renderer* renderer) {
                 std::string label = "##Entity" + std::to_string(entity);
                 const ImVec2 row = ImGui::GetCursorScreenPos();
                 if (ImGui::Selectable(label.c_str(), m_selectedEntity == entity, ImGuiSelectableFlags_None, ImVec2(0, editor::kPanelRowHeight))) {
-                    m_selectedEntity = entity;
+                    inspectEntity(entity);
                 }
                 const auto icon = m_world.hasComponent<ecs::Camera>(entity) ? editor::EditorCommandId::CreateCamera :
                     m_world.hasComponent<scripting::ScriptComponent>(entity) ? editor::EditorCommandId::ScriptNew : editor::EditorCommandId::CreateRenderCube;
@@ -4392,6 +4743,7 @@ void GameplayState::renderProjectPanel(renderer::Renderer* renderer) {
                     } else if (asset.kind == "Prefab" && canEditScene()) {
                         recordSceneHistory("Spawn Prefab");
                         m_selectedEntity = m_scripts.spawnPrefab(asset.path);
+                        inspectEntity(m_selectedEntity);
                     } else if (asset.kind == "Scene") {
                         if (asset.path == toAssetPath(editorScenePath())) {
                             loadSceneFromDisk();
@@ -4475,7 +4827,7 @@ void GameplayState::renderProjectPanel(renderer::Renderer* renderer) {
     ImGui::End();
 }
 
-void GameplayState::renderEntityComponentEditors(const ecs::EntityId entity) {
+void GameplayState::renderEntityComponentEditors(const ecs::EntityId entity, renderer::Renderer* renderer) {
     auto captureBeforeEdit = [this, entity]() {
         return canEditScene() ? captureEntitySnapshot(entity) : EntitySnapshot{};
     };
@@ -4507,7 +4859,22 @@ void GameplayState::renderEntityComponentEditors(const ecs::EntityId entity) {
         }
     }
 
-    if (auto* meshRenderer = m_world.getComponent<ecs::MeshRenderer>(entity); meshRenderer && inspectorMatches("Mesh Renderer Visible Tint UV Scale Primitive Mesh Texture Shader")) {
+    if (auto* replica = m_world.getComponent<net::NetworkReplica>(entity); replica && inspectorMatches("Network Replica Key")) {
+        if (PropertySection properties{"Network Replica"}; properties) {
+            const EntitySnapshot before = captureBeforeEdit();
+            const std::uint32_t minimum = 1;
+            const std::uint32_t maximum = net::MaxReplicaKey;
+            PropertyCell cell("Replica Key");
+            const bool changed = ImGui::DragScalar("##Value", ImGuiDataType_U32, &replica->key,
+                1.0F, &minimum, &maximum, "%u", ImGuiSliderFlags_AlwaysClamp);
+            trackEditedItem("Edit Network Replica Key", changed, before);
+            if (ImGui::IsItemHovered()) {
+                ImGui::SetTooltip("Use a unique scene key. The server replicates position and rotation.");
+            }
+        }
+    }
+
+    if (auto* meshRenderer = m_world.getComponent<ecs::MeshRenderer>(entity); meshRenderer && inspectorMatches("Mesh Renderer Visible Tint UV Scale Primitive Mesh Texture Shader Material Color Opacity Tiling Blend Depth Base Inheritance")) {
         if (PropertySection properties{"Mesh Renderer"}; properties) {
             EntitySnapshot before = captureBeforeEdit();
             const bool visibleChanged = propertyCheckbox("Visible", &meshRenderer->visible);
@@ -4518,12 +4885,14 @@ void GameplayState::renderEntityComponentEditors(const ecs::EntityId entity) {
             before = captureBeforeEdit();
             trackEditedItem(
                 "Edit Mesh Tint",
-                propertyColor("Tint", glm::value_ptr(meshRenderer->tint)),
+                propertyColor(meshRenderer->materialId.empty() ? "Tint" : "Object Tint", glm::value_ptr(meshRenderer->tint)),
                 before);
+            if (!meshRenderer->materialId.empty() && ImGui::IsItemHovered())
+                ImGui::SetTooltip("Multiplies the material color for this object only. Edit the material below to change every object using it.");
             before = captureBeforeEdit();
             trackEditedItem(
                 "Edit UV Scale",
-                propertyDrag2("UV Scale", glm::value_ptr(meshRenderer->uvScale), 0.05F, 0.05F, 16.0F, "%.2f"),
+                propertyDrag2(meshRenderer->materialId.empty() ? "UV Scale" : "Object UV Scale", glm::value_ptr(meshRenderer->uvScale), 0.05F, 0.05F, 16.0F, "%.2f"),
                 before);
 
             static constexpr const char* kPrimitiveLabels[] = {"Triangle"};
@@ -4538,20 +4907,33 @@ void GameplayState::renderEntityComponentEditors(const ecs::EntityId entity) {
             before = captureBeforeEdit();
             const bool meshChanged = propertyInput("Mesh", &meshRenderer->meshId);
             trackEditedItem("Edit Mesh Resource", meshChanged, before);
-            before = captureBeforeEdit();
-            const bool textureChanged = propertyInput("Texture", &meshRenderer->textureId);
-            trackEditedItem("Edit Texture Resource", textureChanged, before);
-            before = captureBeforeEdit();
-            const bool shaderChanged = propertyInput("Shader", &meshRenderer->shaderId);
-            trackEditedItem("Edit Shader Resource", shaderChanged, before);
+            if (meshRenderer->materialId.empty()) {
+                before = captureBeforeEdit();
+                const bool textureChanged = propertyInput("Texture", &meshRenderer->textureId);
+                trackEditedItem("Edit Texture Resource", textureChanged, before);
+                if (textureChanged) meshRenderer->texture.reset();
+                before = captureBeforeEdit();
+                const bool shaderChanged = propertyInput("Shader", &meshRenderer->shaderId);
+                trackEditedItem("Edit Shader Resource", shaderChanged, before);
+                if (shaderChanged) meshRenderer->shader.reset();
+            }
+            if (!renderer) {
+                before = captureBeforeEdit();
+                const bool materialChanged = propertyInput("Material", &meshRenderer->materialId);
+                trackEditedItem("Edit Material Resource", materialChanged, before);
+                if (materialChanged) meshRenderer->material.reset();
+            }
             if (meshChanged) {
                 meshRenderer->mesh.reset();
             }
-            if (textureChanged) {
-                meshRenderer->texture.reset();
-            }
-            if (shaderChanged) {
-                meshRenderer->shader.reset();
+        }
+        if (renderer) {
+            const auto materialBefore = captureBeforeEdit();
+            const auto previousMaterial = meshRenderer->materialId;
+            editor::renderMaterialInspector(*meshRenderer, renderer->materialLibrary());
+            if (meshRenderer->materialId != previousMaterial) {
+                trackEditedItem("Assign Material", true, materialBefore);
+                commitSceneEdit();
             }
         }
     }
@@ -4577,6 +4959,35 @@ void GameplayState::renderEntityComponentEditors(const ecs::EntityId entity) {
                 "Edit Far Plane",
                 propertyDrag("Far Plane", &camera->farPlane, 1.0F, camera->nearPlane + 0.1F, 1000.0F, "%.1f"),
                 before);
+        }
+    }
+
+    if (auto* light = m_world.getComponent<ecs::Light>(entity); light && inspectorMatches("Light Directional Point Enabled Color Intensity Range")) {
+        if (PropertySection properties{"Light"}; properties) {
+            EntitySnapshot before = captureBeforeEdit();
+            trackEditedItem("Edit Light Enabled", propertyCheckbox("Enabled", &light->enabled), before);
+            constexpr const char* kinds[] = {"Directional", "Point"};
+            int kind = static_cast<int>(light->kind);
+            before = captureBeforeEdit();
+            const bool kindChanged = propertyCombo("Type", &kind, kinds, 2);
+            if (kindChanged) light->kind = static_cast<ecs::LightKind>(kind);
+            trackEditedItem("Edit Light Type", kindChanged, before);
+            before = captureBeforeEdit();
+            {
+                PropertyCell cell("Linear Color");
+                const bool changed = ImGui::ColorEdit3("##Value", glm::value_ptr(light->color));
+                trackEditedItem("Edit Light Color", changed, before);
+            }
+            before = captureBeforeEdit();
+            const bool intensityChanged = propertyDrag("Intensity", &light->intensity, 0.01F, 0.0F, ecs::Light::MaxIntensity, "%.2f");
+            if (intensityChanged) light->intensity = std::clamp(light->intensity, 0.0F, ecs::Light::MaxIntensity);
+            trackEditedItem("Edit Light Intensity", intensityChanged, before);
+            if (light->kind == ecs::LightKind::Point) {
+                before = captureBeforeEdit();
+                const bool rangeChanged = propertyDrag("Range", &light->range, 0.1F, ecs::Light::MinRange, ecs::Light::MaxRange, "%.2f");
+                if (rangeChanged) light->range = std::clamp(light->range, ecs::Light::MinRange, ecs::Light::MaxRange);
+                trackEditedItem("Edit Light Range", rangeChanged, before);
+            }
         }
     }
 
@@ -4695,7 +5106,7 @@ void GameplayState::renderEntityComponentEditors(const ecs::EntityId entity) {
                 }
 
                 m_world.forEachEntity([&](const ecs::EntityId candidate) {
-                    if (!isHierarchyParentValid(m_world, entity, candidate)) {
+                    if (!ecs::isHierarchyParentValid(m_world, entity, candidate)) {
                         return;
                     }
                     const bool selected = hierarchy->parent == candidate;
@@ -4711,9 +5122,58 @@ void GameplayState::renderEntityComponentEditors(const ecs::EntityId entity) {
     }
 }
 
+void GameplayState::inspectEntity(const ecs::EntityId entity) {
+    if (!m_world.isAlive(entity)) return;
+    if (m_selectedEntity != entity) commitSceneEdit();
+    m_selectedEntity = entity;
+    if (m_world.hasComponent<scripting::ScriptComponent>(entity)) m_inspectorFilter.clear();
+    if (!m_showInspectorPanel) {
+        m_showInspectorPanel = true;
+        markEditorLayoutDirty();
+    }
+}
+
+bool GameplayState::saveEntityPrefab(const ecs::EntityId entity, const std::string& assetPath) {
+    if (m_editorMode != EditorMode::Edit || !canEditScene() || !m_world.isAlive(entity)) {
+        m_editorStatusMessage = "Select an object and stop Play before saving a prefab.";
+        return false;
+    }
+    try {
+        const auto relative = std::filesystem::u8path(assetPath).lexically_normal();
+        if (relative.empty() || relative.has_root_path() || relative.extension() != ".json" ||
+            *relative.begin() != "prefabs") throw std::runtime_error("Use a relative prefabs/name.json path.");
+        for (const auto& part : relative) if (part == "..") throw std::runtime_error("Prefab path must stay inside project assets.");
+        const auto root = std::filesystem::weakly_canonical(editorAssetsRoot());
+        const auto target = std::filesystem::weakly_canonical(root / relative);
+        const auto inside = target.lexically_relative(root);
+        if (inside.empty() || inside.is_absolute() || *inside.begin() == "..") throw std::runtime_error("Prefab path escapes project assets.");
+        if (std::filesystem::exists(target)) throw std::runtime_error("Prefab already exists. Choose a new file name.");
+        commitSceneEdit();
+        SceneSnapshot single;
+        single.entities.push_back(captureEntitySnapshot(entity));
+        auto components = nlohmann::json::parse(serializeScene(single)).at("entities").front();
+        components.erase("sourceId"); components.erase("hierarchy"); components.erase("tag");
+        components.erase("networkReplica");
+        const nlohmann::json prefab = {{"name", entityDisplayName(entity)}, {"components", std::move(components)}};
+        std::filesystem::create_directories(target.parent_path());
+        std::string error;
+        if (!core::writeFileAtomically(target, prefab.dump(4) + "\n", error)) throw std::runtime_error(error);
+        m_projectAssetsDirty = true;
+        m_editorStatusMessage = "Saved prefab " + relative.generic_string() + "; spawn it from Content.";
+        return true;
+    } catch (const std::exception& error) {
+        m_editorStatusMessage = "Prefab save failed: " + std::string(error.what());
+        return false;
+    }
+}
+
 void GameplayState::renderScriptInspector(const ecs::EntityId entity) {
     auto* component = m_world.getComponent<scripting::ScriptComponent>(entity);
-    if (!component || !inspectorMatches("Luau Behavior Script Fields Enabled Module")) return;
+    if (!component) return;
+    const auto schema = m_scripts.fields(component->path);
+    std::string searchable = "Luau Behavior Script Fields Enabled Module " + component->path;
+    for (const auto& field : schema) searchable += " " + field.name + " " + field.label + " " + field.category;
+    if (!inspectorMatches(searchable)) return;
     PropertySection properties("Luau Behavior");
     if (!properties) return;
     const bool editable = canEditScene();
@@ -4725,53 +5185,115 @@ void GameplayState::renderScriptInspector(const ecs::EntityId entity) {
     changed = propertyInput("Module", &component->path);
     trackEditedItem("Edit Luau Module", changed, before);
     ImGui::EndDisabled();
-    PropertyCell actionCell("Actions");
-    if (ImGui::SmallButton("Open Script") && m_scriptWorkspace.openScript(component->path)) { m_showScriptWorkspace = true; }
-    ImGui::SameLine();
-    ImGui::BeginDisabled(m_scripts.reloadPending());
-    if (ImGui::SmallButton("Reload Module")) { m_scripts.requestReload(component->path); }
-    ImGui::EndDisabled();
-    ImGui::BeginDisabled(!editable);
-    if (ImGui::SmallButton("Load Field Defaults")) {
-        recordSceneHistory("Load Script Defaults");
-        m_scripts.populateDefaults(*component);
+    {
+        PropertyCell cell("Choose Module");
+        ImGui::BeginDisabled(!editable);
+        if (ImGui::BeginCombo("##ModuleAsset", "Project scripts")) {
+            if (m_projectAssetsDirty) refreshProjectAssets();
+            for (const auto& asset : m_projectAssets) if (asset.kind == "Script" && ImGui::Selectable(asset.path.c_str(), component->path == asset.path)) {
+                recordSceneHistory("Assign Luau Module");
+                component->path = asset.path;
+                m_scripts.populateDefaults(*component);
+            }
+            ImGui::EndCombo();
+        }
+        ImGui::EndDisabled();
     }
-    const auto schema = m_scripts.fields(component->path);
+    {
+        PropertyCell cell("Actions");
+        if (ImGui::SmallButton("Open Script") && m_scriptWorkspace.openScript(component->path)) { m_showScriptWorkspace = true; }
+        ImGui::SameLine();
+        ImGui::BeginDisabled(m_scripts.reloadPending() || component->path.empty());
+        if (ImGui::SmallButton("Reload")) { m_scripts.requestReload(component->path); }
+        ImGui::EndDisabled();
+    }
+    ImGui::BeginDisabled(!editable);
+    {
+        PropertyCell cell("Defaults");
+        if (ImGui::SmallButton("Fill Missing")) {
+            auto updated = *component;
+            m_scripts.populateDefaults(updated);
+            if (updated.fields != component->fields) {
+                recordSceneHistory("Load Script Defaults");
+                component->fields = std::move(updated.fields);
+            }
+        }
+    }
+    std::string category;
     for (const auto& field : schema) {
-        ImGui::PushID(field.name.c_str());
+        if (field.category != category && !field.category.empty()) {
+            PropertyCell cell(field.category.c_str(), 8.0F); ImGui::TextDisabled("Parameters");
+        }
+        category = field.category;
+        ImGui::PushID(static_cast<int>(ImHashData(field.name.data(), field.name.size())));
         before = editable ? captureEntitySnapshot(entity) : EntitySnapshot{};
-        auto value = component->fields.value(field.name, field.defaultValue);
+        const auto stored = component->fields.find(field.name);
+        auto value = stored != component->fields.end() ? *stored : field.defaultValue;
+        const bool overridden = value != field.defaultValue;
+        const std::string label = (field.label.empty() ? field.name : field.label) + (overridden ? " *" : "");
+        {
+        PropertyCell cell(label.c_str(), 24.0F, field.name.c_str());
+        const float resetWidth = ImGui::GetFrameHeight();
+        ImGui::SetNextItemWidth(std::max(20.0F, ImGui::GetContentRegionAvail().x - resetWidth - ImGui::GetStyle().ItemSpacing.x));
         bool edited = false;
         if (field.type == "boolean") {
-            bool boolean = value.is_boolean() ? value.get<bool>() : false;
-            edited = propertyCheckbox(field.name.c_str(), &boolean);
+            bool boolean = value.is_boolean() ? value.get<bool>() : field.defaultValue.get<bool>();
+            edited = ImGui::Checkbox("##Value", &boolean);
             if (edited) { value = boolean; }
         } else if (field.type == "number") {
-            double number = value.is_number() ? value.get<double>() : 0.0;
+            double number = value.is_number() ? value.get<double>() : field.defaultValue.get<double>();
             const double minimum = field.minimum, maximum = field.maximum;
-            PropertyCell cell(field.name.c_str());
-            edited = ImGui::DragScalar("##Value", ImGuiDataType_Double, &number, 0.1F, &minimum, &maximum, field.integer ? "%.0f" : "%.3f");
+            edited = ImGui::DragScalar("##Value", ImGuiDataType_Double, &number, static_cast<float>(field.step), &minimum, &maximum, field.integer ? "%.0f" : "%.3f", ImGuiSliderFlags_AlwaysClamp);
             if (edited && std::isfinite(number)) { value = field.integer ? std::round(number) : number; }
             else { edited = false; }
         } else if (field.type == "string") {
             auto string = value.is_string() ? value.get<std::string>() : std::string{};
-            edited = propertyInput(field.name.c_str(), &string);
+            edited = ImGui::InputText("##Value", &string);
             if (edited) { value = string; }
         } else { ImGui::TextWrapped("%s: %s", field.name.c_str(), value.dump().c_str()); }
-        if (edited) { component->fields[field.name] = std::move(value); }
+        if (edited) edited = m_scripts.setField(*component, field.name, value);
         trackEditedItem("Edit Script Field " + field.name, edited, before);
+        if (ImGui::IsItemHovered()) {
+            ImGui::BeginTooltip();
+            ImGui::Text("%s (%s)", field.name.c_str(), field.integer ? "integer" : field.type.c_str());
+            ImGui::Text("Default: %s", field.defaultValue.dump().c_str());
+            if (!field.description.empty()) { ImGui::PushTextWrapPos(360.0F); ImGui::TextUnformatted(field.description.c_str()); ImGui::PopTextWrapPos(); }
+            ImGui::EndTooltip();
+        }
+        ImGui::SameLine();
+        ImGui::BeginDisabled(!overridden);
+        if (ImGui::Button("R", ImVec2(resetWidth, 0))) {
+            recordSceneHistory("Reset Script Field " + field.name);
+            m_scripts.setField(*component, field.name, field.defaultValue);
+        }
+        if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) ImGui::SetTooltip("Reset to the module default");
+        ImGui::EndDisabled();
+        }
         ImGui::PopID();
     }
     ImGui::EndDisabled();
-    if (schema.empty()) { ImGui::TextDisabled("Set a module and load its declared fields."); }
-    if (!editable) { ImGui::TextDisabled("Fields are saved in Edit mode; Watch shows runtime values."); }
+    {
+        PropertyCell cell("Persistence");
+        ImGui::BeginDisabled(m_editorMode != EditorMode::Edit);
+        if (ImGui::SmallButton("Save Scene")) saveSceneToDisk();
+        ImGui::EndDisabled();
+        ImGui::TextWrapped(m_editorMode == EditorMode::Edit ? "* overrides module default. Save for next Play." : "Play edits are temporary; Stop restores authored values.");
+    }
+    {
+        PropertyCell cell("New Prefab");
+        ImGui::BeginDisabled(m_editorMode != EditorMode::Edit);
+        ImGui::InputText("##PrefabPath", &m_scriptPrefabPath);
+        if (ImGui::SmallButton("Save New Prefab")) saveEntityPrefab(entity, m_scriptPrefabPath);
+        ImGui::EndDisabled();
+    }
+    if (schema.empty()) { PropertyCell cell("Fields"); ImGui::TextWrapped("Choose a behavior with a fields table. Module errors appear in Script Output."); }
 }
 
 bool GameplayState::inspectorMatches(const std::string_view properties) const {
     return m_inspectorFilter.empty() || toLowerCopy(std::string(properties)).find(toLowerCopy(m_inspectorFilter)) != std::string::npos;
 }
 
-void GameplayState::renderInspectorPanel() {
+void GameplayState::renderInspectorPanel(renderer::Renderer* renderer) {
     ENGINE_PROFILE_ZONE("Inspector UI");
     if (!m_showInspectorPanel) {
         return;
@@ -4826,8 +5348,8 @@ void GameplayState::renderInspectorPanel() {
         }
 
         ImGui::Spacing();
-        renderEntityComponentEditors(m_selectedEntity);
         renderScriptInspector(m_selectedEntity);
+        renderEntityComponentEditors(m_selectedEntity, renderer);
         }
     }
     ImGui::End();
@@ -4883,6 +5405,13 @@ void GameplayState::renderStatsPanel(const renderer::Renderer& renderer) {
             metric("FPS", std::to_string(static_cast<int>(fps)));
             metric("Frame", std::to_string(frameTimeMs).substr(0, 5) + " ms");
             metric("Scene render CPU", std::to_string(m_lastSceneRenderMs).substr(0, 5) + " ms");
+        }
+        if (PropertySection metrics("Materials / frame"); metrics) {
+            const auto& materials = renderer.materialStats();
+            metric("Draws", std::to_string(materials.draws));
+            metric("PSO cache hits", std::to_string(materials.pipelineHits));
+            metric("PSO created", std::to_string(materials.pipelineCreates));
+            metric("Errors", std::to_string(materials.errors));
         }
         ImGui::PlotLines(
             "Frame ms",
@@ -5027,16 +5556,24 @@ void GameplayState::renderViewportGizmo(const CameraFrame& cameraFrame) {
     m_gizmoWasUsing = gizmoUsing;
 }
 
-void GameplayState::renderViewportPanel(renderer::Renderer& renderer) {
+void GameplayState::renderViewportPanel(renderer::Renderer& renderer, const MaterialGraphWorkspace* workspace) {
+    m_viewportHovered = m_viewportFocused = m_viewportUiCaptured = false;
+    m_viewportUsesContentRect = workspace != nullptr;
     if (!m_showViewportPanel) {
         m_viewportHovered = false;
         m_viewportFocused = false;
         return;
     }
 
-    const EditorLayout layout =
-        computeEditorLayout(m_editorLeftWidth, m_editorRightWidth, m_editorLeftSplit, m_editorRightSplit, editor::EditorRibbon::preferredHeight(m_ribbonState), hasDockedPanel(EditorDockSlot::LeftTop), hasDockedPanel(EditorDockSlot::LeftBottom), hasDockedPanel(EditorDockSlot::RightTop), hasDockedPanel(EditorDockSlot::RightBottom), m_showAssistant, hasDockedPanel(EditorDockSlot::Top), hasDockedPanel(EditorDockSlot::Bottom));
-    placeEditorPanel(layout, m_viewportDockSlot, m_resetEditorLayout);
+    if (workspace) {
+        ImGui::SetNextWindowPos(ImVec2(workspace->viewportPos.x, workspace->viewportPos.y));
+        ImGui::SetNextWindowSize(ImVec2(workspace->viewportSize.x, workspace->viewportSize.y));
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0F);
+    } else {
+        const EditorLayout layout =
+            computeEditorLayout(m_editorLeftWidth, m_editorRightWidth, m_editorLeftSplit, m_editorRightSplit, editor::EditorRibbon::preferredHeight(m_ribbonState), hasDockedPanel(EditorDockSlot::LeftTop), hasDockedPanel(EditorDockSlot::LeftBottom), hasDockedPanel(EditorDockSlot::RightTop), hasDockedPanel(EditorDockSlot::RightBottom), m_showAssistant, hasDockedPanel(EditorDockSlot::Top), hasDockedPanel(EditorDockSlot::Bottom));
+        placeEditorPanel(layout, m_viewportDockSlot, m_resetEditorLayout);
+    }
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0F, 0.0F));
     if (ImGui::Begin(
             "Viewport",
@@ -5048,7 +5585,6 @@ void GameplayState::renderViewportPanel(renderer::Renderer& renderer) {
         ImDrawList* drawList = ImGui::GetWindowDrawList();
         const ImVec2 windowPos = ImGui::GetCursorScreenPos();
         const ImVec2 windowSize = ImGui::GetContentRegionAvail();
-        // Studio-style scene tab and device strip. The world remains unobscured.
         const float tabHeight = 26.0F;
         drawList->AddRectFilled(windowPos, ImVec2(windowPos.x + windowSize.x, windowPos.y + tabHeight), IM_COL32(25, 26, 31, 255));
         drawList->AddRectFilled(ImVec2(windowPos.x, windowPos.y + tabHeight),
@@ -5087,16 +5623,36 @@ void GameplayState::renderViewportPanel(renderer::Renderer& renderer) {
 
         m_viewportPosition = glm::vec2(windowPos.x, windowPos.y + kViewportHeaderHeight);
         m_viewportSize = glm::vec2(windowSize.x, std::max(1.0F, windowSize.y - kViewportHeaderHeight));
-        m_viewportHovered = ImGui::IsWindowHovered(ImGuiHoveredFlags_RootAndChildWindows);
+        m_viewportHovered = ImGui::IsWindowHovered(ImGuiHoveredFlags_RootAndChildWindows) &&
+            ImGui::IsMouseHoveringRect({m_viewportPosition.x, m_viewportPosition.y},
+                {m_viewportPosition.x + m_viewportSize.x, m_viewportPosition.y + m_viewportSize.y});
         m_viewportFocused = ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows);
 
-        const CameraFrame cameraFrame = buildActiveCameraFrame(renderer);
+        ImDrawListSplitter viewportLayers;
+        viewportLayers.Split(drawList, 2);
+        viewportLayers.SetCurrentChannel(drawList, 1);
+        if (m_editorMode == EditorMode::Play) {
+            m_viewportUiCaptured = scripting::ReactUI::drawInViewport(m_scripts,
+                {m_viewportPosition.x, m_viewportPosition.y, m_viewportSize.x, m_viewportSize.y},
+                [&renderer](const std::string_view id) {
+                    const auto image = renderer.resolveUiImage(id);
+                    return scripting::ReactUI::Image{image.textureId, image.width, image.height};
+                }, [&renderer](const void* key, const ImDrawList& list, float x, float y, float width, float height) {
+                    const auto image = renderer.resolveUiCanvas(key, list, x, y, width, height);
+                    return scripting::ReactUI::Image{image.textureId, image.width, image.height};
+                });
+        }
+        viewportLayers.SetCurrentChannel(drawList, 0);
+
+        const float renderFraction = m_simulationRunning ? stack().renderInterpolationFraction(*this) : 1.0F;
+        const CameraFrame cameraFrame = buildActiveCameraFrame(renderer, renderFraction);
         updateHoveredEntity(cameraFrame);
-        renderViewportGizmo(cameraFrame);
+        if (!m_viewportUiCaptured) renderViewportGizmo(cameraFrame);
         handleViewportPicking(cameraFrame);
+        viewportLayers.Merge(drawList);
     }
     ImGui::End();
-    ImGui::PopStyleVar();
+    ImGui::PopStyleVar(workspace ? 2 : 1);
 }
 
 void GameplayState::renderStatusBar() {
@@ -5128,12 +5684,104 @@ void GameplayState::renderStatusBar() {
         ImGui::Separator();
         ImGui::SetCursorPosY(39);
         ImGui::TextDisabled("%s   History %zu / %zu", m_editorMode == EditorMode::Play ? "PLAY" : "EDIT", m_undoStack.size(), m_redoStack.size());
+        if (const auto error = stack().networkPlayError(); !error.empty()) {
+            ImGui::SameLine();
+            ImGui::TextColored(ImVec4(1.0F, 0.55F, 0.40F, 1.0F), "Network test failed");
+            if (ImGui::IsItemHovered()) ImGui::SetTooltip("%.*s", static_cast<int>(error.size()), error.data());
+        } else if (stack().networkPlayRunning()) {
+            ImGui::SameLine();
+            ImGui::TextDisabled("Network test active");
+        }
     }
     ImGui::End();
     ImGui::PopStyleVar();
 }
 
+void GameplayState::restoreMaterialGraphLayout(resources::MaterialLibrary& library) {
+    if (m_project && !m_materialGraphDraftsInitialized && !labActive() && !stack().standalone()) {
+        editor::loadMaterialGraphDrafts(library, editorLayoutPath().parent_path() / "material_graph_drafts.json");
+        m_materialGraphDraftsInitialized = true;
+    }
+    if (!std::exchange(m_restoreMaterialGraphPending, false)) return;
+    if (!m_materialGraphDocked || !m_materialGraphSession) return;
+    if (!editor::restoreMaterialGraphSession(library, *m_materialGraphSession)) {
+        m_materialGraphSession.reset();
+        m_materialGraphSelectionSource = ecs::kInvalidEntity;
+        markEditorLayoutDirty();
+        return;
+    }
+
+    const auto selected = m_fileEntities.find(m_materialGraphSelectionSource);
+    if (selected != m_fileEntities.end() && m_world.isAlive(selected->second)) m_selectedEntity = selected->second;
+    if (!materialGraphViewportVisible()) return;
+    const auto* mesh = m_world.getComponent<ecs::MeshRenderer>(m_selectedEntity);
+    m_materialPreview = editor::materialGraphPreview(library, m_selectedEntity, mesh && mesh->visible ? mesh : nullptr);
+    m_materialPreviewEntity = m_materialPreview ? m_selectedEntity : ecs::kInvalidEntity;
+}
+
+ecs::EntityId GameplayState::materialGraphSelectedSource() const {
+    if (!m_materialGraphSession || !m_world.isAlive(m_selectedEntity)) return ecs::kInvalidEntity;
+    const auto remembered = m_fileEntities.find(m_materialGraphSelectionSource);
+    if (remembered != m_fileEntities.end() && remembered->second == m_selectedEntity) return remembered->first;
+    const auto selected = std::find_if(m_fileEntities.begin(), m_fileEntities.end(),
+        [this](const auto& entry) { return entry.second == m_selectedEntity; });
+    return selected == m_fileEntities.end() ? ecs::kInvalidEntity : selected->first;
+}
+
+bool GameplayState::materialGraphViewportVisible() const {
+    return m_showViewportPanel && !m_showScriptWorkspace && !stack().standalone() && !labActive();
+}
+
+std::optional<GameplayState::MaterialGraphWorkspace> GameplayState::materialGraphWorkspace() const {
+    if (!materialGraphViewportVisible()) return std::nullopt;
+    const auto layout = computeEditorLayout(m_editorLeftWidth, m_editorRightWidth, m_editorLeftSplit, m_editorRightSplit,
+        editor::EditorRibbon::preferredHeight(m_ribbonState), hasDockedPanel(EditorDockSlot::LeftTop),
+        hasDockedPanel(EditorDockSlot::LeftBottom), hasDockedPanel(EditorDockSlot::RightTop),
+        hasDockedPanel(EditorDockSlot::RightBottom), m_showAssistant, hasDockedPanel(EditorDockSlot::Top),
+        hasDockedPanel(EditorDockSlot::Bottom));
+    const glm::vec2 position(std::floor(layout.viewportPos.x), std::floor(layout.viewportPos.y));
+    const glm::vec2 end(std::floor(layout.viewportPos.x + layout.viewportSize.x),
+        std::floor(layout.viewportPos.y + layout.viewportSize.y));
+    const glm::vec2 size = end - position;
+    const bool sideBySide = size.x >= 760.0F;
+    if (size.x < 240.0F || size.y < (sideBySide ? 140.0F : 244.0F)) return std::nullopt;
+
+    const float span = (sideBySide ? size.x : size.y) - kMaterialGraphSplitterSize;
+    const float minViewport = sideBySide ? 320.0F : std::clamp(span * 0.42F, kViewportHeaderHeight + 56.0F, 170.0F);
+    const float minGraph = std::min(sideBySide ? 410.0F : 230.0F, span - minViewport);
+    const float graphSpan = std::floor(std::clamp(span * m_materialGraphSplit, minGraph, span - minViewport));
+    const float viewportSpan = span - graphSpan;
+    if (sideBySide) {
+        return MaterialGraphWorkspace{position, {viewportSpan, size.y},
+            {position.x + viewportSpan + kMaterialGraphSplitterSize, position.y}, {graphSpan, size.y}, true};
+    }
+    return MaterialGraphWorkspace{position, {size.x, viewportSpan},
+        {position.x, position.y + viewportSpan + kMaterialGraphSplitterSize}, {size.x, graphSpan}, false};
+}
+
+void GameplayState::renderMaterialGraphSplitter(const MaterialGraphWorkspace& workspace) {
+    if (m_editorLayoutLocked || m_dockDragActive) return;
+    const bool sideBySide = workspace.sideBySide;
+    const ImVec2 position = sideBySide
+        ? ImVec2(workspace.graphPos.x - kMaterialGraphSplitterSize, workspace.graphPos.y)
+        : ImVec2(workspace.graphPos.x, workspace.graphPos.y - kMaterialGraphSplitterSize);
+    const ImVec2 size = sideBySide
+        ? ImVec2(kMaterialGraphSplitterSize, workspace.graphSize.y)
+        : ImVec2(workspace.graphSize.x, kMaterialGraphSplitterSize);
+    if (!renderSplitterHandle("##MaterialGraphWorkspaceSplitter", position, size, sideBySide, true)) return;
+
+    const ImVec2 delta = ImGui::GetIO().MouseDelta;
+    const float movement = sideBySide ? delta.x : delta.y;
+    if (std::abs(movement) < 0.001F) return;
+    const float graphSpan = sideBySide ? workspace.graphSize.x : workspace.graphSize.y;
+    const float viewportSpan = sideBySide ? workspace.viewportSize.x : workspace.viewportSize.y;
+    m_materialGraphSplit = std::clamp((graphSpan - movement) / (graphSpan + viewportSpan), 0.20F, 0.80F);
+    markEditorLayoutDirty();
+}
+
 void GameplayState::renderEditorUi(renderer::Renderer& renderer) {
+    auto& materialLibrary = renderer.materialLibrary();
+    restoreMaterialGraphLayout(materialLibrary);
     if (m_gizmoWasUsing && !ImGui::IsMouseDown(ImGuiMouseButton_Left)) finishGizmoEdit();
     if (m_showScriptWorkspace && !m_scriptWorkspaceWasVisible) {
         m_ribbonState.tab = editor::EditorRibbonTab::Script;
@@ -5144,17 +5792,43 @@ void GameplayState::renderEditorUi(renderer::Renderer& renderer) {
     updateFrameHistory();
     renderMainMenuBar();
     renderToolbar(&renderer);
+    const bool graphWasOpen = editor::materialGraphEditorOpen(materialLibrary);
+    const bool graphDockPreference = m_materialGraphDocked;
+    const auto graphWorkspace = graphWasOpen ? materialGraphWorkspace() : std::nullopt;
+    const bool graphDocked = graphDockPreference && graphWorkspace.has_value();
     if (m_showScriptWorkspace) {
-        m_viewportHovered = m_viewportFocused = false;
+        m_viewportHovered = m_viewportFocused = m_viewportUiCaptured = false;
         const auto layout = computeEditorLayout(m_editorLeftWidth, m_editorRightWidth, m_editorLeftSplit, m_editorRightSplit, editor::EditorRibbon::preferredHeight(m_ribbonState), hasDockedPanel(EditorDockSlot::LeftTop), hasDockedPanel(EditorDockSlot::LeftBottom), hasDockedPanel(EditorDockSlot::RightTop), hasDockedPanel(EditorDockSlot::RightBottom), m_showAssistant, hasDockedPanel(EditorDockSlot::Top), hasDockedPanel(EditorDockSlot::Bottom));
         ImGui::SetNextWindowPos(layout.viewportPos, ImGuiCond_Always);
         ImGui::SetNextWindowSize(layout.viewportSize, ImGuiCond_Always);
         m_scriptWorkspace.render(&m_showScriptWorkspace, m_selectedEntity, m_editorMode == EditorMode::Play, m_simulationRunning);
-    } else { renderViewportPanel(renderer); }
+    } else { renderViewportPanel(renderer, graphDocked ? &*graphWorkspace : nullptr); }
     renderHierarchyPanel(&renderer);
     renderProjectPanel(&renderer);
-    renderInspectorPanel();
-    // One stable popup scope for commands invoked from ribbon, menu or Inspector.
+    renderInspectorPanel(&renderer);
+    const auto* selectedMesh = materialGraphViewportVisible()
+        ? m_world.getComponent<ecs::MeshRenderer>(m_selectedEntity) : nullptr;
+    const bool graphOpeningDocked = graphDockPreference && !graphWasOpen &&
+        editor::materialGraphEditorOpen(materialLibrary) && materialGraphWorkspace().has_value();
+    const editor::MaterialGraphDock graphDock{
+        graphWorkspace ? graphWorkspace->graphPos : glm::vec2(0.0F),
+        graphWorkspace ? graphWorkspace->graphSize : glm::vec2(0.0F), m_materialGraphDocked};
+    m_materialPreview = graphOpeningDocked ? nullptr
+        : editor::renderMaterialGraphEditor(materialLibrary, m_selectedEntity,
+            selectedMesh && selectedMesh->visible ? selectedMesh : nullptr, &graphDock);
+    if (m_materialGraphDocked != graphDockPreference) markEditorLayoutDirty();
+    auto graphSession = m_project && m_materialGraphDocked ? editor::materialGraphSession(materialLibrary) : std::nullopt;
+    if (graphSession != m_materialGraphSession) {
+        m_materialGraphSession = std::move(graphSession);
+        markEditorLayoutDirty();
+    }
+    const auto graphSelection = materialGraphSelectedSource();
+    if (graphSelection != m_materialGraphSelectionSource) {
+        m_materialGraphSelectionSource = graphSelection;
+        markEditorLayoutDirty();
+    }
+    if (m_materialGraphDraftsInitialized) editor::flushMaterialGraphDrafts();
+    m_materialPreviewEntity = m_materialPreview ? m_selectedEntity : ecs::kInvalidEntity;
     if (m_addComponentRequested) {
         ImGui::OpenPopup("Add Entity Component");
         m_addComponentRequested = false;
@@ -5167,21 +5841,15 @@ void GameplayState::renderEditorUi(renderer::Renderer& renderer) {
     renderStatsPanel(renderer);
     renderStatusBar();
     renderDockResizeHandles();
+    if (graphDocked && m_materialGraphDocked && editor::materialGraphEditorOpen(materialLibrary)) {
+        renderMaterialGraphSplitter(*graphWorkspace);
+    }
     renderDockDropOverlay();
     if (m_showAssistant) {
         const auto layout = computeEditorLayout(m_editorLeftWidth, m_editorRightWidth, m_editorLeftSplit, m_editorRightSplit, editor::EditorRibbon::preferredHeight(m_ribbonState), hasDockedPanel(EditorDockSlot::LeftTop), hasDockedPanel(EditorDockSlot::LeftBottom), hasDockedPanel(EditorDockSlot::RightTop), hasDockedPanel(EditorDockSlot::RightBottom), m_showAssistant, hasDockedPanel(EditorDockSlot::Top), hasDockedPanel(EditorDockSlot::Bottom));
         ImGui::SetNextWindowPos(layout.assistantPos, ImGuiCond_Always);
         ImGui::SetNextWindowSize(layout.assistantSize, ImGuiCond_Always);
         m_codexAssistant.render(&m_showAssistant);
-    }
-    if (m_editorMode == EditorMode::Play) {
-        scripting::ReactUI::draw(m_scripts, false, [&renderer](const std::string_view id) {
-            const auto image = renderer.resolveUiImage(id);
-            return scripting::ReactUI::Image{image.textureId, image.width, image.height};
-        }, [&renderer](const void* key, const ImDrawList& list, float x, float y, float width, float height) {
-            const auto image = renderer.resolveUiCanvas(key, list, x, y, width, height);
-            return scripting::ReactUI::Image{image.textureId, image.width, image.height};
-        });
     }
     applyViewportHotkeys();
 
@@ -5216,7 +5884,9 @@ void GameplayState::renderEditorUi(renderer::Renderer& renderer) {
         ImGui::EndPopup();
     }
 
-    if (m_editorLayoutDirty && !m_dockDragActive && !ImGui::IsMouseDown(ImGuiMouseButton_Left)) {
+    editor::focusRestoredMaterialGraph();
+    if (m_editorLayoutDirty && !m_dockDragActive && !ImGui::IsMouseDown(ImGuiMouseButton_Left) &&
+        !ImGui::IsMouseDown(ImGuiMouseButton_Middle)) {
         saveEditorLayout();
         m_editorLayoutDirty = false;
     }
@@ -5228,13 +5898,25 @@ void GameplayState::renderStandaloneUi(renderer::Renderer& renderer) {
     m_viewportPosition = glm::vec2(0.0F);
     m_viewportSize = glm::vec2(ImGui::GetIO().DisplaySize.x, ImGui::GetIO().DisplaySize.y);
     m_viewportHovered = m_viewportFocused = true;
-    scripting::ReactUI::draw(m_scripts, true, [&renderer](const std::string_view id) {
-        const auto image = renderer.resolveUiImage(id);
+    m_viewportUiCaptured = false;
+    scripting::ReactUI::draw(m_scripts, true, [this, &renderer](const std::string_view id) {
+        const auto image = m_sceneNetwork && id.starts_with("steamavatar://")
+            ? renderer.resolveSteamFriendAvatar(m_sceneNetwork->steamAvatar(id)) : renderer.resolveUiImage(id);
         return scripting::ReactUI::Image{image.textureId, image.width, image.height};
     }, [&renderer](const void* key, const ImDrawList& list, float x, float y, float width, float height) {
         const auto image = renderer.resolveUiCanvas(key, list, x, y, width, height);
         return scripting::ReactUI::Image{image.textureId, image.width, image.height};
     });
+    const auto notice = m_sceneNetwork ? m_sceneNetwork->connectionNotice() : std::string_view{};
+    if (notice.empty()) return;
+    ImGui::SetNextWindowPos(ImVec2(m_viewportSize.x - 16.0F, 16.0F), ImGuiCond_Always, ImVec2(1.0F, 0.0F));
+    ImGui::SetNextWindowBgAlpha(0.92F);
+    if (ImGui::Begin("Network connection##Standalone", nullptr,
+            ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings |
+            ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_NoFocusOnAppearing)) {
+        ImGui::TextUnformatted(notice.data(), notice.data() + notice.size());
+    }
+    ImGui::End();
 }
 
 void GameplayState::renderUi(renderer::Renderer& rendererInstance) {
@@ -5251,4 +5933,4 @@ void GameplayState::renderUi(renderer::Renderer& rendererInstance) {
     }
 }
 
-} // namespace engine::game
+}

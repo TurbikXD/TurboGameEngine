@@ -26,6 +26,6 @@ inline void reportAssert(
     std::abort();
 }
 
-} // namespace engine::core
+}
 
 #define ENGINE_ASSERT(expr, msg) ::engine::core::reportAssert((expr), #expr, (msg))

@@ -7,8 +7,6 @@
 
 namespace engine::editor {
 
-// Formats an in-memory document using the real StyLua parser on a worker thread.
-// Applying the result and checking that the document has not changed belong to the caller.
 class ScriptFormatter final {
 public:
     struct Result final {
@@ -37,4 +35,4 @@ private:
     std::unique_ptr<Impl> m_impl;
 };
 
-} // namespace engine::editor
+}

@@ -72,8 +72,6 @@ bool validTextureSize(const std::uint64_t width, const std::uint64_t height) {
     return width > 0 && height > 0 && width <= 8192 && height <= 8192 && width * height <= 16777216;
 }
 
-// stb_image supports binary P5/P6, but the engine's editable PPM assets are P3.
-// The caller has already consumed the two-byte magic; inspect contents, not extension.
 bool loadPlainPpm(std::istream& input, TextureData& output, std::string* errorMessage) {
     const auto fail = [errorMessage](const char* message) {
         if (errorMessage != nullptr) { *errorMessage = message; }
@@ -91,15 +89,12 @@ bool loadPlainPpm(std::istream& input, TextureData& output, std::string* errorMe
         return fail("Invalid P3 PPM dimensions or maximum sample value");
     }
     const auto pixelCount = static_cast<std::uint64_t>(width) * height;
-    // Match stb_image's signed-int allocation bound and reject overflow before resize.
     if (pixelCount > static_cast<std::uint64_t>(std::numeric_limits<int>::max()) / 4U) {
         return fail("P3 PPM image is too large");
     }
     const auto rasterStart = input.tellg();
     input.seekg(0, std::ios::end);
     const auto rasterEnd = input.tellg();
-    // Each RGB sample needs at least one digit and a separator (except the last).
-    // A tiny malformed file must not cause a huge allocation from its header.
     if (rasterStart < 0 || rasterEnd < rasterStart ||
         static_cast<std::uint64_t>(rasterEnd - rasterStart) < pixelCount * 6U - 1U) {
         return fail("Truncated P3 PPM pixel data");
@@ -124,6 +119,58 @@ bool loadPlainPpm(std::istream& input, TextureData& output, std::string* errorMe
     skipPpmSeparators(input);
     if (input.peek() != std::char_traits<char>::eof()) {
         return fail("Unexpected data after P3 PPM pixels");
+    }
+    output = std::move(decoded);
+    return true;
+}
+
+bool loadBinaryPnm(std::istream& input, const std::size_t components, TextureData& output, std::string* errorMessage) {
+    const auto fail = [errorMessage](const char* message) {
+        if (errorMessage) *errorMessage = message;
+        return false;
+    };
+    std::uint32_t width = 0, height = 0, maximum = 0;
+    if (!isPpmWhitespace(input.peek()) || !readPpmNumber(input, width) || !readPpmNumber(input, height) ||
+        !readPpmNumber(input, maximum) || !validTextureSize(width, height) || maximum == 0 || maximum > 65535) {
+        return fail("Invalid binary PNM header or dimensions");
+    }
+    const auto separator = input.get();
+    if (!isPpmWhitespace(separator)) return fail("Binary PNM header requires a raster separator");
+    const std::size_t bytesPerSample = maximum > 255 ? 2U : 1U;
+    if (separator == '\r' && input.peek() == '\n') {
+        const auto rasterStart = input.tellg();
+        input.seekg(0, std::ios::end);
+        const auto rasterEnd = input.tellg();
+        if (rasterStart < 0 || rasterEnd < rasterStart) return fail("Cannot determine binary PNM raster size");
+        input.seekg(rasterStart);
+        if (!input) return fail("Cannot read binary PNM raster");
+        const auto rasterBytes = static_cast<std::uint64_t>(width) * height * components * bytesPerSample;
+        if (static_cast<std::uint64_t>(rasterEnd - rasterStart) > rasterBytes) input.get();
+    }
+    std::vector<std::uint8_t> row(static_cast<std::size_t>(width) * components * bytesPerSample);
+    TextureData decoded;
+    decoded.width = static_cast<std::int32_t>(width);
+    decoded.height = static_cast<std::int32_t>(height);
+    decoded.pixels.resize(static_cast<std::size_t>(width) * height * 4U);
+    for (std::size_t y = 0; y < height; ++y) {
+        if (!input.read(reinterpret_cast<char*>(row.data()), static_cast<std::streamsize>(row.size()))) {
+            return fail("Truncated binary PNM pixel data");
+        }
+        for (std::size_t x = 0; x < width; ++x) {
+            std::uint8_t rgb[3]{};
+            for (std::size_t channel = 0; channel < components; ++channel) {
+                const auto offset = (x * components + channel) * bytesPerSample;
+                const std::uint32_t sample = bytesPerSample == 2
+                    ? (static_cast<std::uint32_t>(row[offset]) << 8U) | row[offset + 1U] : row[offset];
+                if (sample > maximum) return fail("Binary PNM sample exceeds its declared maximum");
+                rgb[channel] = static_cast<std::uint8_t>((sample * 255U + maximum / 2U) / maximum);
+            }
+            const auto pixel = (y * width + x) * 4U;
+            decoded.pixels[pixel] = rgb[0];
+            decoded.pixels[pixel + 1U] = components == 1 ? rgb[0] : rgb[1];
+            decoded.pixels[pixel + 2U] = components == 1 ? rgb[0] : rgb[2];
+            decoded.pixels[pixel + 3U] = 255;
+        }
     }
     output = std::move(decoded);
     return true;
@@ -202,10 +249,11 @@ void appendAssimpMesh(const aiMesh& sourceMesh, MeshData& outMeshData, bool& has
     }
 }
 
-} // namespace
+}
 
 bool loadMeshData(const std::string& path, MeshData& outMeshData, std::string* errorMessage) {
     ENGINE_PROFILE_ZONE("Parse Mesh Data");
+    if (errorMessage) errorMessage->clear();
     Assimp::Importer importer;
     constexpr unsigned int kImportFlags = aiProcess_Triangulate | aiProcess_JoinIdenticalVertices |
                                           aiProcess_PreTransformVertices | aiProcess_GenSmoothNormals |
@@ -223,8 +271,7 @@ bool loadMeshData(const std::string& path, MeshData& outMeshData, std::string* e
         return false;
     }
 
-    outMeshData.vertices.clear();
-    outMeshData.indices.clear();
+    MeshData decoded;
 
     std::size_t totalVertexCount = 0;
     std::size_t totalIndexCount = 0;
@@ -242,8 +289,8 @@ bool loadMeshData(const std::string& path, MeshData& outMeshData, std::string* e
         }
     }
 
-    outMeshData.vertices.reserve(totalVertexCount);
-    outMeshData.indices.reserve(totalIndexCount);
+    decoded.vertices.reserve(totalVertexCount);
+    decoded.indices.reserve(totalIndexCount);
 
     bool hasAnyNormals = false;
     for (unsigned int meshIndex = 0; meshIndex < scene->mNumMeshes; ++meshIndex) {
@@ -252,10 +299,10 @@ bool loadMeshData(const std::string& path, MeshData& outMeshData, std::string* e
             continue;
         }
 
-        appendAssimpMesh(*mesh, outMeshData, hasAnyNormals);
+        appendAssimpMesh(*mesh, decoded, hasAnyNormals);
     }
 
-    if (outMeshData.vertices.empty() || outMeshData.indices.empty()) {
+    if (decoded.vertices.empty() || decoded.indices.empty()) {
         if (errorMessage != nullptr) {
             *errorMessage = "Mesh file has no triangle geometry";
         }
@@ -263,8 +310,9 @@ bool loadMeshData(const std::string& path, MeshData& outMeshData, std::string* e
     }
 
     if (!hasAnyNormals) {
-        buildMissingNormals(outMeshData);
+        buildMissingNormals(decoded);
     }
+    outMeshData = std::move(decoded);
     return true;
 }
 
@@ -275,11 +323,12 @@ bool inspectTextureRgba8(const std::string& path, std::int32_t& width, std::int3
     {
         std::ifstream input(std::filesystem::u8path(path), std::ios::binary);
         char magic[2]{};
-        if (input.read(magic, sizeof(magic)) && magic[0] == 'P' && magic[1] == '3') {
+        if (input.read(magic, sizeof(magic)) && magic[0] == 'P' &&
+            (magic[1] == '3' || magic[1] == '5' || magic[1] == '6')) {
             std::uint32_t w = 0, h = 0, maximum = 0;
             if (!isPpmWhitespace(input.peek()) || !readPpmNumber(input, w) || !readPpmNumber(input, h) ||
                 !readPpmNumber(input, maximum) || maximum == 0 || maximum > 65535 || !validTextureSize(w, h))
-                return fail("Invalid or oversized P3 PPM header (maximum 8192 per side, 16 megapixels)");
+                return fail("Invalid or oversized PNM header (maximum 8192 per side, 16 megapixels)");
             width = static_cast<std::int32_t>(w); height = static_cast<std::int32_t>(h);
             return true;
         }
@@ -305,9 +354,6 @@ bool loadTextureDataRgba8(const std::string& path, TextureData& outTextureData, 
     if (errorMessage != nullptr) { errorMessage->clear(); }
     std::int32_t headerWidth = 0, headerHeight = 0;
     if (!inspectTextureRgba8(path, headerWidth, headerHeight, errorMessage)) return false;
-    // Decode the exact bytes whose header was validated. AI/live edits can
-    // replace or grow a file between an earlier metadata probe and the job.
-    // A bounded immutable snapshot closes that race before stb allocates pixels.
     constexpr std::size_t encodedLimit = 128 * 1024 * 1024;
     std::ifstream input(std::filesystem::u8path(path), std::ios::binary);
     if (!input) { if (errorMessage) *errorMessage = "Cannot open texture file"; return false; }
@@ -335,6 +381,12 @@ bool loadTextureDataRgba8(const std::string& path, TextureData& outTextureData, 
         std::istringstream snapshot(std::move(encoded));
         snapshot.ignore(2);
         return loadPlainPpm(snapshot, outTextureData, errorMessage);
+    }
+    if (encoded.size() >= 2 && encoded[0] == 'P' && (encoded[1] == '5' || encoded[1] == '6')) {
+        const std::size_t components = encoded[1] == '5' ? 1U : 3U;
+        std::istringstream snapshot(std::move(encoded));
+        snapshot.ignore(2);
+        return loadBinaryPnm(snapshot, components, outTextureData, errorMessage);
     }
     int width = 0;
     int height = 0;
@@ -377,6 +429,7 @@ bool loadShaderProgramSource(
     std::string* errorMessage,
     const std::filesystem::path& assetRoot) {
     ENGINE_PROFILE_ZONE("Parse Shader Manifest");
+    if (errorMessage) errorMessage->clear();
     outSource = ShaderProgramSource{};
     outSource.descriptorPath = descriptor;
     const auto resolvePaths = [&] {
@@ -461,4 +514,4 @@ bool loadShaderProgramSource(
     }
 }
 
-} // namespace engine::resources
+}

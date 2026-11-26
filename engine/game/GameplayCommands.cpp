@@ -3,6 +3,10 @@
 #include "engine/game/StateStack.h"
 #include "engine/platform/Window.h"
 #include "engine/ecs/components.h"
+#include "engine/editor/MaterialInspector.h"
+#include "engine/network/NetworkSession.h"
+#include <exception>
+#include <unordered_set>
 #include <imgui.h>
 
 namespace engine::game {
@@ -65,6 +69,11 @@ editor::CommandState GameplayState::queryEditorCommand(Command id) const {
         case Command::Play: return available(!playing || !m_simulationRunning, playing, "Simulation is already running.");
         case Command::PlayWindow: return available(!stack().playWindowRunning(), false, "The separate game is already running.");
         case Command::StopWindow: return available(stack().playWindowRunning(), false, "No separate game is running.");
+        case Command::StartNetworkTest:
+            return available(!playing && !stack().networkPlayRunning(), false,
+                playing ? "Stop in-editor Play before starting a network test." : "A network test is already running.");
+        case Command::StopNetworkTest:
+            return available(stack().networkPlayRunning(), false, "No network test is running.");
         case Command::Pause: return available(playing, playing && !m_simulationRunning, "Start Play first.");
         case Command::Stop: return available(playing, false, "The editor is already stopped.");
         case Command::StepTick: return available(playing && !m_simulationRunning && !m_stepScriptTick, false, "Pause Play before stepping one simulation tick.");
@@ -96,7 +105,6 @@ void GameplayState::finishGizmoEdit() {
 }
 
 void GameplayState::executeEditorAction(Command id) {
-    // Registry rechecks availability immediately before this owner-thread action.
     finishGizmoEdit();
     commitSceneEdit();
     if (isScriptCommand(id)) {
@@ -152,6 +160,44 @@ void GameplayState::executeEditorAction(Command id) {
         case Command::Play: if (m_editorMode == EditorMode::Edit) enterPlayMode(); else startSimulation(); break;
         case Command::PlayWindow: launchStandalonePlay(); break;
         case Command::StopWindow: stack().stopPlayWindow(); break;
+        case Command::StartNetworkTest: {
+            try {
+                const auto options = m_ribbonState.networkTest;
+                if (!options.valid()) {
+                    m_editorStatusMessage = "Network test settings are out of range.";
+                    break;
+                }
+                std::unordered_set<std::uint32_t> keys;
+                std::string error;
+                m_world.forEach<net::NetworkReplica>([&](ecs::EntityId entity, const net::NetworkReplica& replica) {
+                    if (!error.empty()) return;
+                    if (!m_world.hasComponent<ecs::Transform>(entity)) {
+                        error = entityDisplayName(entity) + " needs a Transform for network replication.";
+                    } else if (replica.key == 0 || replica.key > net::MaxReplicaKey || !keys.insert(replica.key).second) {
+                        error = entityDisplayName(entity) + " needs a unique Network Replica key from 1 to 2147483647.";
+                    }
+                });
+                const auto replicaCapacity = net::MaxReplicas - static_cast<std::size_t>(options.clientCount);
+                if (error.empty() && keys.size() > replicaCapacity) {
+                    error = "The selected client count leaves room for " + std::to_string(replicaCapacity) +
+                        " network replicas. The scene has " + std::to_string(keys.size()) + ".";
+                }
+                if (error.empty() && stack().launchNetworkPlay(
+                    serializeScene(captureSceneSnapshot(), true), editorAssetsRoot(), options, error)) {
+                    m_editorStatusMessage = "Starting the network server and " + std::to_string(options.clientCount) +
+                        (options.clientCount == 1 ? " client." : " clients.");
+                } else {
+                    m_editorStatusMessage = std::move(error);
+                }
+            } catch (const std::exception& failure) {
+                m_editorStatusMessage = failure.what();
+            }
+            break;
+        }
+        case Command::StopNetworkTest:
+            stack().stopNetworkPlay();
+            m_editorStatusMessage = "Network test stopped.";
+            break;
         case Command::Pause: if (m_simulationRunning) pauseSimulation(); else startSimulation(); break;
         case Command::Stop: stopPlayMode(); break;
         case Command::StepTick: m_stepScriptTick = true; break;
@@ -179,7 +225,6 @@ bool GameplayState::renderCommandMenuItem(Command id, const char* label) {
     const auto* definition = editor::EditorCommandRegistry::definition(id);
     if (!definition) return false;
     const auto state = m_editorCommands.state(id);
-    // Metadata uses stable null-terminated string literals.
     const bool clicked = ImGui::MenuItem(label ? label : definition->label.data(),
         definition->shortcut.empty() ? nullptr : definition->shortcut.data(), state.checked, state.enabled);
     if (!state.enabled && ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
@@ -188,20 +233,9 @@ bool GameplayState::renderCommandMenuItem(Command id, const char* label) {
     return clicked && m_editorCommands.execute(id);
 }
 
-bool GameplayState::renderCommandButton(Command id, const char* label, const ImVec2& size) {
-    const auto state = m_editorCommands.state(id);
-    ImGui::BeginDisabled(!state.enabled);
-    const bool clicked = ImGui::Button(label, size);
-    ImGui::EndDisabled();
-    if (!state.enabled && !state.disabledReason.empty() && ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
-        ImGui::SetTooltip("%.*s", static_cast<int>(state.disabledReason.size()), state.disabledReason.data());
-    }
-    return clicked && m_editorCommands.execute(id);
-}
-
 bool GameplayState::sceneShortcutsBlocked() const {
     return ImGui::GetCurrentContext() && (ImGui::GetIO().WantTextInput ||
-        m_showScriptWorkspace ||
+        m_showScriptWorkspace || editor::materialGraphEditorFocused() ||
         ImGui::IsPopupOpen(nullptr, ImGuiPopupFlags_AnyPopupId | ImGuiPopupFlags_AnyPopupLevel));
 }
-} // namespace engine::game
+}

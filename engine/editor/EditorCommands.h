@@ -20,7 +20,7 @@ enum class EditorCommandId : std::uint16_t {
     ScriptNew, ScriptOpen, ScriptSave, ScriptSaveReload, ScriptSaveAll, ScriptCheck,
     ScriptFind, ScriptGoToLine, ScriptComment, ScriptFormat, ScriptReloadDisk,
     ScriptOutput, ScriptCommand, ScriptState, ScriptErrors,
-    AddComponent,
+    AddComponent, StartNetworkTest, StopNetworkTest,
     Count
 };
 
@@ -37,8 +37,6 @@ struct EditorCommandDefinition {
     std::string_view shortcut;
 };
 
-// Presentation and shortcuts share these handlers. The owner of the scene/VM
-// supplies state and actions; the registry never owns or mutates either one.
 class EditorCommandRegistry final {
 public:
     using Query = std::function<CommandState(EditorCommandId)>;
@@ -46,7 +44,6 @@ public:
 
     void setHandlers(Query query, Action action);
     [[nodiscard]] CommandState state(EditorCommandId id) const;
-    // Rechecks current availability, even if the caller already queried it.
     bool execute(EditorCommandId id) const;
 
     [[nodiscard]] static const EditorCommandDefinition* definition(EditorCommandId id) noexcept;
@@ -57,4 +54,4 @@ private:
     Action m_action;
 };
 
-} // namespace engine::editor
+}

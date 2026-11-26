@@ -21,8 +21,6 @@ public:
     virtual std::uint32_t width() const = 0;
     virtual std::uint32_t height() const = 0;
     virtual ResourceHandle handle() const = 0;
-    // Borrowed backend SRV, valid while this image lives. ImGui's Diligent
-    // renderer expects the view, not the underlying texture's native handle.
     virtual void* uiShaderResourceView() const { return nullptr; }
 };
 
@@ -36,4 +34,4 @@ public:
     virtual ~ISampler() = default;
 };
 
-} // namespace engine::rhi
+}

@@ -7,7 +7,6 @@
 #include <glm/geometric.hpp>
 #include <glm/gtc/constants.hpp>
 
-#include "engine/ecs/transform_utils.h"
 #include "engine/platform/Input.h"
 
 namespace engine::game {
@@ -92,4 +91,4 @@ void FreeCameraController::update(
     transform.position += movement * speed * dtSeconds;
 }
 
-} // namespace engine::game
+}

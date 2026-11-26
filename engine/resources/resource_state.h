@@ -12,4 +12,4 @@ enum class ResourceLoadState : std::uint8_t {
     Reloading
 };
 
-} // namespace engine::resources
+}

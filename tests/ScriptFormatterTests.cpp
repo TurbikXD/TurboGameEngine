@@ -17,7 +17,7 @@ ScriptFormatter::Result waitForResult(ScriptFormatter& formatter) {
     }
     throw std::runtime_error("formatter result timeout");
 }
-} // namespace
+}
 
 int main(const int argc, char** argv) {
 #if !defined(_WIN32)

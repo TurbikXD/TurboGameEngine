@@ -1,13 +1,18 @@
 #include <cstdlib>
+#include <algorithm>
+#include <array>
+#include <atomic>
 #include <chrono>
 #include <cmath>
 #include <cstdint>
+#include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <memory>
 #include <stdexcept>
 #include <unordered_map>
+#include <unordered_set>
 
 #include <entt/entity/entity.hpp>
 #include <imgui.h>
@@ -17,13 +22,19 @@
 
 #include "engine/core/JobSystem.h"
 #include "engine/core/LabOptions.h"
+#include "engine/core/NetworkTestControl.h"
+#include "engine/core/NetworkTestCsv.h"
 #include "engine/core/PlaySession.h"
 #include "engine/ecs/components.h"
 #include "engine/game/GameplayState.h"
+#include "engine/game/SceneNetwork.h"
 #include "engine/game/StateStack.h"
 #include "engine/editor/EditorTheme.h"
+#include "engine/editor/MaterialInspector.h"
+#include "engine/network/NetworkSession.h"
 #include "engine/platform/Input.h"
 #include "engine/renderer/Renderer.h"
+#include "engine/resources/material.h"
 #include "engine/scripting/react/ReactUI.h"
 #include "engine/scripting/react/ReactRuntime.h"
 #include <thread>
@@ -105,7 +116,6 @@ struct GameplayStateTestAccess {
             }
             require(state.m_scriptWorkspace.assistantContext().find("external live code") != std::string::npos, "Editor document did not show AI changes live");
             require(state.m_scripts.inspect(counter)["state"]["count"] == 12, "Live document update reran Init");
-            // Same session keeps the last valid scene through incomplete AI writes.
             write(project->scenePath, "{invalid");
             for (int i=0;i<45;++i) { state.update(0.016); jobs.waitAll(); std::this_thread::sleep_for(std::chrono::milliseconds(10)); }
             require(state.m_world.isAlive(added), "Invalid live JSON discarded the scene");
@@ -114,6 +124,69 @@ struct GameplayStateTestAccess {
             require(state.m_world.getComponent<ecs::Transform>(tagged(state,"Body"))->position.x == 1, "Stop kept transient live positions");
             stack.setStandalone(true); state.onExit();
         }
+    }
+
+    static void authoredSceneIdsSurviveHistoryAndLiveSave(core::JobSystem& jobs) {
+        using Json = nlohmann::json;
+        namespace fs = std::filesystem;
+        struct Fixture {
+            fs::path root = fs::temp_directory_path() / ("tge-stable-scene-ids-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
+            ~Fixture() { std::error_code ignored; fs::remove_all(root, ignored); }
+        } fixture;
+        core::ProjectManager projects(fixture.root / "registry.json");
+        std::string error;
+        const auto project = projects.createBlank(fixture.root, "Stable", error);
+        require(project.has_value(), "Stable scene project fixture failed");
+        const auto write = [](const fs::path& path, const std::string& text) { std::ofstream out(path, std::ios::binary); out << text; require(static_cast<bool>(out), "Stable scene fixture write failed"); };
+        write(project->assetRoot / "scripts/Counter.luau", "return {fields={rate=1},Init=function(self) self.state.count=12 end,Update=function(self) self.state.count+=1 end}");
+        const Json initial = {{"version",1},{"cameraEntity",100},{"selectedEntity",200},{"entities",Json::array({
+            {{"sourceId",100},{"tag",{{"value","Camera"}}},{"transform",{{"position",{0,2,5}}}},{"camera",Json::object()}},
+            {{"sourceId",200},{"tag",{{"value","Counter"}}},{"transform",Json::object()},{"script",{{"path","scripts/Counter.luau"},{"fields",{{"rate",1}}}}}},
+            {{"sourceId",300},{"tag",{{"value","Child"}}},{"transform",{{"position",{1,2,3}}}},{"hierarchy",{{"parent",200}}}}
+        })}};
+        write(project->scenePath, initial.dump());
+        StateStack editorStack; editorStack.setServices(&jobs,nullptr); editorStack.setProject(&*project);
+        GameplayState editor(editorStack); editor.onEnter();
+        editor.enterPlayMode(); editor.stopPlayMode();
+        const auto sessionPath = fixture.root / "session.json";
+        write(sessionPath, editor.serializeScene(editor.captureSceneSnapshot(), true));
+        core::Project launch = *project; launch.scenePath = sessionPath; launch.liveScenePath = project->scenePath;
+        StateStack childStack; childStack.setServices(&jobs,nullptr); childStack.setProject(&launch); childStack.setStandalone(true);
+        GameplayState child(childStack); child.onEnter(); child.m_simulationRunning = false;
+        const auto runningCounter = tagged(child,"Counter"), runningChild = tagged(child,"Child");
+        child.m_world.getComponent<ecs::Transform>(runningCounter)->position.x = 42;
+        child.m_scripts.update(0.01);
+        const auto count = child.m_scripts.inspect(runningCounter).at("state").at("count");
+        editor.recordSceneHistory("Edit counter");
+        editor.m_world.getComponent<scripting::ScriptComponent>(tagged(editor,"Counter"))->fields["rate"] = 3;
+        editor.undoSceneEdit(); editor.redoSceneEdit();
+        require(editor.saveSceneToDisk(), "Stable scene save failed");
+        Json saved; { std::ifstream file(project->scenePath); file >> saved; }
+        const auto byTag = [](const Json& scene, const std::string& tag) {
+            for (const auto& entity : scene.at("entities")) if (entity.at("tag").at("value")==tag) return entity;
+            throw std::runtime_error("Stable scene tag missing");
+        };
+        require(byTag(saved,"Camera").at("sourceId")==100 && byTag(saved,"Counter").at("sourceId")==200 && byTag(saved,"Child").at("sourceId")==300,
+            "Saving after Stop/Undo renumbered authored scene IDs");
+        require(saved.at("cameraEntity")==100 && saved.at("selectedEntity")==200 && byTag(saved,"Child").at("hierarchy").at("parent")==200,
+            "Stable scene references did not use authored IDs");
+        child.applyLiveScene(saved);
+        require(tagged(child,"Counter")==runningCounter && tagged(child,"Child")==runningChild,
+            "Authoring save replaced running entities");
+        require(child.m_scripts.inspect(runningCounter).at("state").at("count")==count &&
+            child.m_world.getComponent<ecs::Transform>(runningCounter)->position.x==42 &&
+            child.m_world.getComponent<scripting::ScriptComponent>(runningCounter)->fields.at("rate")==3,
+            "Authoring save lost runtime state or did not apply the field delta");
+        const auto added = editor.createEditorEntity(GameplayState::EditorEntityKind::Empty);
+        editor.m_world.getComponent<ecs::Tag>(added)->value = "New";
+        editor.m_fileEntities.erase(200);
+        editor.m_fileEntities.emplace(added, tagged(editor,"Counter"));
+        const auto collision = Json::parse(editor.serializeScene(editor.captureSceneSnapshot()));
+        std::unordered_set<ecs::EntityId> ids;
+        for (const auto& entity : collision.at("entities")) require(ids.insert(entity.at("sourceId").get<ecs::EntityId>()).second, "A new entity reused an authored scene ID");
+        require(byTag(collision,"Counter").at("sourceId")==added && byTag(collision,"New").at("sourceId")!=added,
+            "New entity did not avoid an authored source ID collision");
+        child.onExit(); editor.onExit();
     }
 
     static void projectsHaveIndependentScenesAndScripts(core::JobSystem& jobs) {
@@ -309,7 +382,7 @@ struct GameplayStateTestAccess {
             require(state.m_editorMode == GameplayState::EditorMode::Play && state.m_simulationRunning,
                     "Explicit stress scene did not start simulation");
         }
-        options.scene = "ecs"; // Lab scenes retain priority, even with a stale stress environment flag.
+        options.scene = "ecs";
         options.entityCount = 64U;
         {
             GameplayState state(stack);
@@ -335,7 +408,7 @@ struct GameplayStateTestAccess {
         state.m_selectedEntity = state.m_hoveredEntity = parent;
         state.m_cameraEntity = state.m_strikerEntity = state.m_showcaseSphereEntity = parent;
         state.enterPlayMode();
-        state.m_simulationRunning = false; // Delete must also work while paused.
+        state.m_simulationRunning = false;
         state.m_gizmoWasUsing = state.m_gizmoChanged = true;
 
         platform::Event key;
@@ -350,7 +423,7 @@ struct GameplayStateTestAccess {
         require(state.m_pendingRuntimeDeletes.empty(), "Repeated key queued a deletion");
         key.repeat = false;
         state.handleEvent(key);
-        state.deleteEntity(parent); // Inspector/context menu use this same entry.
+        state.deleteEntity(parent);
         require(state.m_pendingRuntimeDeletes.size() == 1, "Duplicate requests were not coalesced");
         require(state.m_world.isAlive(parent), "UI deleted entity before the safe update boundary");
         state.update(1.0 / 60.0);
@@ -364,7 +437,7 @@ struct GameplayStateTestAccess {
                 state.m_showcaseSphereEntity == ecs::kInvalidEntity, "Entity references survived deletion");
         require(!state.m_gizmoWasUsing && !state.m_gizmoChanged, "Deleted selection left an active gizmo");
         require(state.m_undoStack.size() == 1U && state.m_editUndoStack.empty(), "Runtime deletion must have its own Play history");
-        state.deleteEntity(parent); // Dead/invalid requests are harmless.
+        state.deleteEntity(parent);
         state.deleteEntity(ecs::kInvalidEntity);
         state.stopPlayMode();
         const auto restoredParent = tagged(state, "parent");
@@ -377,7 +450,7 @@ struct GameplayStateTestAccess {
 
         state.enterPlayMode();
         state.deleteEntity(restoredParent);
-        state.stopPlayMode(); // Stop can happen before the next fixed update.
+        state.stopPlayMode();
         state.update(1.0 / 60.0);
         require(state.m_world.isAlive(tagged(state, "parent")), "Pending Play delete targeted the restored Edit scene");
         state.deleteEntity(tagged(state, "parent"));
@@ -386,6 +459,82 @@ struct GameplayStateTestAccess {
         require(state.m_world.isAlive(tagged(state, "parent")), "Undo did not restore an Edit deletion");
         state.redoSceneEdit();
         require(!state.m_world.isAlive(tagged(state, "parent")), "Redo did not reapply an Edit deletion");
+    }
+
+    static void liveDeletionCleansPausedPhysics(core::JobSystem& jobs) {
+        using Json = nlohmann::json;
+        StateStack stack; stack.setServices(&jobs, nullptr);
+        GameplayState state(stack); state.m_sceneInitialized = true;
+        require(state.m_scripts.initialize(state.m_world, &jobs, std::filesystem::temp_directory_path()),
+            "Live-delete fixture VM initialization failed");
+        state.m_scripts.registerModule("LiveDeleteCleanup", "return {Destroy=function(self) Engine.setStatus('cleanup',(Engine.getStatus('cleanup') or 0)+1) end}");
+        state.bindCollisionEventHandlers();
+        const auto parent = addBody(state, "Live parent", {0, 0, 0});
+        addBody(state, "Live neighbor", {0.4F, 0, 0});
+        state.m_world.addComponent<ecs::Camera>(parent);
+        state.m_world.addComponent<scripting::ScriptComponent>(parent, scripting::ScriptComponent{"LiveDeleteCleanup"});
+        const auto child = state.m_world.createEntity();
+        state.m_world.addComponent<ecs::Tag>(child, ecs::Tag{"Live child"});
+        state.m_world.addComponent<ecs::Transform>(child);
+        state.m_world.addComponent<ecs::Hierarchy>(child, ecs::Hierarchy{parent});
+        state.m_selectedEntity = state.m_hoveredEntity = parent;
+        state.m_cameraEntity = state.m_strikerEntity = state.m_showcaseSphereEntity = parent;
+        const auto snapshot = state.captureSceneSnapshot();
+        state.m_fileEntities = snapshot.fileEntities;
+        state.m_diskScene = Json::parse(state.serializeScene(snapshot));
+        auto next = state.m_diskScene;
+        auto& entities = next["entities"];
+        std::erase_if(entities.get_ref<Json::array_t&>(), [&](const Json& entity) { return entity["sourceId"] == parent; });
+        for (auto& entity : entities) if (entity["sourceId"] == child) entity["transform"]["position"] = {5, 0, 0};
+        std::size_t exits = 0;
+        state.m_eventBus.subscribe<ecs::CollisionExitEvent>([&](const auto&) { ++exits; });
+        state.enterPlayMode(); state.update(1.0 / 60);
+        require(state.m_physicsSystem.activeCollisionCount() == 1, "Live-delete fixture did not generate its contact");
+        state.m_simulationRunning = false;
+        state.applyLiveScene(next);
+        require(!state.m_world.isAlive(parent) && state.m_physicsSystem.activeCollisionCount() == 0 && exits == 1,
+            "Live deletion retained a paused contact or omitted its exit event");
+        require(state.m_scripts.status().value("cleanup", 0) == 1 &&
+            state.m_world.getComponent<ecs::Hierarchy>(child)->parent == ecs::kInvalidEntity &&
+            state.m_world.getComponent<ecs::Transform>(child)->position.x == 5,
+            "Live deletion skipped behavior cleanup or restored a dangling parent from the child edit");
+        require(state.m_selectedEntity != parent && state.m_hoveredEntity != parent && state.m_cameraEntity != parent &&
+            state.m_strikerEntity != parent && state.m_showcaseSphereEntity != parent && state.m_undoStack.size() == 1,
+            "Live deletion retained editor references or split its batch history");
+        const auto replacement = addBody(state, "Live replacement", {30, 0, 0});
+        require(replacement != parent && !state.m_world.isAlive(parent), "Live deletion reused a stale handle");
+        state.update(0);
+        require(state.m_world.isAlive(replacement) && exits == 1, "Paused update replayed a stale contact/deletion");
+        state.stopPlayMode();
+        require(state.m_world.isAlive(tagged(state, "Live parent")) &&
+            state.m_world.getComponent<ecs::Hierarchy>(tagged(state, "Live child"))->parent == tagged(state, "Live parent"),
+            "Stop lost the pre-live-delete authoring hierarchy");
+    }
+
+    static void collisionEventsRejectWorkerDispatch(core::JobSystem& jobs) {
+        StateStack stack; stack.setServices(&jobs, nullptr);
+        GameplayState state(stack); state.m_sceneInitialized = true;
+        require(state.m_scripts.initialize(state.m_world, &jobs, std::filesystem::temp_directory_path()),
+            "Worker event fixture VM initialization failed");
+        state.bindCollisionEventHandlers();
+        bool publishRejected = false, subscribeRejected = false, clearRejected = false;
+        std::atomic_bool done{false};
+        const auto handle = jobs.dispatch([&] {
+            try { state.m_eventBus.publish(ecs::CollisionEnterEvent{}); } catch (const std::logic_error&) { publishRejected = true; }
+            try { state.m_eventBus.subscribe<ecs::CollisionEnterEvent>([](const auto&) {}); } catch (const std::logic_error&) { subscribeRejected = true; }
+            try { state.m_eventBus.clear(); } catch (const std::logic_error&) { clearRejected = true; }
+            done.store(true, std::memory_order_release);
+        });
+        const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+        while (!done.load(std::memory_order_acquire)) {
+            require(std::chrono::steady_clock::now() < deadline, "Worker collision dispatch fixture timed out");
+            std::this_thread::yield();
+        }
+        jobs.wait(handle);
+        require(publishRejected && subscribeRejected && clearRejected && state.m_collisionEnterCount == 0,
+            "Worker EventBus access reached owner-only collision handlers or mutated the registry");
+        state.m_eventBus.publish(ecs::CollisionEnterEvent{});
+        require(state.m_collisionEnterCount == 1, "Rejected worker dispatch removed owner collision handlers");
     }
 
     static void parallelPhysicsAndRecycledIds(core::JobSystem& jobs) {
@@ -404,7 +553,7 @@ struct GameplayStateTestAccess {
         state.enterPlayMode();
         std::size_t exits = 0;
         state.m_eventBus.subscribe<ecs::CollisionExitEvent>([&](const auto&) { ++exits; });
-        state.update(1.0 / 60.0); // Real integration/proxy parallelFor, joined on return.
+        state.update(1.0 / 60.0);
         require(state.m_physicsSystem.activeCollisionCount() != 0, "Fixture generated no contacts");
         state.m_simulationRunning = false;
         state.deleteEntity(first);
@@ -416,7 +565,7 @@ struct GameplayStateTestAccess {
                 entt::to_entity(static_cast<entt::entity>(replacement - 1U)) ==
                 entt::to_entity(static_cast<entt::entity>(first - 1U)),
                 "Fixture did not reuse an entity slot with a distinct generation");
-        state.deleteEntity(first); // A stale runtime request must not target the replacement.
+        state.deleteEntity(first);
         require(state.m_pendingRuntimeDeletes.empty(), "Stale handle queued a replacement deletion");
         state.m_simulationRunning = true;
         for (int i = 0; i < 6; ++i) { state.update(1.0 / 60.0); }
@@ -454,7 +603,7 @@ struct GameplayStateTestAccess {
             ImGui::SetNextWindowPos(ImVec2(10.0F, 10.0F));
             ImGui::SetNextWindowSize(ImVec2(480.0F, 360.0F));
             ImGui::Begin("Inspector History Test", nullptr, ImGuiWindowFlags_NoSavedSettings);
-            const auto entity = state.m_selectedEntity; // Undo/Redo remap handles.
+            const auto entity = state.m_selectedEntity;
             auto* tag = state.m_world.getComponent<ecs::Tag>(entity);
             auto* body = state.m_world.getComponent<ecs::Rigidbody>(entity);
 
@@ -525,7 +674,7 @@ struct GameplayStateTestAccess {
         frame(namePoint, false, "Z");
         const auto renamed = state.m_world.getComponent<ecs::Tag>(state.m_selectedEntity)->value;
         require(renamed != "edited", "InputText fixture did not rename the entity");
-        frame(gravityPoint, true); // Switching fields commits the text edit first.
+        frame(gravityPoint, true);
         frame(gravityPoint, false);
         require(state.m_undoStack.size() == 3U && !state.m_pendingSceneEdit.has_value() &&
                 state.m_world.getComponent<ecs::Rigidbody>(state.m_selectedEntity)->useGravity,
@@ -675,13 +824,43 @@ struct GameplayStateTestAccess {
         }
         bool hud = false;
         for (const auto* window : ImGui::GetCurrentContext()->Windows) {
-            if (window->Active && std::string_view(window->Name).find("StandaloneHUD") != std::string_view::npos) {
+            if (window->Active && std::string_view(window->Name) == "##ReactGameUI") {
                 require((window->Flags & ImGuiWindowFlags_NoTitleBar) != 0, "Game HUD must not show editor window chrome");
                 hud = true;
             }
         }
         require(hud, "Standalone hid the game's own React UI");
         child.onExit(); state.onExit();
+
+        const auto onlineDirectory = session / "online";
+        fs::create_directory(onlineDirectory);
+        const auto onlineManifest = onlineDirectory / "play.json";
+        auto online = descriptor;
+        online["liveScene"] = utf8(project->scenePath);
+        online["reactPackage"] = utf8(root / "react");
+        online["onlineNetwork"] = {{"role", "server"}, {"address", 0}, {"port", 27020}, {"host", ""},
+            {"steam", false}, {"steamId", 0}, {"capacity", 16}, {"compatibility", 0x8000000000000001ULL}};
+        const auto loadOnline = [&] {
+            { std::ofstream manifest(onlineManifest); manifest << online.dump(); }
+            return core::PlaySession::load(onlineManifest, error);
+        };
+        const auto server = loadOnline();
+        require(server && server->networkRole == core::SceneNetworkRole::Server && server->networkEndpoint.port == 27020 &&
+            server->networkEndpoint.address == 0 && server->networkMaxPeers == 16 &&
+            server->networkCompatibility == 0x8000000000000001ULL && server->project.scenePath == session / "scene.json" &&
+            server->project.liveScenePath.empty() && server->networkStopPath == session / "stop" &&
+            server->networkReadyPath == session / "ready" && server->reactPackage == root / "react" &&
+            server->networkControlDirectory.empty(), "Online host launch lost its isolated scene or bind settings");
+
+        online["onlineNetwork"]["role"] = "client";
+        online["onlineNetwork"]["host"] = "example.invalid:27021";
+        online["onlineNetwork"]["port"] = 0;
+        const auto client = loadOnline();
+        require(client && client->networkRole == core::SceneNetworkRole::Client &&
+            client->networkHost == "example.invalid:27021" && client->networkStopPath.empty() &&
+            client->networkControlDirectory.empty(), "Online join launch did not preserve the host for child DNS resolution");
+        online["onlineNetwork"]["compatibility"] = 0;
+        require(!loadOnline() && !error.empty(), "Online launch accepted a missing scene identity");
     }
 
     static void standaloneProcessSmoke(const std::filesystem::path& executable, core::JobSystem& jobs) {
@@ -714,7 +893,7 @@ struct GameplayStateTestAccess {
         session.stop();
         require(!session.running() && !std::filesystem::exists(directory), "Stop left a process or temporary scene behind");
         require(scene == state.serializeScene(state.captureSceneSnapshot()), "Standalone process changed the editor's world");
-        stack.setStandalone(true); // The smoke harness must not rewrite editor preferences.
+        stack.setStandalone(true);
         state.onExit();
     }
 
@@ -752,7 +931,6 @@ struct GameplayStateTestAccess {
                 })
             end
             __nativeRoot=UI.createRoot({Name='StyledNativeTest'}); __nativeRoot:render(e(Panel))
-            -- The native renderer must not execute metamethods, including nested layout values.
             setmetatable(__nativeFirst.current.props,{__index=function() error('Native props metamethod') end})
         )", "=StyledNativeFixture"), "Styled UI fixture failed");
         auto& io = ImGui::GetIO();
@@ -767,7 +945,7 @@ struct GameplayStateTestAccess {
         const auto bounds = [](const ImU32 color) {
             Bounds result;
             for (const auto* window : ImGui::GetCurrentContext()->Windows) {
-                if (!window->Active || std::string_view(window->Name).find("StyledNativeTest") == std::string_view::npos) continue;
+                if (!window->Active || std::string_view(window->RootWindow->Name) != "##ReactGameUI") continue;
                 for (const auto& vertex : window->DrawList->VtxBuffer) if (vertex.col == color) {
                     result.left=std::min(result.left,vertex.pos.x); result.top=std::min(result.top,vertex.pos.y);
                     result.right=std::max(result.right,vertex.pos.x); result.bottom=std::max(result.bottom,vertex.pos.y); ++result.vertices;
@@ -804,7 +982,7 @@ struct GameplayStateTestAccess {
         const auto resized = bounds(IM_COL32(210,20,30,255));
         require(near(resized.left,240) && near(resized.right,760), "Scale layout did not respond to a resized game viewport");
         for (const auto* window : ImGui::GetCurrentContext()->Windows) {
-            if (window->Active && !window->ParentWindow && std::string_view(window->Name).find("StyledNativeTest") != std::string_view::npos)
+            if (window->Active && !window->ParentWindow && std::string_view(window->Name) == "##ReactGameUI")
                 require(!window->ScrollbarX && !window->ScrollbarY && window->Scroll.y == 0.0F &&
                         (window->Flags & ImGuiWindowFlags_NoScrollWithMouse) != 0, "A fullscreen HUD developed scrollbars or scroll-wheel movement");
         }
@@ -830,12 +1008,185 @@ struct GameplayStateTestAccess {
         require(scripting::ReactRuntime::reset(scripts), "Legacy UI reset failed");
     }
 
+    static void embeddedReactViewportLayoutAndInput() {
+        ecs::World world;
+        scripting::ScriptingSystem scripts;
+        require(scripts.initialize(world, nullptr, "assets") && scripting::ReactRuntime::install(scripts), "Embedded UI initialization failed");
+        require(scripts.execute(R"(
+            local React=require('React'); local UI=require('ReactTurbo'); local e=React.createElement
+            __embeddedClicks=0; __embeddedClipClicks=0; __embeddedScreen=React.createRef()
+            __embeddedRoot=UI.createRoot({Name='EmbeddedRoot'})
+            __embeddedRoot:render(e('ScreenGui',{ref=__embeddedScreen},{
+                First=e('TextButton',{Text='Embedded',Position=UDim2.fromOffset(20,20),Size=UDim2.new(.5,0,0,30),
+                    BackgroundColor3=Color3.fromRGB(20,180,80),AutoButtonColor=false,
+                    [React.Event.Activated]=function() __embeddedClicks+=1 end}),
+                Clipped=e('TextButton',{Text='',Position=UDim2.fromOffset(-20,80),Size=UDim2.fromOffset(60,30),
+                    [React.Event.Activated]=function() __embeddedClipClicks+=1 end}),
+                Scroll=e('ScrollingFrame',{Position=UDim2.fromOffset(250,100),Size=UDim2.fromOffset(80,80),
+                    CanvasSize=UDim2.fromOffset(80,200),ScrollBarThickness=4}),
+                Group=e('CanvasGroup',{Position=UDim2.fromOffset(340,130),Size=UDim2.fromOffset(50,60),
+                    BackgroundColor3=Color3.fromRGB(210,40,90),GroupTransparency=.5}),
+            }))
+            __embeddedOther=UI.createRoot({Name='EmbeddedSecondRoot'})
+            __embeddedOther:render(e('ScreenGui',{}, {e('TextLabel',{Text='Second root',
+                Position=UDim2.new(1,-90,0,0),Size=UDim2.fromOffset(90,20),BackgroundTransparency=1})}))
+        )", "=EmbeddedViewportFixture"), "Embedded UI fixture failed");
+        auto& io = ImGui::GetIO();
+        io.IniFilename = nullptr; io.DisplaySize = {1000, 700}; io.DeltaTime = 1.0F / 60;
+        ImGui::ClearActiveID();
+        scripting::ReactUI::Viewport region{200,160,400,240};
+        const int stackTop = lua_gettop(scripts.state());
+        unsigned capturedGroups=0;
+        const scripting::ReactUI::CanvasResolver canvas=[&](const void*, const ImDrawList& list, float x, float y, float width, float height) {
+            require(x==region.x+340 && y==region.y+130 && width==50 && height==60 && list.VtxBuffer.Size>0,
+                "Embedded CanvasGroup used window rather than viewport coordinates");
+            for(const auto& vertex:list.VtxBuffer)
+                require(vertex.pos.x>=x && vertex.pos.x<=x+width && vertex.pos.y>=y && vertex.pos.y<=y+height,
+                    "Embedded CanvasGroup captured unrelated editor/HUD geometry");
+            ++capturedGroups;
+            return scripting::ReactUI::Image{reinterpret_cast<void*>(1),width,height};
+        };
+        const auto frame = [&](const ImVec2 mouse, const bool down) {
+            io.AddMousePosEvent(mouse.x, mouse.y); io.AddMouseButtonEvent(ImGuiMouseButton_Left, down);
+            ImGui::NewFrame();
+            ImGui::SetNextWindowPos({150,80}); ImGui::SetNextWindowSize({700,500});
+            ImGui::Begin("EmbeddedViewportHost", nullptr, ImGuiWindowFlags_NoSavedSettings);
+            ImGui::TextUnformatted("Editor header");
+            auto* window = ImGui::GetCurrentWindow();
+            const auto cursor = window->DC.CursorPos, maximum = window->DC.CursorMaxPos;
+            const auto clip = window->ClipRect;
+            const int ids = window->IDStack.Size, styles = ImGui::GetCurrentContext()->StyleVarStack.Size;
+            const bool captured = scripting::ReactUI::drawInViewport(scripts, region, {}, canvas);
+            require(window->IDStack.Size == ids && ImGui::GetCurrentContext()->StyleVarStack.Size == styles &&
+                window->DC.CursorPos.x == cursor.x && window->DC.CursorPos.y == cursor.y &&
+                window->DC.CursorMaxPos.x == maximum.x && window->DC.CursorMaxPos.y == maximum.y &&
+                window->ClipRect.Min.x == clip.Min.x && window->ClipRect.Max.y == clip.Max.y,
+                "Embedded HUD leaked host layout, clip or ID/style state");
+            ImGui::TextUnformatted("Editor footer");
+            ImGui::End(); ImGui::Render();
+            require(lua_gettop(scripts.state()) == stackTop, "Embedded drawing leaked the Lua stack");
+            for (const auto* other : ImGui::GetCurrentContext()->Windows)
+                require(!other->Active || std::string_view(other->Name).find("##ReactRoot") == std::string_view::npos,
+                    "Embedded HUD created a separate root window");
+            return captured;
+        };
+        frame({900,600},false); frame({900,600},false);
+        require(capturedGroups>=2, "Embedded CanvasGroup was not composited by the supplied resolver");
+        require(scripts.execute("assert(__embeddedScreen.current.props.AbsolutePosition.X==200 and __embeddedScreen.current.props.AbsolutePosition.Y==160 and __embeddedScreen.current.props.AbsoluteSize.X==400 and __embeddedScreen.current.props.AbsoluteSize.Y==240)", "=EmbeddedGeometry"),
+            "Embedded ScreenGui did not use the viewport origin and size");
+        require(frame({240,195},false), "Embedded button did not capture pointer input");
+        frame({240,195},true); frame({240,195},false);
+        require(scripting::ReactRuntime::pump(scripts,0) && scripts.execute("assert(__embeddedClicks==1)", "=EmbeddedClick"),
+            "A second root intercepted the embedded button or click was dispatched more than once");
+        frame({190,250},false); frame({190,250},true); frame({190,250},false);
+        require(scripting::ReactRuntime::pump(scripts,0) && scripts.execute("assert(__embeddedClipClicks==0)", "=EmbeddedOutside"),
+            "Embedded UI accepted input outside the viewport clip");
+        frame({210,250},false); frame({210,250},true); frame({210,250},false);
+        require(scripting::ReactRuntime::pump(scripts,0) && scripts.execute("assert(__embeddedClipClicks==1)", "=EmbeddedInside"),
+            "Viewport clipping prevented a visible button portion from receiving input");
+        require(frame({480,285},false), "Scrolling HUD surface did not capture input");
+        frame({528,270},false); frame({528,270},true);
+        require(frame({700,290},true), "Dragging a HUD scrollbar outside the viewport released input capture");
+        require(!frame({700,290},false), "Released HUD scrollbar retained input capture outside the viewport");
+        region.width=520; region.height=300;
+        frame({900,600},false);
+        require(scripts.execute("assert(__embeddedScreen.current.props.AbsoluteSize.X==520 and __embeddedScreen.current.props.AbsoluteSize.Y==300)", "=EmbeddedResize"),
+            "Embedded UI did not respond to viewport resize");
+        region.width=0;
+        require(!frame({240,195},false), "Zero-sized viewport consumed input");
+        require(scripting::ReactRuntime::reset(scripts), "Embedded HUD reset failed");
+    }
+
+    static void editorHudUsesViewport(core::JobSystem& jobs) {
+        namespace fs = std::filesystem;
+        struct Fixture {
+            fs::path root=fs::temp_directory_path() / ("tge-editor-hud-"+std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
+            ~Fixture() {std::error_code ignored; fs::remove_all(root,ignored);}
+        } fixture;
+        core::ProjectManager projects(fixture.root / "registry.json");
+        std::string error;
+        const auto project=projects.createBlank(fixture.root,"Embedded",error);
+        require(project.has_value(), "Editor HUD project fixture failed");
+        StateStack stack; stack.setServices(&jobs,nullptr); stack.setProject(&*project);
+        GameplayState state(stack); state.onEnter();
+        state.m_showAssistant=state.m_showHierarchyPanel=state.m_showProjectPanel=state.m_showInspectorPanel=state.m_showStatsPanel=false;
+        state.m_showViewportPanel=true; state.m_showScriptWorkspace=false;
+        state.enterPlayMode();
+        require(state.m_scripts.execute(R"(
+            local React=require('React'); local UI=require('ReactTurbo'); local e=React.createElement
+            __editorHudClicks=0; __editorHudScreen=React.createRef()
+            UI.createRoot({Name='EditorEmbeddedFixture'}):render(e('ScreenGui',{ref=__editorHudScreen},{
+                e('Frame',{Size=UDim2.fromScale(1,1),BackgroundColor3=Color3.fromRGB(13,47,91),BorderSizePixel=0}),
+                e('TextButton',{Text='HUD action',Position=UDim2.fromOffset(20,20),Size=UDim2.fromOffset(100,40),
+                    [React.Event.Activated]=function() __editorHudClicks+=1 end})
+            }))
+        )", "=EditorHudFixture"), "Editor HUD setup failed");
+        renderer::Renderer renderer;
+        auto& io=ImGui::GetIO(); io.IniFilename=nullptr; io.DisplaySize={1280,720}; io.DeltaTime=1.0F/60;
+        ImGui::ClearActiveID(); platform::InputManager::reset();
+        const auto frame=[&](const ImVec2 mouse,const bool down) {
+            io.AddMousePosEvent(mouse.x,mouse.y); io.AddMouseButtonEvent(ImGuiMouseButton_Left,down);
+            ImGui::NewFrame(); state.renderEditorUi(renderer); ImGui::Render();
+            for(const auto* window:ImGui::GetCurrentContext()->Windows)
+                require(!window->Active || std::string_view(window->Name).find("##ReactRoot")==std::string_view::npos,
+                    "Editor Play created a detached HUD window");
+        };
+        frame({-1000,-1000},false); frame({-1000,-1000},false);
+        require(state.m_scripts.execute("assert(__editorHudScreen.current.props.AbsoluteSize.X>320)", "=EditorHudSize"),
+            "Editor did not render its HUD into the viewport");
+        const auto selected=state.m_world.createEntity();
+        const auto camera=state.buildActiveCameraFrame(renderer, 1.0F);
+        const glm::vec3 position=glm::inverse(camera.view)*glm::vec4(0,0,-5,1);
+        state.m_world.addComponent<ecs::Transform>(selected).position=position;
+        state.m_selectedEntity=selected; state.m_selectionToolActive=false;
+        frame({-1000,-1000},false);
+        const auto* viewport=ImGui::FindWindowByName("Viewport");
+        require(viewport!=nullptr, "Editor viewport window missing");
+        unsigned int precedingVertex=0;
+        bool hudCoversGizmo=false;
+        for(const auto& command:viewport->DrawList->CmdBuffer) {
+            for(unsigned int i=0;i<command.ElemCount;++i) {
+                const unsigned int vertex=command.VtxOffset+viewport->DrawList->IdxBuffer[command.IdxOffset+i];
+                if(viewport->DrawList->VtxBuffer[vertex].col==IM_COL32(13,47,91,255)) {
+                    hudCoversGizmo=precedingVertex>vertex;
+                    break;
+                }
+                precedingVertex=std::max(precedingVertex,vertex);
+            }
+            if(hudCoversGizmo) break;
+        }
+        require(hudCoversGizmo, "Editor gizmo was drawn over the HUD");
+        const ImVec2 point{state.m_viewportPosition.x+50,state.m_viewportPosition.y+40};
+        frame(point,false); frame(point,true);
+        require(state.m_viewportUiCaptured && state.m_hoveredEntity==ecs::kInvalidEntity,
+            "HUD mouse input did not suppress scene picking/hover");
+        platform::Event rightClick; rightClick.type=platform::EventType::MouseButtonPressed; rightClick.mouseButton=platform::MouseButton::Right;
+        state.handleEvent(rightClick);
+        require(!state.m_cameraLookActive, "HUD right click activated the editor camera");
+        frame(point,false);
+        require(scripting::ReactRuntime::pump(state.m_scripts,0) && state.m_scripts.execute("assert(__editorHudClicks==1)", "=EditorHudClick"),
+            "Editor HUD event was not delivered exactly once");
+        frame({state.m_viewportPosition.x+20,state.m_viewportPosition.y-10},false);
+        require(!state.m_viewportHovered && !state.m_viewportUiCaptured, "Viewport header was treated as game input");
+        state.m_showViewportPanel=false;
+        frame(point,false);
+        require(!state.m_viewportHovered && !state.m_viewportFocused && !state.m_viewportUiCaptured,
+            "Hidden viewport retained gameplay focus/input");
+        state.m_showViewportPanel=true; state.m_showScriptWorkspace=true;
+        frame(point,false);
+        require(!state.m_viewportHovered && !state.m_viewportUiCaptured, "Script workspace retained viewport HUD input");
+        state.m_showScriptWorkspace=false;
+        state.stopPlayMode(); state.onExit();
+    }
+
     static void robloxInstanceLayoutAndSignals() {
         ecs::World world;
         scripting::ScriptingSystem scripts;
         require(scripts.initialize(world, nullptr, "assets") && scripting::ReactRuntime::install(scripts), "Roblox native UI runtime initialization failed");
         require(scripts.execute(R"(
             local React=require('React'); local ReactRoblox=require('ReactRoblox'); local e=React.createElement
+            __compatHud=ReactRoblox.createRoot(Instance.new('ScreenGui'))
+            __compatHud:render(e('TextLabel',{Text='HUD',Position=UDim2.fromOffset(350,20),Size=UDim2.fromOffset(100,32)}))
             __compatScreen=Instance.new('ScreenGui'); __compatScreen.Name='RobloxNativeTest'
             __compatFrame=React.createRef(); __compatFirst=React.createRef(); __compatList=React.createRef(); __compatText=React.createRef()
             __compatSizeChanges=0; __compatSignalChanges=0; __compatClicks=0
@@ -854,7 +1205,6 @@ struct GameplayStateTestAccess {
             }))
             __compatFrame.current:GetPropertyChangedSignal('AbsoluteSize'):Connect(function() __compatSignalChanges+=1 end)
             __compatEmptyRoot=require('ReactTurbo').createRoot({Name='EmptyPortalOwner'})
-            -- Native drawing must ignore metatables even when publishing geometry.
             setmetatable(__compatFrame.current.props,{__index=function() error('Native Instance props metamethod') end})
         )", "=RobloxNativeFixture"), "Roblox Instance/Enum UI fixture failed");
         auto& io = ImGui::GetIO();
@@ -893,7 +1243,7 @@ struct GameplayStateTestAccess {
             "Changing an Instance property did not update native layout or notify its sized parent");
         frame(ImVec2(90,80),false); frame(ImVec2(90,80),true); frame(ImVec2(90,80),false);
         require(scripting::ReactRuntime::pump(scripts,0) && scripts.execute("assert(__compatClicks==1)", "=RobloxNativeClick"),
-            "A mutated Roblox-style Instance button stopped receiving clicks");
+            "The standalone HUD intercepted a button in another React root");
         require(scripts.execute("__compatScreen.Enabled=false", "=RobloxNativeDisable"), "ScreenGui.Enabled mutation failed");
         frame(ImVec2(90,80),false); frame(ImVec2(90,80),true); frame(ImVec2(90,80),false);
         require(scripting::ReactRuntime::pump(scripts,0) && scripts.execute("assert(__compatClicks==1)", "=RobloxNativeDisabledClick"),
@@ -1026,7 +1376,7 @@ struct GameplayStateTestAccess {
             assert(__advancedImage.current.IsLoaded)
         )","=AdvancedNativeGeometry"),"UIScale, constraints, grid or automatic canvas geometry failed");
         bool middle=false,fit=false,crop=false,tile=false,slice=false;
-        for (const auto* window:ImGui::GetCurrentContext()->Windows) if (window->Active && std::string_view(window->Name).find("AdvancedNativeTest")!=std::string_view::npos) {
+        for (const auto* window:ImGui::GetCurrentContext()->Windows) if (window->Active && std::string_view(window->RootWindow->Name)=="##ReactGameUI") {
             for (const auto& vertex:window->DrawList->VtxBuffer) {
                 const auto color=ImGui::ColorConvertU32ToFloat4(vertex.col);
                 if (vertex.pos.x>=20 && vertex.pos.x<36 && vertex.pos.y>=20 && vertex.pos.y<36)
@@ -1116,8 +1466,6 @@ struct GameplayStateTestAccess {
             textures[found->second]={std::shared_ptr<ImDrawList>(list.CloneOutput(),[](ImDrawList* value){IM_DELETE(value);}),{x,y},{width,height}};
             return scripting::ReactUI::Image{reinterpret_cast<void*>(found->second),width,height};
         };
-        // Tiny deterministic CPU oracle: source-over in premultiplied storage,
-        // then unpremultiply each offscreen group before sampling its texture.
         std::function<ImVec4(const ImDrawList&,ImVec2,int)> sample;
         sample=[&](const ImDrawList& list,ImVec2 point,int depth) {
             ImVec4 accumulated;
@@ -1153,7 +1501,7 @@ struct GameplayStateTestAccess {
             require(lua_gettop(scripts.state())==top,"Canvas drawing leaked the Lua stack");
         };
         const auto output=[&](ImVec2 point) {
-            for (const auto* window:ImGui::GetCurrentContext()->Windows) if (window->Active && std::string_view(window->Name).find("CanvasNativeTest")!=std::string_view::npos)
+            for (const auto* window:ImGui::GetCurrentContext()->Windows) if (window->Active && std::string_view(window->Name)=="##ReactGameUI")
                 return sample(*window->DrawList,point,0);
             return ImVec4{};
         };
@@ -1190,11 +1538,59 @@ struct GameplayStateTestAccess {
         require(scripting::ReactRuntime::reset(scripts),"Canvas native cleanup failed");
     }
 
+    static void importedScriptDemoHasEditableBehaviors(core::JobSystem& jobs) {
+        namespace fs = std::filesystem;
+        struct Fixture {
+            fs::path root = fs::temp_directory_path() / ("tge-imported-properties-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
+            ~Fixture() { std::error_code ignored; fs::remove_all(root, ignored); }
+        } fixture;
+        core::ProjectManager projects(fixture.root / "registry.json");
+        std::string error;
+        const auto project = projects.createBlank(fixture.root, "EditableGame", error);
+        require(project.has_value(), "Could not create import fixture project");
+        StateStack stack; stack.setServices(&jobs, nullptr); stack.setProject(&*project);
+        GameplayState state(stack); state.onEnter(); state.createScriptDemo();
+        require(fs::is_regular_file(project->assetRoot / "scripts/Collectible.luau"), "Imported demo is missing its collectible behavior");
+        auto controller = tagged(state, "Collectathon Controller");
+        auto* script = state.m_world.getComponent<scripting::ScriptComponent>(controller);
+        require(script != nullptr && state.m_scripts.setField(*script, "countdownRate", 0) &&
+            state.m_scripts.setField(*script, "tokenCount", 3) && state.m_scripts.setField(*script, "pointsPerToken", 7),
+            "Imported game did not expose its gameplay properties");
+        const auto before = state.captureSceneSnapshot();
+        const auto authored = script->fields;
+        state.enterPlayMode(); state.update(1.0/60.0);
+        require(state.m_scripts.execute("assert(#Engine.find('ScriptToken')==3)", "=ImportedTokens"), "Imported token count was ignored");
+        const auto remaining = state.m_scripts.status().at("remaining");
+        state.update(1.0/60.0);
+        require(state.m_scripts.status().at("remaining") == remaining, "Imported countdownRate did not freeze the clock");
+        require(state.m_scripts.execute("local p=Engine.find('ScriptPlayer')[1]; local t=Engine.find('ScriptToken')[1]; Engine.setPosition(p,Engine.getPosition(t))", "=ImportedPickup"),
+            "Could not arrange imported pickup");
+        state.update(1.0/60.0);
+        require(state.m_scripts.status().value("score", 0)==7, "Imported pointsPerToken was ignored");
+        state.stopPlayMode();
+        controller = tagged(state, "Collectathon Controller");
+        require(state.m_world.getComponent<scripting::ScriptComponent>(controller)->fields==authored,
+            "Imported Play changed authored fields");
+        const auto componentsByTag = [&](const GameplayState::SceneSnapshot& snapshot) {
+            auto components = nlohmann::json::object();
+            const auto serialized = nlohmann::json::parse(state.serializeScene(snapshot));
+            for (auto entity : serialized.at("entities")) {
+                const auto tag = entity.at("tag").at("value").get<std::string>();
+                entity.erase("sourceId");
+                components[tag] = std::move(entity);
+            }
+            return components;
+        };
+        require(componentsByTag(state.captureSceneSnapshot())==componentsByTag(before), "Imported Stop did not restore its authored components");
+        require(state.m_selectedEntity==controller && state.m_world.aliveCount()==before.entities.size(), "Imported Stop lost selection or retained runtime objects");
+        requireNoScriptErrors(state); state.onExit();
+    }
+
     static void scriptDemoLifecycleAndSceneHistory(core::JobSystem& jobs) {
         StateStack stack;
         stack.setServices(&jobs, nullptr);
         GameplayState state(stack);
-        state.onEnter(); // Reads editor preferences; no onExit/save is invoked by this test.
+        state.onEnter();
         const auto initialCount = state.m_world.aliveCount();
         state.createScriptDemo();
         require(state.m_world.aliveCount() == initialCount + 2U, "Script demo did not add controller and React HUD");
@@ -1226,7 +1622,7 @@ struct GameplayStateTestAccess {
         state.redoSceneEdit();
         const auto restoredCopy = tagged(state, "Collectathon Controller_copy");
         require(state.m_world.getComponent<scripting::ScriptComponent>(restoredCopy)->fields == expectedFields, "Redo lost duplicated script fields");
-        state.undoSceneEdit(); // Keep one game controller so session assertions are deterministic.
+        state.undoSceneEdit();
         controller = tagged(state, "Collectathon Controller");
         state.enterPlayMode();
         state.update(1.0 / 60.0);
@@ -1283,6 +1679,517 @@ struct GameplayStateTestAccess {
         requireNoScriptErrors(state);
     }
 
+    static void networkTestUsesUnsavedReplicaScene(core::JobSystem& jobs) {
+        using Command = editor::EditorCommandId;
+        using Json = nlohmann::json;
+        StateStack stack;
+        stack.setServices(&jobs, nullptr);
+        bool running = false;
+        std::string launchedScene;
+        std::filesystem::path launchedAssets;
+        net::NetworkTestOptions launchedOptions;
+        unsigned starts = 0;
+        unsigned stops = 0;
+        stack.setNetworkPlayCallbacks([&](const std::string& scene, const std::filesystem::path& assets,
+            const net::NetworkTestOptions& options, std::string&) {
+            launchedScene = scene;
+            launchedAssets = assets;
+            launchedOptions = options;
+            ++starts;
+            return running = true;
+        }, [&] { ++stops; running = false; }, [&] { return running; }, [] { return std::string_view{}; });
+
+        GameplayState state(stack);
+        state.m_sceneInitialized = true;
+        state.createEditorCamera();
+        auto body = addBody(state, "Network Body", {2.0F, 3.0F, 0.0F});
+        state.m_world.addComponent<net::NetworkReplica>(body, net::NetworkReplica{91});
+        state.m_selectedEntity = body;
+        const auto replica = [&](ecs::EntityId entity) { return state.m_world.getComponent<net::NetworkReplica>(entity); };
+        const auto findBody = [](Json& scene) -> Json& {
+            for (auto& entity : scene.at("entities")) {
+                if (entity.value("tag", Json::object()).value("value", "") == "Network Body") return entity;
+            }
+            throw std::runtime_error("Network scene snapshot is missing the selected entity");
+        };
+
+        auto snapshot = state.captureSceneSnapshot();
+        auto authored = Json::parse(state.serializeScene(snapshot));
+        require(findBody(authored).at("networkReplica").at("key") == 91, "Scene serialization lost the replica key");
+        state.restoreSceneSnapshot(state.parseScene(authored));
+        body = tagged(state, "Network Body");
+        require(replica(body) && replica(body)->key == 91, "Restoring the scene lost the replica key");
+        const auto copy = state.duplicateEntity(body);
+        require(replica(copy) && replica(copy)->key != 91, "Duplicate did not allocate an independent replica key");
+        const auto copyKey = replica(copy)->key;
+        state.undoSceneEdit();
+        require(tagged(state, "Network Body_copy") == ecs::kInvalidEntity, "Undo retained the duplicated replica");
+        state.redoSceneEdit();
+        const auto restoredCopy = tagged(state, "Network Body_copy");
+        require(replica(restoredCopy) && replica(restoredCopy)->key == copyKey, "Redo changed the copied replica key");
+        state.undoSceneEdit();
+        body = tagged(state, "Network Body");
+
+        auto invalid = authored;
+        findBody(invalid)["networkReplica"]["key"] = -1;
+        bool rejectedKey = false;
+        try { (void)state.parseScene(invalid); }
+        catch (const std::runtime_error&) { rejectedKey = true; }
+        require(rejectedKey, "Scene parser accepted an out-of-range replica key");
+        state.m_diskScene = authored;
+        auto changed = authored;
+        findBody(changed)["networkReplica"]["key"] = 92;
+        state.applyLiveScene(changed);
+        require(replica(body) && replica(body)->key == 92, "Live scene merge discarded the replica key edit");
+
+        auto duplicate = addBody(state, "Invalid Replica", {0.0F, 0.0F, 0.0F});
+        state.m_world.addComponent<net::NetworkReplica>(duplicate, net::NetworkReplica{92});
+        require(state.m_editorCommands.execute(Command::StartNetworkTest) && starts == 0 &&
+            state.m_editorStatusMessage.find("unique") != std::string::npos,
+            "Network Test accepted ambiguous authored keys");
+        state.m_world.destroyEntity(duplicate);
+        state.m_world.getComponent<ecs::Transform>(body)->position.x = 19.0F;
+        state.m_editorMode = GameplayState::EditorMode::Play;
+        require(!state.m_editorCommands.state(Command::StartNetworkTest).enabled, "Network Test captured the simulated Play world");
+        state.m_editorMode = GameplayState::EditorMode::Edit;
+        state.m_ribbonState.networkTest = {3, 120, 25};
+        require(!state.m_editorCommands.state(Command::StopNetworkTest).enabled, "Network Stop was enabled before launch");
+        require(state.m_editorCommands.execute(Command::StartNetworkTest) && starts == 1 && running,
+            "Network Test did not dispatch the launch callback");
+        auto launch = Json::parse(launchedScene);
+        require(findBody(launch).at("networkReplica").at("key") == 92 &&
+            findBody(launch).at("transform").at("position").at(0) == 19.0 &&
+            launchedAssets == state.editorAssetsRoot(), "Network Test did not send the unsaved scene and project assets");
+        require(launchedOptions.clientCount == 3 && launchedOptions.latencyMs == 120 &&
+            launchedOptions.lossPercent == 25, "Network Test discarded the selected launch options");
+        require(!state.m_editorCommands.execute(Command::StartNetworkTest), "Network Test allowed a second group while running");
+        require(state.m_editorCommands.execute(Command::StopNetworkTest) && stops == 1 && !running,
+            "Network Stop did not dispatch the group stop callback");
+        state.m_ribbonState.networkTest.clientCount = net::MaxNetworkTestClients;
+        for (std::size_t i = 0; i < net::MaxReplicas - net::MaxNetworkTestClients; ++i) {
+            const auto entity = addBody(state, "Capacity Replica", {0.0F, 0.0F, 0.0F});
+            state.m_world.addComponent<net::NetworkReplica>(entity, net::NetworkReplica{100U + static_cast<std::uint32_t>(i)});
+        }
+        require(state.m_editorCommands.execute(Command::StartNetworkTest) && starts == 1 &&
+            state.m_editorStatusMessage.find("room for") != std::string::npos,
+            "Network Test exceeded the replica budget for the selected client count");
+    }
+
+    static void networkTestCsvPreservesSamples() {
+        struct Fixture {
+            std::filesystem::path directory;
+            ~Fixture() {
+                if (directory.empty()) return;
+                std::error_code ignored;
+                std::filesystem::remove(directory / "run.csv", ignored);
+                std::filesystem::remove(directory, ignored);
+            }
+        } fixture;
+        const auto directory = std::filesystem::temp_directory_path() / ("tge-network-test-csv-" +
+            std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
+        require(std::filesystem::create_directory(directory), "Could not create Network Test CSV fixture");
+        fixture.directory = directory;
+        const auto path = directory / "run.csv";
+        const auto write = [&](std::string_view rows) {
+            std::ofstream file(path, std::ios::binary);
+            file << "\xef\xbb\xbf" << core::NetworkTestCsvHeader << "\r\n" << rows;
+            require(static_cast<bool>(file), "Could not write Network Test CSV fixture");
+        };
+        write("2,4000,1,1,0,0,42,0,0,0,2048,16,0,0\n"
+              "1,4250,1,2,100,20,,22.5,,0,,,,\r\n"
+              "1,4000,1,1,0,0,0,0,0,0,0,0,1024,16\n");
+        std::string error;
+        const auto run = core::readNetworkTestCsv(path, error);
+        require(run && error.empty() && run->clients.size() == 2, "Could not import both CSV clients");
+        const auto& first = run->clients.at(1).points();
+        const auto& second = run->clients.at(2).points();
+        require(first.size() == 2 && first.front().elapsedMs == 4000 && first.back().elapsedMs == 4250 &&
+            first.back().breakBefore && first.back().profile.revision == 2 && first.back().profile.conditions.latencyMs == 100,
+            "CSV did not preserve elapsed time, sample order, profile or segment break");
+        require(first.front().metrics.rttMs == 0U && first.front().metrics.upload && first.front().metrics.upload->bytesPerSecond == 0.0 &&
+            !first.back().metrics.rttMs && !first.back().metrics.upload && first.back().metrics.uplinkLossPercent == 22.5 &&
+            !first.back().metrics.downlinkLossPercent && second.size() == 1 && second.front().metrics.rttMs == 42U,
+            "CSV did not preserve per-client measurements, missing values and zero values");
+        write("1,4000,1,1,0,0,42,0,nan,0,0,0,0,0\n");
+        require(!core::readNetworkTestCsv(path, error) && error.find("Line 2: Invalid packet loss") != std::string::npos,
+            "CSV accepted nonfinite loss or omitted the invalid row diagnostic");
+    }
+
+    static void networkTestSummaryCsvPreservesComparison() {
+        namespace fs = std::filesystem;
+        struct Fixture {
+            fs::path root;
+            std::vector<fs::path> files;
+            ~Fixture() {
+                std::error_code ignored;
+                for (const auto& file : files) fs::remove(file, ignored);
+                if (!root.empty()) fs::remove(root, ignored);
+            }
+        } fixture;
+        const auto root = fs::temp_directory_path() / ("tge-network-summary-" +
+            std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
+        require(fs::create_directory(root), "Could not create summary CSV fixture");
+        fixture.root = root;
+        const auto runA = root / fs::path(u8"Run A, \u0434\u0430 & one.csv");
+        const auto runB = root / "=Run B.csv";
+        const auto alias = root / "source-alias.csv";
+        const auto output = root / "summary.csv";
+        fixture.files = {runA, runB, alias, output};
+        std::ofstream(runA) << "Original A";
+        std::ofstream(runB) << "Original B";
+        std::ofstream(output) << "Replace me";
+        fs::create_hard_link(runA, alias);
+        const auto read = [](const fs::path& path) {
+            std::ifstream input(path, std::ios::binary);
+            return std::string(std::istreambuf_iterator<char>(input), std::istreambuf_iterator<char>());
+        };
+
+        core::NetworkTestSummaryCsv summary{2, 1'250, 31'250, "Last \"30\" <seconds>", runA, runB, {}, {}};
+        summary.runA.meanRttMs = 0.0;
+        summary.runB.meanRttMs = 12.5;
+        summary.runA.meanUplinkLossPercent = 12.5;
+        summary.runB.meanUplinkLossPercent = 10.25;
+        summary.runA.meanUploadBytesPerSecond = 3'072.0;
+        summary.runB.meanUploadBytesPerSecond = 1'024.0;
+        summary.runB.meanDownloadPacketsPerSecond = 0.0;
+
+        std::string error;
+        require(core::writeNetworkTestSummaryCsv(output, summary, error) && error.empty(), "Summary CSV save failed");
+        const auto csv = read(output);
+        require(csv.starts_with("client_index,range,range_start_ms,range_end_ms,run_a_file,run_b_file,metric,unit,"
+            "run_a,run_b,delta_b_minus_a,delta_unit\r\n") && std::ranges::count(csv, '\n') == 10,
+            "Summary CSV lost its schema or metric rows");
+        const std::string row = "2,\"Last \"\"30\"\" <seconds>\",1250,31250,\"Run A, \xd0\xb4\xd0\xb0 & one.csv\",\"'=Run B.csv\",";
+        const auto hasRow = [&](const char* values) { return csv.find(row + values) != std::string::npos; };
+        require(hasRow("mean_rtt,ms,0,12.5,12.5,ms\r\n") && hasRow("p95_rtt,ms,,,,ms\r\n") &&
+            hasRow("mean_uplink_loss,%,12.5,10.25,-2.25,pp\r\n") &&
+            hasRow("mean_upload_kib_per_second,KiB/s,3,1,-2,KiB/s\r\n") &&
+            hasRow("mean_download_packets_per_second,pkt/s,,0,,pkt/s\r\n"),
+            "Summary CSV lost selection metadata, a unit, a delta, a missing value or an explicit zero");
+        require(!core::writeNetworkTestSummaryCsv(runB, summary, error) && !error.empty() && read(runB) == "Original B" &&
+            !core::writeNetworkTestSummaryCsv(alias, summary, error) && !error.empty() && read(runA) == "Original A" &&
+            read(alias) == "Original A", "Summary CSV could overwrite an input or its alias");
+        require(!core::writeNetworkTestSummaryCsv(root / "missing" / "summary.csv", summary, error) && !error.empty() &&
+            read(output) == csv, "Summary CSV did not report an unwritable path");
+
+        const auto reportPng = root / fs::path(u8"\u043e\u0442\u0447\u0451\u0442.v2.PNG");
+        const auto reportCsv = root / fs::path(u8"\u043e\u0442\u0447\u0451\u0442.v2.csv");
+        const auto sourcePng = root / "=Run B.png";
+        fixture.files.insert(fixture.files.end(), {reportPng, reportCsv, sourcePng});
+        const std::string png("\x89PNG\r\n\x1a\n\0sample", 15);
+        require(!core::writeNetworkTestComparisonReport(reportPng, "invalid image", summary, error) && !error.empty() &&
+            !fs::exists(reportPng) && !fs::exists(reportCsv), "Invalid image left report files behind");
+        require(core::writeNetworkTestComparisonReport(reportPng, png, summary, error) && error.empty() &&
+            read(reportPng) == png && read(reportCsv) == csv, "Report pair changed its stem, image bytes or summary CSV");
+        require(!core::writeNetworkTestComparisonReport(sourcePng, png, summary, error) && !error.empty() &&
+            !fs::exists(sourcePng) && read(runB) == "Original B", "Report pair could overwrite an input CSV");
+
+        const auto batchBase = root / fs::path(u8"\u043e\u0442\u0447\u0451\u0442.v3.PNG");
+        const auto client2Png = root / fs::path(u8"\u043e\u0442\u0447\u0451\u0442.v3-client-2.png");
+        const auto client2Csv = root / fs::path(u8"\u043e\u0442\u0447\u0451\u0442.v3-client-2.csv");
+        const auto client7Png = root / fs::path(u8"\u043e\u0442\u0447\u0451\u0442.v3-client-7.png");
+        const auto client7Csv = root / fs::path(u8"\u043e\u0442\u0447\u0451\u0442.v3-client-7.csv");
+        const auto batchSummary = root / fs::path(u8"\u043e\u0442\u0447\u0451\u0442.v3-summary.csv");
+        auto batchBaseCsv = batchBase;
+        batchBaseCsv.replace_extension(".csv");
+        fixture.files.insert(fixture.files.end(), {batchBase, batchBaseCsv, client2Png, client2Csv, client7Png, client7Csv, batchSummary});
+        auto client7 = summary;
+        client7.clientIndex = 7;
+        client7.runA = {};
+        std::array batch{core::NetworkTestComparisonReport{client7, png}, core::NetworkTestComparisonReport{summary, png}};
+        require(core::writeNetworkTestComparisonReports(batchBase, batch, error) && error.empty() &&
+            read(client2Png) == png && read(client7Png) == png && read(client2Csv) == csv &&
+            !fs::exists(batchBase) && !fs::exists(batchBaseCsv), "Batch report did not produce both suffixed pairs");
+        const auto client7Row = "7" + row.substr(1);
+        const auto csv7 = read(client7Csv);
+        require(csv7.find(client7Row + "mean_rtt,ms,,12.5,,ms\r\n") != std::string::npos,
+            "Batch report lost the common interval or a missing client value");
+        require(read(batchSummary) == csv + csv7.substr(csv7.find('\n') + 1),
+            "Batch summary did not preserve both clients' rows in client order under one header");
+
+        const auto collisionBase = root / "collision.png";
+        const auto occupiedCsv = root / "collision-client-7.csv";
+        const auto collision2Png = root / "collision-client-2.png";
+        const auto collision2Csv = root / "collision-client-2.csv";
+        const auto collision7Png = root / "collision-client-7.png";
+        const auto collisionSummary = root / "collision-summary.csv";
+        fixture.files.insert(fixture.files.end(), {occupiedCsv, collision2Png, collision2Csv, collision7Png, collisionSummary});
+        std::ofstream(occupiedCsv) << "Existing CSV";
+        batch[0].pngBytes = png;
+        batch[1].pngBytes = png;
+        require(!core::writeNetworkTestComparisonReports(collisionBase, batch, error) && !error.empty() &&
+            read(occupiedCsv) == "Existing CSV" && !fs::exists(collision2Png) && !fs::exists(collision2Csv) &&
+            !fs::exists(collision7Png) && !fs::exists(collisionSummary),
+            "Batch report collision left new files or changed an existing file");
+
+        const auto aggregateCollisionBase = root / "aggregate-collision.png";
+        const auto aggregateCollisionSummary = root / "aggregate-collision-summary.csv";
+        const std::array aggregateCollisionPairs{
+            root / "aggregate-collision-client-2.png", root / "aggregate-collision-client-2.csv",
+            root / "aggregate-collision-client-7.png", root / "aggregate-collision-client-7.csv"};
+        fixture.files.push_back(aggregateCollisionSummary);
+        fixture.files.insert(fixture.files.end(), aggregateCollisionPairs.begin(), aggregateCollisionPairs.end());
+        std::ofstream(aggregateCollisionSummary) << "Existing summary";
+        batch[0].pngBytes = png;
+        batch[1].pngBytes = png;
+        const auto noClientPairs = [&] {
+            return std::ranges::none_of(aggregateCollisionPairs, [](const auto& path) { return fs::exists(path); });
+        };
+        require(!core::writeNetworkTestComparisonReports(aggregateCollisionBase, batch, error) && !error.empty() &&
+            read(aggregateCollisionSummary) == "Existing summary" && noClientPairs(),
+            "Batch summary collision left new files or changed the existing summary");
+
+        const auto sourceSummaryBase = root / "source.png";
+        const auto sourceSummaryAlias = root / "source-summary.csv";
+        const auto sourceClientPng = root / "source-client-2.png";
+        fixture.files.insert(fixture.files.end(), {sourceSummaryAlias, sourceClientPng, root / "source-client-2.csv"});
+        fs::create_hard_link(runA, sourceSummaryAlias);
+        std::array sourceBatch{core::NetworkTestComparisonReport{summary, png}};
+        require(!core::writeNetworkTestComparisonReports(sourceSummaryBase, sourceBatch, error) &&
+            error.find("source CSVs") != std::string::npos && read(sourceSummaryAlias) == "Original A" &&
+            !fs::exists(sourceClientPng), "Batch summary could overwrite an input CSV alias");
+
+        const auto archive = root / fs::path(u8"\u043e\u0442\u0447\u0451\u0442.v4.ZIP");
+        const auto archiveStem = archive.stem();
+        const auto sibling = [&](std::string_view suffix) {
+            auto member = root / archiveStem;
+            member += suffix;
+            return member;
+        };
+        const auto archiveSummary = sibling("-summary.csv");
+        const auto archive2Png = sibling("-client-2.png");
+        const auto archive2Csv = sibling("-client-2.csv");
+        const auto archive7Png = sibling("-client-7.png");
+        const auto archive7Csv = sibling("-client-7.csv");
+        const auto looseHtml = root / "index.html";
+        const auto archiveAlias = root / "source.zip";
+        fixture.files.insert(fixture.files.end(), {archive, archiveSummary, archive2Png, archive2Csv, archive7Png, archive7Csv, looseHtml, archiveAlias});
+        std::ofstream(archiveSummary) << "Existing loose summary";
+        const auto png7 = png + '\x7f';
+        batch[0].pngBytes = png7;
+        batch[1].pngBytes = png;
+        batch[0].chartSamples[1] = {{31'250, {.downlinkLossPercent = 0.0,
+            .download = net::NetworkTestTrafficRate{512.0, 8.0}}, true}};
+        batch[1].chartSamples[0] = {{1'250, {.rttMs = 0, .uplinkLossPercent = 0.0,
+            .upload = net::NetworkTestTrafficRate{1'536.0, 12.0}}, false},
+            {2'500, {.rttMs = 25, .probeLossPercent = 12.5,
+                .download = net::NetworkTestTrafficRate{0.0, 0.0}}, true}};
+        batch[1].chartSamples[1] = {{1'500, {.rttMs = 50, .downlinkLossPercent = 25.0,
+            .upload = net::NetworkTestTrafficRate{3'072.0, 24.0}}, false}};
+        require(core::writeNetworkTestComparisonArchive(archive, batch, error) && error.empty(), "Could not write report ZIP");
+        require(read(archiveSummary) == "Existing loose summary" && !fs::exists(archive2Png) && !fs::exists(archive2Csv) &&
+            !fs::exists(archive7Png) && !fs::exists(archive7Csv) && !fs::exists(looseHtml),
+            "Report ZIP wrote loose files or changed an existing one");
+        const auto archiveBytes = read(archive);
+        const std::array expectedMembers{
+            std::pair{archive7Png.filename().u8string(), png7}, std::pair{archive7Csv.filename().u8string(), csv7},
+            std::pair{archive2Png.filename().u8string(), png}, std::pair{archive2Csv.filename().u8string(), csv},
+            std::pair{archiveSummary.filename().u8string(), read(batchSummary)}};
+        const auto littleEndian = [&](std::size_t position, std::size_t count) {
+            require(position <= archiveBytes.size() && count <= archiveBytes.size() - position, "Truncated report ZIP header");
+            std::uint32_t value = 0;
+            for (std::size_t i = 0; i < count; ++i)
+                value |= static_cast<std::uint32_t>(static_cast<unsigned char>(archiveBytes[position + i])) << (i * 8);
+            return value;
+        };
+        const auto memberCount = expectedMembers.size() + 1;
+        std::string_view html;
+        std::array<bool, expectedMembers.size()> memberSeen{};
+        std::size_t cursor = 0;
+        for (std::size_t member = 0; member < memberCount; ++member) {
+            const auto size = littleEndian(cursor + 18, 4);
+            const auto nameSize = littleEndian(cursor + 26, 2);
+            const auto extra = littleEndian(cursor + 28, 2);
+            require(littleEndian(cursor, 4) == 0x04034b50U && (littleEndian(cursor + 6, 2) & 0x800U) != 0 &&
+                littleEndian(cursor + 8, 2) == 0 && littleEndian(cursor + 22, 4) == size,
+                "Report ZIP member header lost its format or length");
+            cursor += 30;
+            require(cursor <= archiveBytes.size() && nameSize + extra <= archiveBytes.size() - cursor &&
+                size <= archiveBytes.size() - cursor - nameSize - extra, "Truncated report ZIP member");
+            const auto name = std::string_view(archiveBytes).substr(cursor, nameSize);
+            cursor += nameSize + extra;
+            const auto contents = std::string_view(archiveBytes).substr(cursor, size);
+            cursor += size;
+            if (name == "index.html") {
+                require(html.empty() && !contents.empty(), "Report ZIP has an empty or duplicate HTML member");
+                html = contents;
+                continue;
+            }
+            const auto expected = std::ranges::find_if(expectedMembers, [&](const auto& entry) {
+                return name == std::string_view(reinterpret_cast<const char*>(entry.first.data()), entry.first.size());
+            });
+            require(expected != expectedMembers.end(), "Report ZIP member lost its flat UTF-8 name");
+            const auto index = static_cast<std::size_t>(expected - expectedMembers.begin());
+            require(!memberSeen[index] && contents == expected->second, "Report ZIP duplicated or changed report bytes");
+            memberSeen[index] = true;
+        }
+        require(archiveBytes.size() >= 22 && littleEndian(cursor, 4) == 0x02014b50U &&
+            littleEndian(archiveBytes.size() - 22, 4) == 0x06054b50U &&
+            littleEndian(archiveBytes.size() - 12, 2) == memberCount, "Report ZIP directory is missing or incomplete");
+        require(html.find("Summary") != std::string_view::npos && html.find("<table") != std::string_view::npos &&
+            html.find("Run A") != std::string_view::npos && html.find("Run B") != std::string_view::npos &&
+            html.find("B - A") != std::string_view::npos && html.find("Client 2") != std::string_view::npos &&
+            html.find("Client 7") != std::string_view::npos && html.find("&mdash;") != std::string_view::npos &&
+            html.find("+12.50") != std::string_view::npos && html.find("-2.25 pp") != std::string_view::npos,
+            "HTML report lost its comparison summary, clients or missing values");
+        require(html.find("Last &quot;30&quot; &lt;seconds&gt;") != std::string_view::npos &&
+            html.find("Run A, \xd0\xb4\xd0\xb0 &amp; one.csv") != std::string_view::npos &&
+            html.find("<seconds>") == std::string_view::npos, "HTML report did not escape its input metadata");
+        require(html.find("data:image/png;base64,iVBORw0KGgoAc2FtcGxl\"") != std::string_view::npos &&
+            html.find("data:image/png;base64,iVBORw0KGgoAc2FtcGxlfw==\"") != std::string_view::npos,
+            "HTML report did not embed both client chart images");
+        constexpr std::array chartControls{
+            "interactive-charts", "chart-client", "chart-zoom-in", "chart-zoom-out", "chart-reset", "chart-window",
+            "chart-status", "chart-rtt", "chart-loss", "chart-traffic", "chart-tooltip", "static-charts",
+            "visible-summary", "visible-summary-heading", "visible-summary-window", "visible-summary-rows",
+            "visible-summary-download", "visible-summary-download-status"};
+        for (const auto* control : chartControls) {
+            require(html.find(std::string("id=\"") + control + '"') != std::string_view::npos,
+                "HTML report is missing an interactive control, summary, CSV download or PNG fallback");
+        }
+        require(html.find("id=\"report-run-a\">Run A, \xd0\xb4\xd0\xb0 &amp; one.csv<") != std::string_view::npos &&
+            html.find("id=\"report-run-b\">=Run B.csv<") != std::string_view::npos,
+            "HTML report did not expose the escaped source filenames for the CSV download");
+        const auto staticSummary = html.find("id=\"summary\"");
+        const auto staticSummaryEnd = html.find("</section>", staticSummary);
+        require(staticSummary != std::string_view::npos && staticSummaryEnd != std::string_view::npos,
+            "HTML report did not retain the full interval summary");
+        const auto staticRows = html.substr(staticSummary, staticSummaryEnd - staticSummary);
+        require(staticRows.find("Client 2") != std::string_view::npos && staticRows.find("Client 7") != std::string_view::npos &&
+            staticRows.find("+12.50") != std::string_view::npos && staticRows.find("-2.25 pp") != std::string_view::npos,
+            "Static summary lost the all-client exported values");
+        require(html.find("<script src=") == std::string_view::npos && html.find("<script>") != std::string_view::npos,
+            "HTML report did not embed its interactive chart script");
+        const auto dataId = html.find("id=\"chart-data\"");
+        require(dataId != std::string_view::npos, "HTML report did not embed chart data");
+        const auto dataStart = html.find('>', dataId);
+        require(dataStart != std::string_view::npos, "HTML report chart data has no opening tag");
+        const auto dataEnd = html.find("</script>", dataStart + 1);
+        require(dataEnd != std::string_view::npos, "HTML report chart data has no closing tag");
+        const auto chartData = nlohmann::json::parse(html.substr(dataStart + 1, dataEnd - dataStart - 1));
+        const auto expectedChartData = nlohmann::json::parse(R"JSON({
+            "start":"1250", "end":"31250", "clients":[
+                {"id":2,"runs":[
+                    [["1250",0,0,0,null,null,1.5,null,12,null],["2500",1,25,null,null,12.5,null,0,null,0]],
+                    [["1500",0,50,null,25,null,3,null,24,null]]]},
+                {"id":7,"runs":[[],[["31250",1,null,null,0,null,null,0.5,null,8]]]}
+            ]})JSON");
+        require(chartData == expectedChartData, "HTML report changed selected chart data, units, gaps or client order");
+
+        batch[0].pngBytes = png;
+        batch[1].pngBytes = png;
+        require(!core::writeNetworkTestComparisonArchive(archive, batch, error) && !error.empty() &&
+            read(archive) == archiveBytes, "Report ZIP collision replaced an existing archive");
+        fs::create_hard_link(runA, archiveAlias);
+        require(!core::writeNetworkTestComparisonArchive(archiveAlias, sourceBatch, error) &&
+            error.find("source CSVs") != std::string::npos && read(runA) == "Original A",
+            "Report ZIP could overwrite an input CSV alias");
+    }
+
+    static void networkTestChangesOneLiveClient() {
+        using Clock = std::chrono::steady_clock;
+        using namespace std::chrono_literals;
+        struct Fixture {
+            std::filesystem::path directory = std::filesystem::temp_directory_path() /
+                ("tge-live-network-" + std::to_string(Clock::now().time_since_epoch().count()));
+            ~Fixture() { std::error_code ignored; std::filesystem::remove_all(directory, ignored); }
+        } fixture;
+        require(std::filesystem::create_directory(fixture.directory), "Could not create the live Network Test fixture");
+        std::array<net::NetworkTestProfile, 2> profiles{};
+        std::string error;
+        require(core::writeNetworkTestProfiles(fixture.directory, profiles, error), "Could not publish Network Test profiles");
+
+        std::array<ecs::World, 3> worlds;
+        std::array<scripting::ScriptingSystem, 3> scripts;
+        const auto destroy = [](ecs::EntityId) {};
+        SceneNetwork server(worlds[0], scripts[0], destroy);
+        SceneNetwork first(worlds[1], scripts[1], destroy);
+        SceneNetwork second(worlds[2], scripts[2], destroy);
+        core::PlayLaunch launch;
+        launch.networkControlDirectory = fixture.directory;
+        launch.networkRole = core::SceneNetworkRole::Server;
+        require(server.start(launch, error), "Could not start live Network Test server");
+        launch.networkRole = core::SceneNetworkRole::Client;
+        launch.networkEndpoint.port = server.localPort();
+        launch.networkClientIndex = 2;
+        require(second.start(launch, error), "Could not start Network Test Client 2");
+
+        const auto until = [&](const auto& condition, const char* message) {
+            const auto deadline = Clock::now() + 9s;
+            while (!condition() && Clock::now() < deadline) {
+                first.beginTick();
+                second.beginTick();
+                server.beginTick();
+                server.endTick();
+                std::this_thread::sleep_for(2ms);
+            }
+            require(condition(), message);
+        };
+        const auto applied = [&](unsigned index, uint32_t revision) {
+            const auto client = core::readNetworkTestClientStatus(fixture.directory, index);
+            const auto serverProfiles = core::readNetworkTestAppliedProfiles(fixture.directory, 2);
+            return client && client->state == net::NetworkTestLinkState::Connected && client->nonce &&
+                client->revision == revision && serverProfiles &&
+                (*serverProfiles)[index - 1] == net::NetworkTestAppliedProfile{client->nonce, revision};
+        };
+
+        until([&] { return applied(2, 1); }, "Client 2 did not receive its initial profile");
+        const auto secondPeer = second.localPeer();
+        launch.networkClientIndex = 1;
+        require(first.start(launch, error), "Could not start Network Test Client 1");
+        until([&] { return applied(1, 1); }, "Client 1 did not receive its initial profile");
+        const auto firstPeer = first.localPeer();
+        require(secondPeer && firstPeer > secondPeer, "Fixture did not connect clients out of window order");
+        std::uint64_t firstNonce{};
+        until([&] {
+            const auto client = core::readNetworkTestClientTelemetry(fixture.directory, 1);
+            const auto server = core::readNetworkTestServerTelemetry(fixture.directory, 2);
+            if (!client || client->revision != 1 || !client->rttMs || !client->txBytes || !client->rxBytes ||
+                !server || !(*server)[0] || (*server)[0]->nonce != client->nonce || !(*server)[0]->outbound.packets) {
+                return false;
+            }
+            firstNonce = client->nonce;
+            return client->outbound.dropped == 0 && (*server)[0]->outbound.dropped == 0;
+        }, "Initial telemetry did not report RTT and traffic for the same connection");
+
+        profiles[0] = {{40, 0}, 2};
+        require(core::writeNetworkTestProfiles(fixture.directory, profiles, error), "Could not change live latency");
+        until([&] { return applied(1, 2); }, "Live latency was not applied in both directions");
+        require(first.stats().at("latencyMs") == 40 && second.stats().at("latencyMs") == 0 &&
+            first.localPeer() == firstPeer && second.localPeer() == secondPeer && applied(2, 1),
+            "Live latency affected the wrong client or restarted a connection");
+
+        profiles[0] = {{40, 100}, 3};
+        require(core::writeNetworkTestProfiles(fixture.directory, profiles, error), "Could not change live loss");
+        until([&] { return applied(1, 3); }, "Live loss was not applied in both directions");
+        until([&] {
+            const auto firstSample = core::readNetworkTestClientTelemetry(fixture.directory, 1);
+            const auto secondSample = core::readNetworkTestClientTelemetry(fixture.directory, 2);
+            const auto serverSamples = core::readNetworkTestServerTelemetry(fixture.directory, 2);
+            return firstSample && firstSample->nonce == firstNonce && firstSample->revision == 3 &&
+                firstSample->outbound.dropped > 0 && secondSample && secondSample->revision == 1 &&
+                secondSample->outbound.dropped == 0 && serverSamples && (*serverSamples)[0] && (*serverSamples)[1] &&
+                (*serverSamples)[0]->nonce == firstNonce && (*serverSamples)[0]->revision == 3 &&
+                (*serverSamples)[0]->outbound.dropped > 0 && (*serverSamples)[1]->outbound.dropped == 0;
+        }, "Measured drops did not stay isolated to the impaired client");
+        until([&] {
+            const auto status = core::readNetworkTestClientStatus(fixture.directory, 1);
+            return status && status->state == net::NetworkTestLinkState::TimedOut;
+        }, "Client 1 did not time out under total loss");
+        require(!first.connected() && second.connected() && second.localPeer() == secondPeer &&
+            second.stats().at("lossPercent") == 0, "Total loss interrupted the healthy client");
+
+        profiles[0] = {{0, 0}, 4};
+        require(core::writeNetworkTestProfiles(fixture.directory, profiles, error), "Could not restore live conditions");
+        until([&] { return applied(1, 4); }, "Client 1 did not recover without a restart");
+        until([&] {
+            const auto sample = core::readNetworkTestClientTelemetry(fixture.directory, 1);
+            return sample && sample->nonce != firstNonce && sample->revision == 4 && sample->rttMs;
+        }, "Telemetry did not switch to the recovered connection");
+        require(first.localPeer() != firstPeer && second.localPeer() == secondPeer &&
+            first.stats().at("lossPercent") == 0 && applied(2, 1), "Recovery changed the unaffected peer or profile");
+    }
+
     static void ribbonCommandsPreserveHistoryAndPlay(core::JobSystem& jobs) {
         using Command = editor::EditorCommandId;
         StateStack stack;
@@ -1309,8 +2216,6 @@ struct GameplayStateTestAccess {
         body = tagged(state, "Command Body");
         state.m_selectedEntity = body;
 
-        // The ribbon is drawn before the inspector, so it must commit a pending
-        // inspector transaction before undoing it, even with no older history.
         state.m_undoStack.clear(); state.m_redoStack.clear();
         state.beginSceneEdit("Pending Inspector", state.captureSceneSnapshot(), body);
         state.m_world.getComponent<ecs::Transform>(body)->position.x = 12.0F;
@@ -1354,7 +2259,6 @@ struct GameplayStateTestAccess {
         StateStack stack; stack.setServices(&jobs, nullptr);
         GameplayState state(stack);
         state.m_sceneInitialized = true;
-        // The reference workspace starts with both scene sidebars hidden.
         state.m_showHierarchyPanel = true;
         state.m_showInspectorPanel = true;
         state.m_hierarchyDockSlot = EditorDockSlot::LeftTop;
@@ -1414,8 +2318,6 @@ struct GameplayStateTestAccess {
         ImGui::ClearActiveID();
         unsigned char* pixels = nullptr; int width = 0, height = 0;
         io.Fonts->GetTexDataAsRGBA32(&pixels, &width, &height);
-        // Renderer::init is deliberately never called: only CPU ImGui layout and
-        // the renderer's fallback extent are used, without any GPU device/window.
         renderer::Renderer renderer;
         struct Rect { ImVec2 pos, size; };
         struct Geometry { Rect viewport, assistant, ribbon, hierarchy, inspector; };
@@ -1425,8 +2327,6 @@ struct GameplayStateTestAccess {
             return Rect{window->Pos, window->Size};
         };
         const auto draw = [&]() {
-            // Suppress incidental autosaves during geometry-only frames. Any
-            // remaining save is still confined to this temporary project.
             state.m_editorLayoutDirty = false;
             ImGui::NewFrame();
             state.renderEditorUi(renderer);
@@ -1471,7 +2371,6 @@ struct GameplayStateTestAccess {
             near(noColumns.assistant.pos.y, noColumns.viewport.pos.y) && near(bottom(noColumns.assistant), bottom(noColumns.viewport)),
             "Assistant did not reclaim the rail after the last scene panel was hidden");
 
-        // Saved/custom dock positions still work independently of new defaults.
         state.m_hierarchyDockSlot = EditorDockSlot::LeftTop; state.m_showHierarchyPanel = true;
         const auto savedLeft = draw();
         require(near(savedLeft.hierarchy.pos.x, origin.x) && near(right(savedLeft.hierarchy), savedLeft.viewport.pos.x) &&
@@ -1625,8 +2524,6 @@ struct GameplayStateTestAccess {
                 near(inspectorBody->Pos.y - inspector->DC.CursorStartPos.y, editor::kPanelTitleHeight),
                 "Flat panel title bars do not match the measured reference height");
             auto* hierarchyList = child(hierarchyBody, "HierarchyList");
-            // Scene restoration may add the engine's fallback camera. Each live
-            // entity must still consume exactly one reference-height row.
             const float expectedRowsHeight = static_cast<float>(state.m_world.aliveCount()) * editor::kPanelRowHeight;
             if (!hierarchyList || !near(hierarchyList->DC.CursorMaxPos.y - hierarchyList->DC.CursorStartPos.y,
                 expectedRowsHeight)) {
@@ -1689,7 +2586,1063 @@ struct GameplayStateTestAccess {
         require(read(project->scenePath) == diskScene, "Rendering property panels unexpectedly saved the project scene");
     }
 
+    static void renderedScriptPropertiesUseRealWidgets(core::JobSystem& jobs) {
+        struct Context {
+            ImGuiContext* previous{ImGui::GetCurrentContext()};
+            ImGuiContext* owned{ImGui::CreateContext()};
+            Context() { ImGui::SetCurrentContext(owned); }
+            ~Context() { ImGui::DestroyContext(owned); ImGui::SetCurrentContext(previous); }
+        } gui;
+        editor::applyEditorTheme();
+        auto& io = ImGui::GetIO();
+        io.IniFilename = nullptr; io.LogFilename = nullptr;
+        io.DisplaySize = {900, 900}; io.DeltaTime = 1.0F / 60.0F;
+        io.Fonts->AddFontDefault();
+        unsigned char* pixels{}; int width{}, height{};
+        io.Fonts->GetTexDataAsRGBA32(&pixels, &width, &height);
+        StateStack stack; stack.setServices(&jobs, nullptr);
+        GameplayState state(stack); state.m_sceneInitialized = true;
+        require(state.m_scripts.initialize(state.m_world, &jobs, std::filesystem::temp_directory_path()), "Widget test VM initialization failed");
+        state.m_scripts.registerModule("WidgetFields", "return {fields={active={type='bool',default=true,label='Active'},speed={type='number',default=2,min=0,max=20,step=0.25,label='Speed'}}}");
+        const auto entity = state.m_world.createEntity();
+        state.m_world.addComponent<ecs::Tag>(entity, ecs::Tag{"Widget Object"});
+        state.m_world.addComponent<scripting::ScriptComponent>(entity, scripting::ScriptComponent{"WidgetFields", true, {{"active",true},{"speed",2}}});
+        state.m_showInspectorPanel = false; state.m_inspectorFilter = "old unrelated filter";
+        state.inspectEntity(entity);
+        require(state.m_showInspectorPanel && state.m_selectedEntity == entity && state.m_inspectorFilter.empty(),
+            "Selecting a scripted object did not reveal its editable properties");
+        ImVec2 booleanPoint{}, speedPoint{}, resetPoint{};
+        ImGuiID booleanId{}, speedId{};
+        const ImVec2 away{-1000, -1000};
+        const auto frame = [&](const ImVec2 mouse, const bool down) {
+            io.AddMousePosEvent(mouse.x, mouse.y); io.AddMouseButtonEvent(ImGuiMouseButton_Left, down);
+            ImGui::NewFrame();
+            ImGui::SetNextWindowPos({10, 10}); ImGui::SetNextWindowSize({700, 820});
+            ImGui::Begin("Script Properties Widgets", nullptr, ImGuiWindowFlags_NoSavedSettings);
+            auto& context = *ImGui::GetCurrentContext();
+            const int ids = context.CurrentWindow->IDStack.Size, styles = context.StyleVarStack.Size;
+            const int colors = context.ColorStack.Size, tables = context.TablesTempDataStacked;
+            const ImGuiID tableId = ImHashStr("##Properties", 0, ImHashStr("Luau Behavior", 0, context.CurrentWindow->ID));
+            state.renderScriptInspector(state.m_selectedEntity);
+            require(context.CurrentWindow->IDStack.Size == ids && context.StyleVarStack.Size == styles &&
+                context.ColorStack.Size == colors && context.TablesTempDataStacked == tables,
+                "Script property widgets leaked an ImGui ID, style, color or table scope");
+            const auto* table = context.Tables.GetByKey(tableId);
+            require(table && table->ColumnsCount == 2, "Script field property table was not rendered");
+            const auto fieldSeed = [&](const char* name) {
+                const auto key = ImHashData(name, std::strlen(name));
+                return ImHashStr(name, 0, ImHashData(&key, sizeof(key), tableId));
+            };
+            booleanId = ImHashStr("##Value", 0, fieldSeed("active"));
+            speedId = ImHashStr("##Value", 0, fieldSeed("speed"));
+            booleanPoint = {table->Columns[1].WorkMinX + 8, table->OuterRect.Min.y + editor::kPropertyRowHeight * 5.5F};
+            speedPoint = {table->Columns[1].WorkMinX + 45, table->OuterRect.Min.y + editor::kPropertyRowHeight * 6.5F};
+            resetPoint = {table->Columns[1].WorkMaxX - 8, speedPoint.y};
+            ImGui::End(); ImGui::Render();
+            require(ImGui::GetDrawData()->Valid && ImGui::GetDrawData()->TotalVtxCount > 0, "Script fields produced no native draw data");
+        };
+        for (int i = 0; i < 3; ++i) frame(away, false);
+        require(state.m_undoStack.empty() && !state.m_pendingSceneEdit, "Passive script Inspector changed authored data or history");
+        frame(booleanPoint, false);
+        require(ImGui::GetCurrentContext()->HoveredId == booleanId, "Script boolean locator missed the actual checkbox");
+        frame(booleanPoint, true); frame(booleanPoint, false);
+        require(state.m_world.getComponent<scripting::ScriptComponent>(state.m_selectedEntity)->fields["active"] == false &&
+            state.m_undoStack.size() == 1 && !state.m_pendingSceneEdit, "Actual script checkbox did not commit one field transaction");
+        state.undoSceneEdit();
+        require(state.m_world.getComponent<scripting::ScriptComponent>(state.m_selectedEntity)->fields["active"] == true, "Undo did not restore the script checkbox value");
+        frame(speedPoint, false);
+        require(ImGui::GetCurrentContext()->HoveredId == speedId, "Script number locator missed the actual drag widget");
+        frame(speedPoint, true);
+        const ImVec2 dragged{speedPoint.x + 40, speedPoint.y};
+        frame(dragged, true); frame(dragged, true);
+        require(ImGui::GetCurrentContext()->ActiveId == speedId, "Override marker changed the active numeric widget ID during a drag");
+        frame(dragged, false);
+        const auto edited = state.m_world.getComponent<scripting::ScriptComponent>(state.m_selectedEntity)->fields["speed"].get<double>();
+        require(edited != 2.0 && edited <= 20.0 && state.m_undoStack.size() == 1 && !state.m_pendingSceneEdit,
+            "Actual script number drag failed bounds or history coalescing");
+        frame(resetPoint, false); frame(resetPoint, true); frame(resetPoint, false);
+        require(state.m_world.getComponent<scripting::ScriptComponent>(state.m_selectedEntity)->fields["speed"] == 2.0 &&
+            state.m_undoStack.size() == 2, "Actual script Reset button did not restore the module default");
+        state.undoSceneEdit();
+        require(state.m_world.getComponent<scripting::ScriptComponent>(state.m_selectedEntity)->fields["speed"] == edited,
+            "Undo did not restore the field override after Reset");
+        const auto undoCount = state.m_undoStack.size(), redoCount = state.m_redoStack.size();
+        const auto unchanged = state.m_world.getComponent<scripting::ScriptComponent>(state.m_selectedEntity)->fields;
+        const ImVec2 defaultsPoint{booleanPoint.x + 30, booleanPoint.y - editor::kPropertyRowHeight};
+        frame(defaultsPoint, false);
+        require(ImGui::GetCurrentContext()->HoveredId != 0, "Defaults locator missed the actual Fill Missing button");
+        frame(defaultsPoint, true); frame(defaultsPoint, false);
+        require(state.m_world.getComponent<scripting::ScriptComponent>(state.m_selectedEntity)->fields == unchanged &&
+            state.m_undoStack.size() == undoCount && state.m_redoStack.size() == redoCount && redoCount > 0,
+            "Fill Missing with valid overrides created a no-op Undo entry or erased Redo");
+    }
+
+    static void scriptFieldWidgetsKeepBinaryKeysDistinct(core::JobSystem& jobs) {
+        StateStack stack; stack.setServices(&jobs, nullptr);
+        GameplayState state(stack); state.m_sceneInitialized = true;
+        require(state.m_scripts.initialize(state.m_world, &jobs, std::filesystem::temp_directory_path()),
+            "Binary-key Inspector VM initialization failed");
+        state.m_scripts.registerModule("BinaryWidgetKeys", R"(
+            return {fields={
+                ['first###shared']={type='boolean',default=false,label='First suffix key'},
+                ['other###shared']={type='boolean',default=false,label='Other suffix key'},
+                ['binary\0first']={type='boolean',default=false,label='First binary key'},
+                ['binary\0other']={type='boolean',default=false,label='Other binary key'},
+            }}
+        )");
+        const auto entity = state.m_world.createEntity();
+        state.m_selectedEntity = entity;
+        state.m_world.addComponent<ecs::Tag>(entity, ecs::Tag{"Binary keys"});
+        state.m_world.addComponent<scripting::ScriptComponent>(entity, scripting::ScriptComponent{"BinaryWidgetKeys"});
+        state.m_scripts.populateDefaults(*state.m_world.getComponent<scripting::ScriptComponent>(entity));
+        const auto fields = state.m_scripts.fields("BinaryWidgetKeys");
+        require(fields.size() == 4, "Binary-key fixture lost schema entries");
+        auto& io = ImGui::GetIO(); io.IniFilename = nullptr; io.DisplaySize = {900, 1000}; io.DeltaTime = 1.0F / 60.0F;
+        std::vector<ImVec2> points(fields.size());
+        const ImVec2 away{-1000, -1000};
+        const auto frame = [&](const ImVec2 mouse, const bool down) {
+            io.AddMousePosEvent(mouse.x, mouse.y); io.AddMouseButtonEvent(ImGuiMouseButton_Left, down);
+            ImGui::NewFrame();
+            ImGui::SetNextWindowPos({10, 10}); ImGui::SetNextWindowSize({700, 900});
+            ImGui::Begin("Binary Script Widgets", nullptr, ImGuiWindowFlags_NoSavedSettings);
+            const auto windowId = ImGui::GetCurrentWindow()->ID;
+            state.renderScriptInspector(state.m_selectedEntity);
+            const auto tableId = ImHashStr("##Properties", 0, ImHashStr("Luau Behavior", 0, windowId));
+            const auto* table = ImGui::GetCurrentContext()->Tables.GetByKey(tableId);
+            require(table != nullptr, "Binary-key Inspector table missing");
+            for (std::size_t index = 0; index < points.size(); ++index) {
+                points[index] = {table->Columns[1].WorkMinX + 8,
+                    table->OuterRect.Min.y + editor::kPropertyRowHeight * (5.5F + static_cast<float>(index))};
+            }
+            ImGui::End(); ImGui::Render();
+        };
+        for (int index = 0; index < 3; ++index) frame(away, false);
+        std::unordered_set<ImGuiID> identifiers;
+        for (const auto point : points) {
+            frame(point, false);
+            const auto id = ImGui::GetCurrentContext()->HoveredId;
+            require(id != 0 && identifiers.insert(id).second, "Distinct script keys share an actual Inspector widget ID");
+        }
+        for (std::size_t selected = 0; selected < fields.size(); ++selected) {
+            frame(points[selected], true); frame(points[selected], false);
+            const auto* script = state.m_world.getComponent<scripting::ScriptComponent>(state.m_selectedEntity);
+            for (std::size_t index = 0; index < fields.size(); ++index) {
+                require(script->fields.at(fields[index].name) == (index == selected), "Inspector edited a different binary/suffix key");
+            }
+            state.undoSceneEdit();
+        }
+        state.redoSceneEdit();
+        const auto snapshot = state.parseScene(nlohmann::json::parse(state.serializeScene(state.captureSceneSnapshot())));
+        state.restoreSceneSnapshot(snapshot);
+        const auto* restored = state.m_world.getComponent<scripting::ScriptComponent>(state.m_selectedEntity);
+        require(restored && restored->fields.at(fields.back().name) == true, "Scene JSON roundtrip lost the independently edited key");
+    }
+
+    static void nativeTextAndRootNamesPreserveBinaryStrings() {
+        ecs::World world; scripting::ScriptingSystem scripts;
+        require(scripts.initialize(world, nullptr, "assets") && scripting::ReactRuntime::install(scripts),
+            "Binary native UI runtime initialization failed");
+        require(scripts.execute(R"(
+            local React=require('React'); local UI=require('ReactTurbo')
+            __binaryText=React.createRef(); __binaryChanges=0
+            __binaryTextRoot=UI.createRoot({Name='BinaryTextHost'})
+            __binaryTextRoot:render(React.createElement('ScreenGui',{}, {
+                React.createElement('TextBox',{ref=__binaryText,Text='A'..string.char(0)..'B',ClearTextOnFocus=false,
+                    Position=UDim2.fromOffset(20,20),Size=UDim2.fromOffset(220,35),
+                    [React.Change.Text]=function() __binaryChanges+=1 end}),
+            }))
+        )", "=BinaryNativeText"), "Binary TextBox fixture failed");
+        require(scripting::ReactRuntime::pump(scripts, 0) && scripts.execute("__binaryChanges=0"),
+            "Binary TextBox initial signals failed");
+        auto& io = ImGui::GetIO(); io.IniFilename = nullptr; io.DisplaySize = {800, 600}; io.DeltaTime = 1.0F / 60.0F;
+        ImGui::ClearActiveID();
+        const int stackTop = lua_gettop(scripts.state());
+        const auto frame = [&](const bool gameOnly = true) {
+            io.AddMousePosEvent(700, 500); io.AddMouseButtonEvent(ImGuiMouseButton_Left, false);
+            ImGui::NewFrame(); scripting::ReactUI::draw(scripts, gameOnly); ImGui::Render();
+            require(lua_gettop(scripts.state()) == stackTop, "Binary native UI leaked Lua stack entries");
+            require(scripting::ReactRuntime::pump(scripts, 0), "Binary native UI event dispatch failed");
+        };
+        frame(); frame();
+        require(scripts.execute("assert(__binaryText.current.Text=='A'..string.char(0)..'B' and __binaryChanges==0)"),
+            "Passive native drawing truncated TextBox text or emitted a spurious change");
+        require(scripts.execute("__binaryText.current:CaptureFocus()"), "Binary TextBox focus request failed");
+        frame(); frame();
+        require(scripts.execute("assert(__binaryText.current:IsFocused() and __binaryText.current.Text=='A'..string.char(0)..'B' and __binaryChanges==0)"),
+            "Focusing a non-clearing TextBox silently changed its text");
+        io.AddInputCharactersUTF8("Z"); frame(); frame();
+        require(scripts.execute("local text=__binaryText.current.Text; assert(string.find(text,'Z',1,true) and not string.find(text,string.char(0),1,true) and __binaryChanges==1); __binaryText.current:ReleaseFocus(false)"),
+            "Explicit native text editing lost input or emitted duplicate changes");
+        frame();
+        require(scripts.execute("__binaryText.current.Text=string.char(0)..'hidden'; __binaryText.current.ClearTextOnFocus=true"),
+            "Binary clear-on-focus setup failed");
+        require(scripting::ReactRuntime::pump(scripts, 0) && scripts.execute("__binaryChanges=0; __binaryText.current:CaptureFocus()"),
+            "Binary clear-on-focus request failed");
+        frame(); frame();
+        require(scripts.execute("assert(__binaryText.current.Text=='' and __binaryChanges==1)"),
+            "ClearTextOnFocus did not clear a leading-NUL string exactly once");
+        require(scripting::ReactRuntime::reset(scripts), "Binary native text cleanup failed");
+        require(scripts.execute(R"(
+            local React=require('React'); local UI=require('ReactTurbo')
+            __binaryFirst=UI.createRoot({Name='BinaryRoot'..string.char(0)..'first'})
+            __binaryOther=UI.createRoot({Name='BinaryRoot'..string.char(0)..'other'})
+            __binaryFirst:render(React.createElement('TextLabel',{Text='first'}))
+            __binaryOther:render(React.createElement('TextLabel',{Text='other'}))
+        )", "=BinaryNativeRootNames"), "Binary root name fixture failed");
+        frame(false); frame(false);
+        std::unordered_set<ImGuiID> windows;
+        for (const auto* window : ImGui::GetCurrentContext()->Windows) {
+            if (window->Active && std::string_view(window->Name).find("BinaryRoot ") != std::string_view::npos &&
+                std::string_view(window->Name).find("##ReactRoot") != std::string_view::npos) windows.insert(window->ID);
+        }
+        require(windows.size() == 2, "Binary root names collided in the native window host");
+        require(scripts.execute("assert(__binaryFirst.container.Name=='BinaryRoot'..string.char(0)..'first' and __binaryOther.container.Name=='BinaryRoot'..string.char(0)..'other'); __binaryFirst.container.Name=string.char(0)..'leading'"),
+            "Native title sanitization changed authored root names");
+        frame(false);
+        require(scripting::ReactRuntime::reset(scripts) && lua_gettop(scripts.state()) == stackTop,
+            "Binary root cleanup failed or leaked stack entries");
+    }
+
+    static void renderedMaterialEditorCreatesSavesAndRejectsConflicts() {
+        namespace fs = std::filesystem;
+        using Json = nlohmann::json;
+        struct Fixture {
+            fs::path root = fs::temp_directory_path() / ("tge-material-widgets-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
+            ~Fixture() { std::error_code ignored; fs::remove_all(root, ignored); }
+        } fixture;
+        fs::create_directory(fixture.root);
+        core::ProjectManager projects(fixture.root / "recent.json");
+        std::string error;
+        const auto project = projects.createBlank(fixture.root, "MaterialWidgets", error);
+        require(project.has_value(), "Material editor test project creation failed");
+        fs::create_directories(project->assetRoot / "shaders_hlsl");
+        const auto write = [](const fs::path& path, const std::string& contents) {
+            std::ofstream file(path, std::ios::binary); file << contents;
+            require(static_cast<bool>(file), "Material editor fixture write failed");
+        };
+        const auto read = [](const fs::path& path) {
+            std::ifstream file(path, std::ios::binary);
+            return std::string(std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>());
+        };
+        const auto shaderDescriptor = R"({"vertex":"textured.vert.hlsl","fragment":"textured.frag.hlsl"})";
+        write(project->assetRoot / "shaders_hlsl/textured.shader.json", shaderDescriptor);
+        write(project->assetRoot / "shaders_hlsl/alternate.shader.json", shaderDescriptor);
+        StateStack stack;
+        stack.setProject(&*project);
+        GameplayState state(stack);
+        state.onEnter();
+        const auto entity = state.createEditorEntity(GameplayState::EditorEntityKind::RenderCube);
+        state.m_world.getComponent<ecs::Tag>(entity)->value = "MaterialWidgetMesh";
+        state.m_selectedEntity = entity;
+        state.m_undoStack.clear(); state.m_redoStack.clear(); state.m_pendingSceneEdit.reset();
+        renderer::Renderer renderer;
+        renderer.setProjectAssetRoot(project->assetRoot);
+        auto& library = renderer.materialLibrary();
+        state.restoreMaterialGraphLayout(library);
+        const auto mesh = [&]() -> ecs::MeshRenderer& {
+            const auto current = tagged(state, "MaterialWidgetMesh");
+            auto* component = state.m_world.getComponent<ecs::MeshRenderer>(current);
+            require(component != nullptr, "Material editor scene mesh disappeared");
+            return *component;
+        };
+        struct Context {
+            ImGuiContext* previous{ImGui::GetCurrentContext()};
+            ImGuiContext* owned{ImGui::CreateContext()};
+            Context() { ImGui::SetCurrentContext(owned); }
+            ~Context() { ImGui::DestroyContext(owned); ImGui::SetCurrentContext(previous); }
+        } gui;
+        editor::applyEditorTheme();
+        auto& io = ImGui::GetIO();
+        io.IniFilename = nullptr; io.LogFilename = nullptr;
+        io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+        io.DisplaySize = {1000, 1000}; io.DeltaTime = 1.0F / 60.0F;
+        io.Fonts->AddFontDefault();
+        unsigned char* pixels{}; int width{}, height{};
+        io.Fonts->GetTexDataAsRGBA32(&pixels, &width, &height);
+        const ImVec2 away{-1000, -1000};
+        float panelWidth = 500;
+        ImGuiID probeId{};
+        ImGuiWindow* probeWindow{};
+        std::shared_ptr<resources::Material> graphPreview;
+        const auto frame = [&](const ImVec2 mouse, const bool down, const bool rightDown = false) {
+            io.AddMousePosEvent(mouse.x, mouse.y); io.AddMouseButtonEvent(ImGuiMouseButton_Left, down);
+            io.AddMouseButtonEvent(ImGuiMouseButton_Right, rightDown);
+            ImGui::NewFrame();
+            ImGui::SetNextWindowPos({10, 10}); ImGui::SetNextWindowSize({panelWidth, 940});
+            ImGui::Begin("Material Editor Widgets", nullptr, ImGuiWindowFlags_NoSavedSettings);
+            auto& context = *ImGui::GetCurrentContext();
+            const int ids = context.CurrentWindow->IDStack.Size, styles = context.StyleVarStack.Size;
+            const int colors = context.ColorStack.Size, tables = context.TablesTempDataStacked;
+            if (probeId != 0) {
+                ImGui::SetNavWindow(probeWindow);
+                ImGui::SetNavID(probeId, ImGuiNavLayer_Main, context.CurrentFocusScopeId, ImRect{});
+                context.NavIdIsAlive = false;
+            }
+            state.renderEntityComponentEditors(tagged(state, "MaterialWidgetMesh"), &renderer);
+            require(context.CurrentWindow->IDStack.Size == ids && context.StyleVarStack.Size == styles &&
+                context.ColorStack.Size == colors && context.TablesTempDataStacked == tables,
+                "Material editor leaked an ImGui ID, style, color or table scope");
+            ImGui::End();
+            graphPreview = editor::renderMaterialGraphEditor(library, tagged(state, "MaterialWidgetMesh"), &mesh());
+            ImGui::Render();
+            require(ImGui::GetDrawData()->Valid && ImGui::GetDrawData()->TotalVtxCount > 0, "Material editor produced no native draw data");
+        };
+        const auto window = [&]() {
+            auto* result = ImGui::FindWindowByName("Material Editor Widgets");
+            require(result != nullptr, "Material editor window was not rendered");
+            return result;
+        };
+        const auto popup = [&]() {
+            const auto& context = *ImGui::GetCurrentContext();
+            require(!context.OpenPopupStack.empty() && context.OpenPopupStack.back().Window,
+                "Material asset chooser did not open its real popup");
+            return context.OpenPopupStack.back().Window;
+        };
+        const auto itemId = [&](const char* label, const bool inPopup) {
+            if (inPopup) return ImHashStr(label, 0, popup()->ID);
+            const auto rootText = library.root().generic_u8string();
+            const std::string key = std::string(rootText.begin(), rootText.end()) + "|" + mesh().materialId;
+            return ImHashStr(label, 0, ImHashStr(key.c_str(), 0, window()->ID));
+        };
+        const auto locate = [&](const char* label, const bool inPopup = false) {
+            std::string diagnostic;
+            for (int attempt = 0; attempt < 14; ++attempt) {
+                auto* targetWindow = inPopup ? popup() : window();
+                const auto target = itemId(label, inPopup);
+                probeId = target; probeWindow = targetWindow;
+                frame(away, false);
+                probeId = 0; probeWindow = nullptr;
+                auto& context = *ImGui::GetCurrentContext();
+                if (!context.NavIdIsAlive || context.NavId != target)
+                    throw std::runtime_error(std::string("Material widget is absent or disabled: ") + label);
+                const ImRect rectangle = ImGui::WindowRectRelToAbs(targetWindow, targetWindow->NavRectRel[ImGuiNavLayer_Main]);
+                require(rectangle.GetWidth() > 0 && rectangle.GetHeight() > 0, "Material widget has no navigation geometry");
+                require(rectangle.Min.x >= targetWindow->InnerRect.Min.x - 1 && rectangle.Max.x <= targetWindow->InnerRect.Max.x + 1,
+                    "Material widget extends beyond the narrow panel");
+                const auto point = rectangle.GetCenter();
+                if (targetWindow->InnerClipRect.Contains(point)) {
+                    frame(point, false);
+                    if (context.HoveredId == target) return point;
+                }
+                diagnostic = " target=" + std::to_string(target) + " hovered=" + std::to_string(context.HoveredId) +
+                    " rect=" + std::to_string(rectangle.Min.x) + "," + std::to_string(rectangle.Min.y) + "," +
+                    std::to_string(rectangle.Max.x) + "," + std::to_string(rectangle.Max.y) +
+                    " clip=" + std::to_string(targetWindow->InnerClipRect.Min.x) + "," + std::to_string(targetWindow->InnerClipRect.Min.y) + "," +
+                    std::to_string(targetWindow->InnerClipRect.Max.x) + "," + std::to_string(targetWindow->InnerClipRect.Max.y) +
+                    " scroll=" + std::to_string(targetWindow->Scroll.y) + "/" + std::to_string(targetWindow->ScrollMax.y) +
+                    " navHover=" + std::to_string(context.NavHighlightItemUnderNav) +
+                    " hoveredWindow=" + (context.HoveredWindow ? context.HoveredWindow->Name : "<none>") +
+                    " mouse=" + std::to_string(io.MousePos.x) + "," + std::to_string(io.MousePos.y);
+                const float direction = point.y < targetWindow->InnerClipRect.Min.y ? 3.0F : -3.0F;
+                const auto wheelPoint = targetWindow->InnerRect.GetCenter();
+                frame(wheelPoint, false);
+                io.AddMouseWheelEvent(0, direction);
+                frame(wheelPoint, false);
+            }
+            throw std::runtime_error(std::string("Cannot scroll to actual material editor widget: ") + label + diagnostic);
+        };
+        const auto click = [&](const char* label, const bool inPopup = false) {
+            const auto point = locate(label, inPopup);
+            frame(point, true); frame(point, false);
+        };
+        const auto input = [&](const char* label, const char* value, const bool inPopup = false) {
+            const auto point = locate(label, inPopup);
+            frame(point, true); frame(point, false);
+            io.AddKeyEvent(ImGuiMod_Ctrl, true); io.AddKeyEvent(ImGuiKey_LeftCtrl, true); io.AddKeyEvent(ImGuiKey_A, true);
+            frame(point, false);
+            io.AddKeyEvent(ImGuiKey_A, false); io.AddKeyEvent(ImGuiKey_LeftCtrl, false); io.AddKeyEvent(ImGuiMod_Ctrl, false);
+            frame(point, false);
+            io.AddInputCharactersUTF8(value); frame(point, false);
+            io.AddKeyEvent(ImGuiKey_Enter, true); frame(point, false);
+            io.AddKeyEvent(ImGuiKey_Enter, false); frame(away, false);
+            const auto& textState = ImGui::GetCurrentContext()->InputTextState;
+            if (textState.ID != itemId(label, inPopup) || textState.TextA.empty() || std::string(textState.TextA.Data) != value) {
+                throw std::runtime_error(std::string("Actual material text input mismatch: ") + label +
+                    " expected=" + value + " actual=" + (textState.TextA.empty() ? "<empty>" : textState.TextA.Data));
+            }
+        };
+        for (int i = 0; i < 3; ++i) frame(away, false);
+        state.m_inspectorFilter = "Material";
+        for (int i = 0; i < 3; ++i) frame(away, false);
+        click("###CreateMaterial");
+        state.m_inspectorFilter.clear();
+        frame(away, false);
+        const auto basePath = mesh().materialId;
+        require(!basePath.empty() && fs::exists(project->assetRoot / basePath),
+            "Actual Create Material button did not write and assign a material asset");
+        require(state.m_undoStack.size() == 1 && !state.m_pendingSceneEdit, "Material assignment did not record one completed scene transaction");
+        state.undoSceneEdit();
+        frame(away, false);
+        require(mesh().materialId.empty() && fs::exists(project->assetRoot / basePath), "Material assignment Undo changed the asset file or retained its assignment");
+        state.redoSceneEdit();
+        frame(away, false);
+        require(mesh().materialId == basePath, "Material assignment Redo did not restore the chosen resource");
+        auto base = library.load(basePath);
+        require(base->ready && base->definition.depthTest, "Created material did not resolve its shader and default states");
+        const auto original = read(project->assetRoot / basePath);
+        click("###AdvancedMaterial");
+        input("###Shader", "shaders_hlsl/alternate.shader.json");
+        click("###DepthTest");
+        require(read(project->assetRoot / basePath) == original && base->definition.depthTest,
+            "Editing material draft changed disk or live state before saving");
+        click("###SaveMaterial");
+        require(base->ready && base->definition.shader == "shaders_hlsl/alternate.shader.json" && !base->definition.depthTest,
+            "Actual Save Material did not commit shader/state draft changes");
+        require(state.m_undoStack.size() == 1, "Saving shared material parameters created a scene assignment transaction");
+        input("###Shader", "shaders_hlsl/textured.shader.json");
+        auto external = Json::parse(read(project->assetRoot / basePath));
+        external["tint"] = {0.2, 0.3, 0.4, 1};
+        const auto externalBytes = external.dump(2) + "\n";
+        write(project->assetRoot / basePath, externalBytes);
+        click("###SaveMaterial");
+        require(read(project->assetRoot / basePath) == externalBytes,
+            "Material Save overwrote a source changed after the draft was opened");
+        click("###DiscardMaterial");
+        require(std::abs(base->definition.tint.r - 0.2F) < 0.0001F && base->definition.shader == "shaders_hlsl/alternate.shader.json",
+            "Discard did not load external material values");
+        click("###NewInstance");
+        const auto baseBeforeAliasedCreate = read(project->assetRoot / basePath);
+        input("###Destination", ("assets/" + basePath).c_str());
+        click("###ConfirmCreate");
+        require(mesh().materialId == basePath && read(project->assetRoot / basePath) == baseBeforeAliasedCreate && state.m_undoStack.size() == 1,
+            "Instance creation overwrote an existing material through an assets-prefixed path alias");
+        click("###CancelCreate");
+        click("###NewInstance");
+        click("###ConfirmCreate");
+        const auto firstInstancePath = mesh().materialId;
+        require(firstInstancePath != basePath && fs::exists(project->assetRoot / firstInstancePath),
+            "Default instance destination reused the base or failed to create a new asset");
+        auto instance = library.load(firstInstancePath);
+        require(instance->ready && instance->definition.tint == base->definition.tint && !instance->definition.depthTest &&
+            Json::parse(read(project->assetRoot / firstInstancePath)).at("base") == basePath,
+            "Created material instance did not inherit its base asset");
+        require(state.m_undoStack.size() == 2, "Creating an instance did not record exactly one assignment transaction");
+        click("###AdvancedMaterial");
+        click("###Override_depthTest");
+        click("###DepthTest"); click("###SaveMaterial");
+        require(instance->definition.depthTest, "Instance override did not apply to the live material");
+        click("###Override_depthTest");
+        require(instance->definition.depthTest, "Resetting a draft override applied before Save");
+        click("###Override_depthTest"); click("###SaveMaterial");
+        require(!instance->definition.depthTest && !Json::parse(read(project->assetRoot / firstInstancePath)).at("depthTest").get<bool>(),
+            "Re-enabling an override copied stale values instead of the immediately resolved base");
+        click("###ResetOverrides"); click("###SaveMaterial");
+        require(!instance->definition.depthTest && !Json::parse(read(project->assetRoot / firstInstancePath)).contains("depthTest"),
+            "Reset All and Save did not restore base inheritance");
+        const std::string alternateBase = "materials/other.material.json";
+        write(project->assetRoot / alternateBase, Json{{"shader", "shaders_hlsl/textured.shader.json"}, {"depthTest", true}, {"tint", {0.1, 0.8, 0.2, 1}}}.dump(2));
+        input("###Base", alternateBase.c_str());
+        require(!instance->definition.depthTest, "Editing the base draft changed the live material before Save");
+        click("###Override_depthTest"); click("###SaveMaterial");
+        const auto switched = Json::parse(read(project->assetRoot / firstInstancePath));
+        require(instance->definition.depthTest && switched.at("base") == alternateBase && switched.at("depthTest") == true,
+            "Changing base did not immediately preview inherited values before authoring an override");
+        panelWidth = 320;
+        for (int i = 0; i < 3; ++i) frame(away, false);
+        require(window()->ContentSize.x <= window()->InnerRect.GetWidth() + 1, "Material Inspector requires horizontal scrolling at 320 pixels");
+        click("###MaterialChoice");
+        input("###AssetSearch", fs::path(basePath).filename().string().c_str(), true);
+        click(("###" + basePath).c_str(), true);
+        require(mesh().materialId == basePath, "Searchable material chooser did not assign the selected file");
+        click("###NewInstance"); click("###ConfirmCreate");
+        require(mesh().materialId != firstInstancePath && mesh().materialId != basePath && fs::exists(project->assetRoot / mesh().materialId)
+            && Json::parse(read(project->assetRoot / mesh().materialId)).at("base") == basePath,
+            "Creating another instance reused or overwrote an existing default destination");
+        const auto validPath = mesh().materialId;
+        const std::string malformed = "materials/invalid-base.material.json";
+        write(project->assetRoot / malformed, R"({"base":17})");
+        mesh().materialId = malformed;
+        for (int i = 0; i < 3; ++i) frame(away, false);
+        require(!library.load(malformed)->ready, "Malformed material was treated as ready by Inspector");
+        mesh().materialId = validPath;
+        for (int i = 0; i < 3; ++i) frame(away, false);
+        const auto resourceBeforeReopen = library.load(validPath);
+        auto reopenedSource = Json::parse(read(project->assetRoot / validPath));
+        reopenedSource["depthTest"] = false;
+        write(project->assetRoot / validPath, reopenedSource.dump(2) + "\n");
+        library.setRoot(project->assetRoot);
+        for (int i = 0; i < 3; ++i) frame(away, false);
+        const auto reopenedResource = library.load(validPath);
+        require(reopenedResource != resourceBeforeReopen && reopenedResource->ready && !reopenedResource->definition.depthTest &&
+            reopenedResource->revision == resourceBeforeReopen->revision,
+            "Material reopen fixture did not replace its resource with an equal-revision fresh definition");
+        click("###AdvancedMaterial");
+        click("###DepthTest"); click("###SaveMaterial");
+        require(reopenedResource->definition.depthTest && Json::parse(read(project->assetRoot / validPath)).at("depthTest") == true,
+            "Clean Inspector draft kept stale source or inherited controls after the material library reopened");
+
+        mesh().materialId.clear();
+        frame(away, false);
+        input("###Destination", "materials/graph.material.json");
+        click("###CreateGraphMaterial");
+        frame(away, false);
+        const auto graph = library.load(mesh().materialId);
+        require(graph->ready && graph->definition.graphProgram && graph->path == "materials/graph.material.json" &&
+            Json::parse(read(project->assetRoot / graph->path)).at("version") == 2,
+            "Create Material Graph did not save and assign a valid graph asset");
+        require(editor::materialGraphEditorFocused(), "Creating a graph did not focus its editor");
+        platform::Event key{};
+        key.type = platform::EventType::KeyPressed;
+        key.key = platform::KeyCode::Delete;
+        state.handleEvent(key);
+        key.key = platform::KeyCode::Space;
+        state.handleEvent(key);
+        require(state.m_world.isAlive(tagged(state, "MaterialWidgetMesh")) && state.m_editorMode == GameplayState::EditorMode::Edit,
+            "Material graph keyboard focus leaked Delete or Space to the scene editor");
+        require(!graphPreview, "A saved graph unexpectedly created a draft preview");
+
+        ImGui::SetWindowPos("Material Graph", {panelWidth + 30, 60});
+        mesh().materialId = alternateBase;
+        const auto legacy = library.load(alternateBase);
+        const auto legacyRevision = legacy->revision;
+        const auto legacyFile = project->assetRoot / alternateBase;
+        const auto legacyBytes = read(legacyFile);
+        const auto legacyWriteTime = fs::last_write_time(legacyFile);
+        frame(away, false);
+        click("###ConvertMaterialGraph");
+        require(graphPreview && graphPreview != legacy && graphPreview->path == alternateBase && graphPreview->definition.graphProgram,
+            "An unsaved graph conversion did not publish a transient preview for the selected material");
+        require(legacy->revision == legacyRevision && !legacy->definition.graphProgram &&
+            fs::last_write_time(legacyFile) == legacyWriteTime && read(legacyFile) == legacyBytes,
+            "A graph preview mutated the saved material");
+        mesh().materialId = graph->path;
+        frame(away, false);
+        require(!graphPreview, "A draft preview followed the object after its material assignment changed");
+
+        const std::string historyPath = "materials/history.material.json";
+        const Json historySource{{"version", 2}, {"graph", {
+            {"nodes", Json::array({{{"id", 1}, {"type", "scalar"}, {"value", 0.25}, {"position", {40, 90}}}})},
+            {"outputs", {{"baseColor", 1}}}, {"outputPosition", {340, 45}}
+        }}};
+        const auto historyFile = project->assetRoot / historyPath;
+        const auto historyBytes = historySource.dump(2) + "\n";
+        write(historyFile, historyBytes);
+        const auto historyWriteTime = fs::last_write_time(historyFile);
+        mesh().materialId = historyPath;
+        io.DisplaySize = {1440, 1000};
+        frame(away, false);
+        click("###OpenMaterialGraph");
+        const auto historyAsset = library.load(historyPath);
+        require(historyAsset->ready && !graphPreview, "Material graph history fixture did not open cleanly");
+        const auto historyRevision = historyAsset->revision;
+        const auto sceneHistorySize = state.m_undoStack.size();
+
+        const auto graphChild = [](const char* label) -> ImGuiWindow* {
+            auto* parent = ImGui::FindWindowByName("Material Graph");
+            require(parent != nullptr, "Material Graph window did not open");
+            const auto childId = ImHashStr(label, 0, parent->ID);
+            for (auto* child : ImGui::GetCurrentContext()->Windows) {
+                if (child->Active && child->ParentWindow == parent && child->ChildId == childId) return child;
+            }
+            throw std::runtime_error(std::string("Material Graph child missing: ") + label);
+        };
+        const auto canvasPoint = [&](float x, float y) {
+            const auto area = graphChild("Graph Canvas")->WorkRect;
+            const auto size = area.GetSize();
+            const ImVec2 graphSize{476.0F, 178.0F};
+            const auto zoom = std::clamp(std::min((size.x - 64.0F) / graphSize.x, (size.y - 64.0F) / graphSize.y), 0.35F, 1.0F);
+            return ImVec2{area.Min.x + (size.x - graphSize.x * zoom) * 0.5F + (x - 40.0F) * zoom,
+                          area.Min.y + (size.y - graphSize.y * zoom) * 0.5F + (y - 45.0F) * zoom};
+        };
+        const auto shortcutKeys = [&](ImGuiKey letter, bool down) {
+            io.AddKeyEvent(ImGuiMod_Ctrl, down); io.AddKeyEvent(ImGuiKey_LeftCtrl, down); io.AddKeyEvent(letter, down);
+        };
+        const auto shortcut = [&](ImGuiKey letter) {
+            frame(away, false);
+            shortcutKeys(letter, true);
+            frame(away, false);
+            shortcutKeys(letter, false);
+            frame(away, false);
+        };
+        const auto displayedGraph = [&]() -> const Json& {
+            return graphPreview ? graphPreview->definition.graph : historyAsset->definition.graph;
+        };
+        const auto connected = [&] { return displayedGraph().at("outputs").contains("baseColor"); };
+        const auto scalar = [&] { return displayedGraph().at("nodes").at(0).at("value").get<float>(); };
+
+        const auto baseColorPin = canvasPoint(340.0F, 88.5F);
+        frame(baseColorPin, false);
+        frame(baseColorPin, false, true);
+        frame(baseColorPin, false);
+        require(graphPreview && !connected(), "Disconnecting Base Color did not update the live draft");
+        shortcut(ImGuiKey_Z);
+        require(connected(), "Material Graph Ctrl+Z did not restore the Base Color link");
+        shortcut(ImGuiKey_Y);
+        require(graphPreview && !connected(), "Material Graph Ctrl+Y did not remove the Base Color link again");
+        shortcut(ImGuiKey_Z);
+        require(connected(), "Material Graph did not return to the linked baseline");
+
+        const auto nodeControl = [&](const char* label, float titleX = 128.0F, float titleY = 105.0F) {
+            const auto nodeTitle = canvasPoint(titleX, titleY);
+            frame(nodeTitle, false); frame(nodeTitle, true); frame(nodeTitle, false);
+            auto* details = graphChild("Node Properties");
+            probeWindow = details;
+            probeId = ImHashStr(label, 0, ImHashStr("1", 0, details->ID));
+            frame(away, false);
+            auto& context = *ImGui::GetCurrentContext();
+            require(context.NavIdIsAlive && context.NavId == probeId, "Scalar node control is unavailable");
+            const auto point = ImGui::WindowRectRelToAbs(details, details->NavRectRel[ImGuiNavLayer_Main]).GetCenter();
+            probeWindow = nullptr; probeId = 0;
+            return point;
+        };
+        const auto scalarPoint = nodeControl("###GraphScalar");
+        frame(scalarPoint, false); frame(scalarPoint, true);
+        frame({scalarPoint.x + 22, scalarPoint.y}, true);
+        frame({scalarPoint.x + 45, scalarPoint.y}, true);
+        frame({scalarPoint.x + 45, scalarPoint.y}, false);
+        std::this_thread::sleep_for(std::chrono::milliseconds(90));
+        frame(away, false);
+        require(graphPreview && connected() && scalar() > 0.25F, "A scalar drag did not reach the live preview");
+        const auto draggedValue = scalar();
+        shortcut(ImGuiKey_Y);
+        require(connected() && scalar() == draggedValue, "A new graph edit did not clear the abandoned redo branch");
+        shortcut(ImGuiKey_Z);
+        require(connected() && scalar() == 0.25F, "A multi-frame scalar drag did not undo as one edit");
+        shortcut(ImGuiKey_Y);
+        require(connected() && scalar() == draggedValue, "Redo did not restore the full scalar drag");
+        const auto deletePoint = nodeControl("###DeleteGraphNode");
+        frame(deletePoint, false); frame(deletePoint, true); frame(deletePoint, false);
+        std::this_thread::sleep_for(std::chrono::milliseconds(90));
+        frame(away, false);
+        require(!connected() && displayedGraph().at("nodes").empty(), "Deleting a node did not remove its connection");
+        shortcut(ImGuiKey_Z);
+        require(connected() && scalar() == draggedValue, "Undo did not restore the deleted node and its connection together");
+        shortcut(ImGuiKey_Y);
+        require(!connected() && displayedGraph().at("nodes").empty(), "Redo did not restore the node deletion");
+        require(historyAsset->revision == historyRevision && state.m_undoStack.size() == sceneHistorySize &&
+            fs::last_write_time(historyFile) == historyWriteTime && read(historyFile) == historyBytes,
+            "Material Graph history modified scene history or the saved material");
+
+        shortcut(ImGuiKey_Z);
+        shortcut(ImGuiKey_S);
+        require(!graphPreview && historyAsset->definition.graph.at("nodes").at(0).at("value") == draggedValue,
+            "Saving the graph did not establish a clean history checkpoint");
+        const auto beforeMove = read(historyFile);
+        const auto title = canvasPoint(128.0F, 105.0F);
+        frame(title, false); frame(title, true);
+        frame({title.x + 18, title.y + 7}, true);
+        frame({title.x + 42, title.y + 18}, true);
+        frame({title.x + 42, title.y + 18}, false);
+        require(!graphPreview, "Moving a graph node recompiled the live preview");
+        shortcut(ImGuiKey_Z);
+        shortcut(ImGuiKey_S);
+        require(read(historyFile) == beforeMove, "A multi-frame node move did not undo to the saved layout in one step");
+        shortcut(ImGuiKey_Y);
+        shortcut(ImGuiKey_S);
+        const auto moved = Json::parse(read(historyFile)).at("graph").at("nodes").at(0).at("position");
+        require(std::abs(moved.at(0).get<float>() - 82.0F) <= 1.0F && std::abs(moved.at(1).get<float>() - 108.0F) <= 1.0F,
+            "Redo did not restore the full node move");
+
+        const auto checkpointGraph = historyAsset->definition.graph;
+        const auto movedScalar = nodeControl("###GraphScalar", moved.at(0).get<float>() + 88.0F, moved.at(1).get<float>() + 15.0F);
+        frame(movedScalar, false); frame(movedScalar, true);
+        frame({movedScalar.x + 22, movedScalar.y}, true);
+        frame({movedScalar.x + 45, movedScalar.y}, true);
+        frame({movedScalar.x + 45, movedScalar.y}, false);
+        std::this_thread::sleep_for(std::chrono::milliseconds(90));
+        frame(away, false);
+        require(graphPreview && connected() && scalar() > draggedValue, "Recovery fixture could not edit the scalar after Save");
+        const auto recoveredValue = scalar();
+        frame(baseColorPin, false);
+        frame(baseColorPin, false, true);
+        frame(baseColorPin, false);
+        shortcut(ImGuiKey_Z);
+        require(graphPreview && connected() && scalar() == recoveredValue,
+            "Docking fixture could not restore a live material draft between undo and redo actions");
+        const auto savedSelection = state.createEditorEntity(GameplayState::EditorEntityKind::RenderCube);
+        state.m_world.getComponent<ecs::Tag>(savedSelection)->value = "SavedSceneSelection";
+        state.m_world.getComponent<ecs::MeshRenderer>(savedSelection)->materialId = historyPath;
+        state.m_selectedEntity = savedSelection;
+        require(state.saveSceneToDisk(), "Material Graph recovery fixture could not save its scene selection");
+        state.m_selectedEntity = tagged(state, "MaterialWidgetMesh");
+        state.m_showViewportPanel = true;
+        state.m_showHierarchyPanel = state.m_showProjectPanel = state.m_showInspectorPanel = state.m_showStatsPanel = false;
+        state.m_showToolbarPanel = state.m_showStatusPanel = state.m_showAssistant = state.m_showScriptWorkspace = false;
+        state.m_viewportDockSlot = EditorDockSlot::Center;
+        state.m_editorLayoutLocked = false;
+        state.m_materialGraphDocked = true;
+        auto* workspaceState = &state;
+        const auto workspaceFrame = [&](ImVec2 mouse, bool down, bool middleDown = false) {
+            io.AddMousePosEvent(mouse.x, mouse.y);
+            io.AddMouseButtonEvent(ImGuiMouseButton_Left, down);
+            io.AddMouseButtonEvent(ImGuiMouseButton_Middle, middleDown);
+            ImGui::NewFrame();
+            if (probeId != 0) {
+                auto& context = *ImGui::GetCurrentContext();
+                ImGui::SetNavWindow(probeWindow);
+                ImGui::SetNavID(probeId, ImGuiNavLayer_Main, context.CurrentFocusScopeId, ImRect{});
+                context.NavIdIsAlive = false;
+            }
+            workspaceState->renderEditorUi(renderer);
+            ImGui::Render();
+        };
+        const auto workspaceShortcut = [&](ImGuiKey letter) {
+            workspaceFrame(away, false);
+            shortcutKeys(letter, true);
+            workspaceFrame(away, false);
+            shortcutKeys(letter, false);
+        };
+        const auto workspacePanel = [](const char* name) -> ImGuiWindow* {
+            auto* panel = ImGui::FindWindowByName(name);
+            if (!panel || !panel->Active || panel->Collapsed) throw std::runtime_error(std::string("Workspace panel is hidden: ") + name);
+            return panel;
+        };
+        const auto graphButton = [&](const char* label) {
+            auto* panel = workspacePanel("Material Graph");
+            probeWindow = panel;
+            const auto item = ImHashStr(label, 0, panel->ID);
+            probeId = item;
+            workspaceFrame(away, false);
+            auto& context = *ImGui::GetCurrentContext();
+            require(context.NavIdIsAlive && context.NavId == probeId, "Material Graph toolbar control is unavailable");
+            const auto point = ImGui::WindowRectRelToAbs(panel, panel->NavRectRel[ImGuiNavLayer_Main]).GetCenter();
+            probeWindow = nullptr;
+            probeId = 0;
+            workspaceFrame(point, false);
+            require(context.HoveredId == item, "Material Graph toolbar control is obstructed");
+            workspaceFrame(point, true);
+            workspaceFrame(point, false);
+            workspaceFrame(away, false);
+        };
+        const auto checkDockedWorkspace = [&](bool stacked) {
+            const auto graphBounds = workspacePanel("Material Graph")->Rect();
+            const auto viewportBounds = workspacePanel("Viewport")->Rect();
+            const ImRect viewportContent{{state.m_viewportPosition.x, state.m_viewportPosition.y},
+                {state.m_viewportPosition.x + state.m_viewportSize.x, state.m_viewportPosition.y + state.m_viewportSize.y}};
+            require(state.m_viewportUsesContentRect && !graphBounds.Overlaps(viewportBounds) && !graphBounds.Overlaps(viewportContent) &&
+                viewportBounds.Contains(viewportContent) && viewportContent.GetWidth() > 100.0F && viewportContent.GetHeight() > 100.0F,
+                "Docked Material Graph overlaps the live Viewport or leaves it unusably small");
+            require(stacked ? viewportBounds.Max.y <= graphBounds.Min.y : viewportBounds.Max.x <= graphBounds.Min.x,
+                "Material Graph workspace did not adapt to its available width");
+            require(state.m_materialPreview && state.m_materialPreviewEntity == state.m_selectedEntity &&
+                state.m_materialPreview->definition.graph.at("nodes").at(0).at("value") == recoveredValue,
+                "Docked Material Graph did not publish the selected object's live draft");
+            return viewportBounds.GetWidth();
+        };
+        const auto dragWorkspaceSplitter = [&](bool stacked) {
+            const auto* splitter = workspacePanel("##MaterialGraphWorkspaceSplitter");
+            const auto item = ImHashStr("##DockSplitter", 0, splitter->ID);
+            const auto start = splitter->Rect().GetCenter();
+            const auto middle = stacked ? ImVec2{start.x, start.y + 24.0F} : ImVec2{start.x + 24.0F, start.y};
+            const auto end = stacked ? ImVec2{start.x, start.y + 56.0F} : ImVec2{start.x + 56.0F, start.y};
+            const auto before = workspacePanel("Viewport")->Size;
+            const float beforeFraction = state.m_materialGraphSplit;
+            auto& context = *ImGui::GetCurrentContext();
+            workspaceFrame(start, false);
+            require(context.HoveredId == item, "Material Graph workspace splitter did not receive mouse hover");
+            workspaceFrame(start, true);
+            require(context.ActiveId == item, "Material Graph workspace splitter did not capture the mouse press");
+            if (!stacked) {
+                workspaceFrame(middle, true);
+                workspaceFrame(end, true);
+            }
+            workspaceFrame(end, false);
+            if (stacked) {
+                require(ImGui::IsMouseReleased(ImGuiMouseButton_Left) && std::abs(io.MouseDelta.y - 56.0F) < 0.01F,
+                    "Stacked splitter fixture did not deliver its final move and release in the same frame");
+            }
+            workspaceFrame(away, false);
+            const auto after = workspacePanel("Viewport")->Size;
+            const float growth = stacked ? after.y - before.y : after.x - before.x;
+            require(growth >= 54.0F && growth <= 58.0F && state.m_materialGraphSplit < beforeFraction,
+                "Material Graph workspace splitter did not resize the Viewport by the mouse movement");
+            const auto persisted = Json::parse(read(state.editorLayoutPath())).at("materialGraph");
+            require(persisted.at("dockBesideViewport") == true &&
+                std::abs(persisted.at("split").get<float>() - state.m_materialGraphSplit) < 0.0001F,
+                "Releasing the Material Graph workspace splitter did not persist its new split");
+        };
+        workspaceFrame(away, false);
+        workspaceFrame(away, false);
+        checkDockedWorkspace(false);
+        dragWorkspaceSplitter(false);
+        const auto splitWidth = checkDockedWorkspace(false);
+        graphButton("###FloatMaterialGraph");
+        require(!state.m_materialGraphDocked && !state.m_viewportUsesContentRect && workspacePanel("Viewport")->Size.x > splitWidth &&
+            (workspacePanel("Material Graph")->Flags & ImGuiWindowFlags_NoMove) == 0,
+            "Floating Material Graph did not release the docked Viewport space");
+        require(!Json::parse(read(state.editorLayoutPath())).at("materialGraph").contains("session"),
+            "Floating Material Graph was persisted for docked restoration");
+        graphButton("###DockMaterialGraph");
+        require(state.m_materialGraphDocked, "Material Graph did not return to its docked workspace");
+        checkDockedWorkspace(false);
+        io.DisplaySize = {720, 900};
+        workspaceFrame(away, false);
+        workspaceFrame(away, false);
+        checkDockedWorkspace(true);
+        dragWorkspaceSplitter(true);
+        checkDockedWorkspace(true);
+
+        const auto originalView = editor::materialGraphSession(library);
+        require(originalView && originalView->canvas, "The docked graph has no canvas state");
+        const auto canvasCenter = graphChild("Graph Canvas")->InnerRect.GetCenter();
+        workspaceFrame(canvasCenter, false);
+        io.AddMouseWheelEvent(0.0F, 2.0F);
+        workspaceFrame(canvasCenter, false);
+        const auto zoomedView = editor::materialGraphSession(library);
+        require(zoomedView && zoomedView->canvas && zoomedView->canvas->zoom > originalView->canvas->zoom,
+            "Mouse wheel did not change the Material Graph canvas zoom");
+        const ImVec2 panTarget{canvasCenter.x + 47.0F, canvasCenter.y - 29.0F};
+        workspaceFrame(canvasCenter, false, true);
+        workspaceFrame(panTarget, false, true);
+        workspaceFrame(panTarget, false);
+        const auto remembered = editor::materialGraphSession(library);
+        require(remembered && remembered->materialId == historyPath && remembered->canvas &&
+            remembered->canvas->pan == zoomedView->canvas->pan + glm::vec2{47.0F, -29.0F},
+            "Material Graph canvas did not capture the latest graph and middle-button pan");
+        require(state.m_materialPreview != nullptr, "Material Graph draft preview disappeared before reopening the project");
+        const auto expectedDraft = state.m_materialPreview->definition.graph;
+        const auto beforeReopen = read(historyFile);
+        const auto beforeReopenTime = fs::last_write_time(historyFile);
+        const auto savedSceneBytes = read(project->scenePath);
+        const auto draftsFile = project->layoutPath.parent_path() / "material_graph_drafts.json";
+        state.onExit();
+        require(!editor::materialGraphEditorOpen(library), "Project exit left the Material Graph window open");
+        const auto savedLayout = Json::parse(read(state.editorLayoutPath()));
+        const auto& savedSession = savedLayout.at("materialGraph").at("session");
+        const auto& savedCanvas = savedSession.at("canvas");
+        require(savedSession.at("materialId") == historyPath && savedCanvas.at("zoom").get<float>() == remembered->canvas->zoom &&
+            savedCanvas.at("pan") == Json::array({remembered->canvas->pan.x, remembered->canvas->pan.y}),
+            "Project layout did not persist the last open graph and exact canvas transform");
+        const auto persistedDrafts = Json::parse(read(draftsFile)).at("drafts");
+        require(persistedDrafts.at(historyPath).at("source").at("graph") == expectedDraft &&
+            persistedDrafts.at(historyPath).at("original") == beforeReopen,
+            "Project did not persist the unsaved graph and its original material bytes");
+        require(persistedDrafts.at(alternateBase).at("source").at("graph").is_object() &&
+            read(legacyFile) == legacyBytes, "Switching materials lost the unsaved conversion or wrote it to the asset");
+
+        renderer.setProjectAssetRoot({});
+        renderer.setProjectAssetRoot(project->assetRoot);
+        GameplayState reopened(stack);
+        reopened.onEnter();
+        reopened.m_showStatusPanel = true;
+        workspaceState = &reopened;
+        workspaceFrame(away, false);
+        workspacePanel("Status Bar");
+        const auto* reopenedFocus = ImGui::GetCurrentContext()->NavWindow;
+        require(reopenedFocus && reopenedFocus->RootWindow == workspacePanel("Material Graph"),
+            "A newly opened editor panel took keyboard focus from the recovered Material Graph");
+        const auto reopenedSelection = tagged(reopened, "MaterialWidgetMesh");
+        require(reopenedSelection != tagged(reopened, "SavedSceneSelection") && reopened.m_selectedEntity == reopenedSelection &&
+            reopened.m_materialPreviewEntity == reopenedSelection && reopened.m_materialPreview &&
+            reopened.m_materialPreview->definition.graph == expectedDraft,
+            "Opening a project did not immediately preview the restored draft on its remembered selection");
+        workspaceFrame(away, false);
+        require(reopened.m_viewportUsesContentRect && (workspacePanel("Material Graph")->Flags & ImGuiWindowFlags_NoMove) != 0 &&
+            editor::materialGraphSession(library) == remembered,
+            "Reopening the project did not auto-open the last docked graph at its saved zoom and pan");
+        require(read(historyFile) == beforeReopen && fs::last_write_time(historyFile) == beforeReopenTime &&
+            read(project->scenePath) == savedSceneBytes, "Restoring the draft changed the material asset or scene");
+
+        workspaceShortcut(ImGuiKey_Z);
+        require(!reopened.m_materialPreview && library.load(historyPath)->definition.graph == checkpointGraph,
+            "Ctrl+Z after reopening did not immediately return the preview to the saved graph");
+        workspaceShortcut(ImGuiKey_Y);
+        require(reopened.m_materialPreviewEntity == reopenedSelection && reopened.m_materialPreview &&
+            reopened.m_materialPreview->definition.graph == expectedDraft,
+            "Ctrl+Y after reopening did not immediately restore the draft preview");
+        workspaceShortcut(ImGuiKey_Y);
+        require(reopened.m_materialPreviewEntity == reopenedSelection && reopened.m_materialPreview &&
+            !reopened.m_materialPreview->definition.graph.at("outputs").contains("baseColor"),
+            "Ctrl+Y did not recover the link change that was already in the redo stack at close");
+        workspaceShortcut(ImGuiKey_Z);
+        require(reopened.m_materialPreviewEntity == reopenedSelection && reopened.m_materialPreview &&
+            reopened.m_materialPreview->definition.graph == expectedDraft,
+            "Ctrl+Z did not immediately preview the reconnected graph");
+        workspaceShortcut(ImGuiKey_Z);
+        require(!reopened.m_materialPreview, "Ctrl+Z did not return the graph to the saved checkpoint");
+        reopened.onExit();
+
+        renderer.setProjectAssetRoot({});
+        renderer.setProjectAssetRoot(project->assetRoot);
+        GameplayState resumed(stack);
+        resumed.onEnter();
+        workspaceState = &resumed;
+        workspaceFrame(away, false);
+        const auto resumedSelection = tagged(resumed, "MaterialWidgetMesh");
+        require(editor::materialGraphEditorOpen(library) && resumed.m_selectedEntity == resumedSelection && !resumed.m_materialPreview,
+            "Reopening the graph at the saved checkpoint changed its clean preview or selection");
+        workspaceShortcut(ImGuiKey_Y);
+        require(resumed.m_materialPreviewEntity == resumedSelection && resumed.m_materialPreview &&
+            resumed.m_materialPreview->definition.graph == expectedDraft && read(historyFile) == beforeReopen &&
+            fs::last_write_time(historyFile) == beforeReopenTime && read(project->scenePath) == savedSceneBytes,
+            "Ctrl+Y lost the draft after reopening at the saved checkpoint, changed the saved material or changed the scene");
+
+        auto conflictingMaterial = Json::parse(beforeReopen);
+        conflictingMaterial["depthWrite"] = false;
+        const auto conflictingBytes = conflictingMaterial.dump(2) + "\n";
+        write(historyFile, conflictingBytes);
+        graphButton("###SaveGraphMaterial");
+        require(read(historyFile) == conflictingBytes && resumed.m_materialPreview,
+            "Saving a recovered draft silently overwrote an external material change or lost the draft");
+        write(historyFile, beforeReopen);
+        graphButton("###SaveGraphMaterial");
+        const auto committedGraph = Json::parse(read(historyFile)).at("graph");
+        require(!resumed.m_materialPreview && committedGraph.at("nodes") == expectedDraft.at("nodes") &&
+            committedGraph.at("outputs") == expectedDraft.at("outputs"), "Explicit Save did not commit the recovered draft");
+        resumed.onExit();
+        const auto remainingDrafts = Json::parse(read(draftsFile)).at("drafts");
+        require(!remainingDrafts.contains(historyPath) && remainingDrafts.contains(alternateBase),
+            "Explicit Save did not clear only the saved material's recovery draft");
+
+        renderer.setProjectAssetRoot({});
+        renderer.setProjectAssetRoot(project->assetRoot);
+        GameplayState committed(stack);
+        committed.onEnter();
+        workspaceState = &committed;
+        workspaceFrame(away, false);
+        require(editor::materialGraphEditorOpen(library) && !committed.m_materialPreview &&
+            library.load(historyPath)->definition.graph == committedGraph,
+            "Opening the project after Save revived the recovered draft");
+        committed.onExit();
+
+        auto missingLayout = savedLayout;
+        missingLayout["materialGraph"]["session"]["materialId"] = "materials/missing.material.json";
+        write(state.editorLayoutPath(), missingLayout.dump(2));
+        GameplayState missingGraph(stack);
+        missingGraph.onEnter();
+        workspaceState = &missingGraph;
+        workspaceFrame(away, false);
+        require(!editor::materialGraphEditorOpen(library) && !missingGraph.m_viewportUsesContentRect,
+            "A missing saved graph blocked the normal Viewport layout");
+        missingGraph.onExit();
+        std::cout << "MATERIAL_INSPECTOR_WIDGETS_PASS width_320=1 width_500=1 real_io=1 assignment_undo_redo=1 inheritance_preview=1"
+                     " alias_overwrite_guard=1 unique_instance=1 conflict_guard=1 clean_reopen_identity=1 graph_create=1 graph_hotkeys=1 graph_preview=1 graph_undo_redo=1\n";
+        std::cout << "MATERIAL_GRAPH_WORKSPACE_PASS beside_viewport=1 stacked=1 float_redock=1 live_preview=1 splitter_drag=1 persisted_split=1\n";
+        std::cout << "MATERIAL_GRAPH_SESSION_PASS material=1 canvas_pan=1 canvas_zoom=1 docked_reopen=1 missing_asset=1\n";
+        std::cout << "MATERIAL_GRAPH_DRAFT_RECOVERY_PASS restored_preview=1 unchanged_before_save=1 conflict_guard=1 explicit_save=1 clean_reopen=1\n";
+        std::cout << "MATERIAL_GRAPH_HISTORY_RECOVERY_PASS undo=1 redo=1 clean_checkpoint_redo=1 live_preview=1\n";
+    }
+
+    static void dockResizeHandlesPreserveInspectorInput() {
+        struct Context {
+            ImGuiContext* previous{ImGui::GetCurrentContext()};
+            ImGuiContext* owned{ImGui::CreateContext()};
+            Context() { ImGui::SetCurrentContext(owned); }
+            ~Context() { ImGui::DestroyContext(owned); ImGui::SetCurrentContext(previous); }
+        } gui;
+        editor::applyEditorTheme();
+        ImGui::GetStyle().WindowMinSize = {32, 32};
+        auto& io = ImGui::GetIO();
+        io.IniFilename = nullptr; io.LogFilename = nullptr;
+        io.DisplaySize = {1280, 900}; io.DeltaTime = 1.0F / 60.0F;
+        io.Fonts->AddFontDefault();
+        unsigned char* pixels{}; int width{}, height{};
+        io.Fonts->GetTexDataAsRGBA32(&pixels, &width, &height);
+        StateStack stack;
+        GameplayState state(stack);
+        state.m_editorLayoutLocked = false;
+        state.m_showInspectorPanel = state.m_showViewportPanel = true;
+        state.m_showHierarchyPanel = state.m_showProjectPanel = state.m_showStatsPanel = false;
+        state.m_showToolbarPanel = state.m_showStatusPanel = state.m_showAssistant = false;
+        state.m_inspectorDockSlot = EditorDockSlot::RightTop;
+        state.m_editorRightWidth = 360;
+        bool overridden = false;
+        ImVec2 checkboxPoint{};
+        const ImVec2 away{-1000, -1000};
+        const auto frame = [&](const ImVec2 mouse, const bool down) {
+            io.AddMousePosEvent(mouse.x, mouse.y); io.AddMouseButtonEvent(ImGuiMouseButton_Left, down);
+            ImGui::NewFrame();
+            const auto* previousSplitter = ImGui::FindWindowByName("##DockSplitterRightColumn");
+            const auto position = previousSplitter ? ImVec2(previousSplitter->Pos.x + 8, previousSplitter->Pos.y + 20) : ImVec2(800, 100);
+            ImGui::SetNextWindowPos(position); ImGui::SetNextWindowSize({300, 400});
+            const auto flags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove |
+                ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoBringToFrontOnFocus;
+            ImGui::Begin("Dock Inspector Input", nullptr, flags);
+            ImGui::Checkbox("Override###InspectorOverride", &overridden);
+            checkboxPoint = ImVec2(ImGui::GetItemRectMin().x + 6,
+                (ImGui::GetItemRectMin().y + ImGui::GetItemRectMax().y) * .5F);
+            ImGui::End();
+            auto& context = *ImGui::GetCurrentContext();
+            const auto styleCount = context.StyleVarStack.Size;
+            const auto colorCount = context.ColorStack.Size;
+            state.renderDockResizeHandles();
+            require(context.StyleVarStack.Size == styleCount && context.ColorStack.Size == colorCount &&
+                ImGui::GetStyle().WindowMinSize.x == 32 && ImGui::GetStyle().WindowMinSize.y == 32,
+                "Dock splitter drawing leaked styles or changed the normal window minimum size");
+            const auto* splitter = ImGui::FindWindowByName("##DockSplitterRightColumn");
+            require(splitter && std::abs(splitter->Size.x - 8) < .01F,
+                "Dock splitter window expanded beyond its eight-pixel input strip");
+            if (previousSplitter)
+                require(checkboxPoint.x > splitter->Pos.x + splitter->Size.x && checkboxPoint.x < splitter->Pos.x + 32,
+                    "Inspector checkbox fixture no longer covers the formerly blocked strip");
+            ImGui::Render();
+        };
+        for (int i = 0; i < 3; ++i) frame(away, false);
+        frame(checkboxPoint, false);
+        require(ImGui::GetCurrentContext()->HoveredWindow == ImGui::FindWindowByName("Dock Inspector Input"),
+            "Dock splitter intercepted mouse input inside the Inspector body");
+        frame(checkboxPoint, true); frame(checkboxPoint, false);
+        require(overridden, "Inspector checkbox beside the unlocked splitter did not receive real mouse clicks");
+        std::cout << "DOCK_SPLITTER_INPUT_PASS width=8 inspector_mouse=1 style_restore=1\n";
+    }
+
+    static void scriptPropertiesPersistAndSpawn(core::JobSystem& jobs) {
+        namespace fs = std::filesystem;
+        using Json = nlohmann::json;
+        struct Fixture {
+            fs::path root = fs::temp_directory_path() / ("tge-script-properties-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
+            ~Fixture() { std::error_code ignored; fs::remove_all(root, ignored); }
+        } fixture;
+        fs::create_directory(fixture.root);
+        core::ProjectManager projects(fixture.root / "recent.json");
+        std::string error;
+        auto project = projects.createBlank(fixture.root, "Properties", error);
+        require(project.has_value(), "Script Properties project fixture failed");
+        {
+            std::ofstream script(project->assetRoot / "scripts/Tunable.luau");
+            script << "return {fields={speed={type='number',default=2,min=0,max=20,step=0.25,label='Move speed'},"
+                "enabled={type='boolean',default=true},title={type='string',default='Default'}},"
+                "Init=function(self) self.state.spawnSpeed=self.fields.speed; self.state.title=self.fields.title end}";
+        }
+        StateStack stack; stack.setServices(&jobs, nullptr); stack.setProject(&*project);
+        GameplayState state(stack); state.onEnter();
+        const auto entity = state.createEditorEntity(GameplayState::EditorEntityKind::Empty);
+        state.m_world.getComponent<ecs::Tag>(entity)->value = "Tunable Object";
+        state.m_selectedEntity = entity;
+        state.m_world.addComponent<scripting::ScriptComponent>(entity, scripting::ScriptComponent{"scripts/Tunable.luau", true, Json::object()});
+        auto* script = state.m_world.getComponent<scripting::ScriptComponent>(entity);
+        state.recordSceneHistory("Edit Script Field speed");
+        require(state.m_scripts.setField(*script, "speed", 7.5) && state.m_scripts.setField(*script, "title", "Authored"), "Authored Inspector field edit failed");
+        const auto expected = script->fields;
+        state.undoSceneEdit();
+        const auto restored = tagged(state, "Tunable Object");
+        require(state.m_world.getComponent<scripting::ScriptComponent>(restored)->fields.empty(), "Undo lost the authored field defaults");
+        state.redoSceneEdit();
+        const auto edited = tagged(state, "Tunable Object");
+        require(state.m_world.getComponent<scripting::ScriptComponent>(edited)->fields == expected, "Redo lost Inspector field overrides");
+        auto* transform = state.m_world.getComponent<ecs::Transform>(edited);
+        transform->rotationEulerRadians = {0.1F, 0.2F, 0.3F};
+        const auto rotation = transform->rotationEulerRadians;
+        ecs::MeshRenderer mesh; mesh.materialId = "materials/runner.material.json"; mesh.uvScale = {2, 3}; mesh.visible = false;
+        state.m_world.addComponent<ecs::MeshRenderer>(edited, mesh);
+        require(state.saveSceneToDisk(), "Inspector overrides did not save to the scene");
+        require(state.saveEntityPrefab(edited, "prefabs/tunable.prefab.json"), "Inspector overrides did not export to a prefab");
+        require(!state.saveEntityPrefab(edited, "prefabs/tunable.prefab.json") && !state.saveEntityPrefab(edited, "prefabs/../../escape.json"),
+            "Prefab export overwrote an existing file or escaped project assets");
+        const auto spawned = state.m_scripts.spawnPrefab("prefabs/tunable.prefab.json");
+        require(state.m_world.isAlive(spawned), "Saved script prefab did not spawn");
+        const auto* spawnedScript = state.m_world.getComponent<scripting::ScriptComponent>(spawned);
+        require(spawnedScript && spawnedScript->fields["speed"] == 7.5 && spawnedScript->fields["title"] == "Authored", "Next prefab spawn lost Inspector values");
+        const auto* spawnedMesh = state.m_world.getComponent<ecs::MeshRenderer>(spawned);
+        require(spawnedMesh && spawnedMesh->materialId == mesh.materialId && spawnedMesh->uvScale == mesh.uvScale && !spawnedMesh->visible &&
+            state.m_world.getComponent<ecs::Transform>(spawned)->rotationEulerRadians == rotation,
+            "Prefab export lost authored material, UV, visibility or rotation");
+        state.loadSceneFromDisk();
+        const auto loaded = tagged(state, "Tunable Object");
+        require(state.m_world.getComponent<scripting::ScriptComponent>(loaded)->fields == expected, "Reopened scene lost Inspector overrides");
+        state.enterPlayMode(); state.update(1.0 / 60.0);
+        require(state.m_scripts.inspect(loaded)["state"]["spawnSpeed"] == 7.5 && state.m_scripts.inspect(loaded)["state"]["title"] == "Authored",
+            "Next Play did not apply saved script values in Init");
+        require(!state.saveEntityPrefab(loaded, "prefabs/runtime.json"), "Temporary Play values could be saved as authored prefab values");
+        auto* liveScript = state.m_world.getComponent<scripting::ScriptComponent>(loaded);
+        state.m_scripts.setField(*liveScript, "speed", 12.0);
+        state.stopPlayMode();
+        require(state.m_world.getComponent<scripting::ScriptComponent>(tagged(state, "Tunable Object"))->fields == expected,
+            "Stop retained temporary script property edits");
+    }
+
     static void ribbonPreferencesRoundTrip(core::JobSystem& jobs) {
+        using Json = nlohmann::json;
         namespace fs = std::filesystem;
         struct Fixture {
             fs::path root = fs::temp_directory_path() / ("tge-ribbon-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
@@ -1710,6 +3663,7 @@ struct GameplayStateTestAccess {
         state.m_ribbonState.scaleSnap = 0.25F;
         state.m_ribbonState.createCommand = editor::EditorCommandId::CreatePhysicsSphere;
         state.m_ribbonState.playCommand = editor::EditorCommandId::PlayWindow;
+        state.m_ribbonState.networkTest = {3, 120, 25};
         state.m_snapEnabled = true;
         state.m_useLocalGizmoSpace = false;
         state.m_showToolbarPanel = false;
@@ -1729,6 +3683,8 @@ struct GameplayStateTestAccess {
             restored.m_ribbonState.createCommand == editor::EditorCommandId::CreatePhysicsSphere &&
             restored.m_ribbonState.playCommand == editor::EditorCommandId::PlayWindow &&
             restored.m_snapEnabled && !restored.m_useLocalGizmoSpace, "Ribbon preferences did not round-trip independently of the scene");
+        require(restored.m_ribbonState.networkTest.clientCount == 3 && restored.m_ribbonState.networkTest.latencyMs == 120 &&
+            restored.m_ribbonState.networkTest.lossPercent == 25, "Network Test options did not round-trip in the project layout");
         require(!restored.m_showToolbarPanel && restored.m_showHierarchyPanel && !restored.m_showProjectPanel &&
             !restored.m_showInspectorPanel && restored.m_showStatsPanel && restored.m_showViewportPanel &&
             !restored.m_showStatusPanel && !restored.m_showAssistant, "Saved panel visibility, including hidden Assistant, did not round-trip");
@@ -1736,6 +3692,20 @@ struct GameplayStateTestAccess {
         state.saveEditorLayout();
         restored.loadEditorLayout();
         require(restored.m_showAssistant, "Saved visible Assistant did not replace the previous hidden preference");
+
+        Json layout;
+        {
+            std::ifstream saved(project->layoutPath);
+            saved >> layout;
+        }
+        layout["ribbon"].erase("networkTest");
+        {
+            std::ofstream legacy(project->layoutPath);
+            legacy << layout.dump();
+        }
+        restored.loadEditorLayout();
+        require(restored.m_ribbonState.networkTest.clientCount == 2 && restored.m_ribbonState.networkTest.latencyMs == 0 &&
+            restored.m_ribbonState.networkTest.lossPercent == 0, "Legacy layout did not load default Network Test options");
     }
 
     static void textInputDoesNotTriggerSceneShortcuts(core::JobSystem& jobs) {
@@ -1782,7 +3752,7 @@ struct GameplayStateTestAccess {
     }
 };
 
-} // namespace engine::game
+}
 
 int main(int argc, char** argv) {
     ImGui::CreateContext();
@@ -1796,18 +3766,34 @@ int main(int argc, char** argv) {
             return EXIT_SUCCESS;
         }
         engine::game::GameplayStateTestAccess::sceneSelectionIsIndependentOfTracy(jobs);
+        engine::game::GameplayStateTestAccess::authoredSceneIdsSurviveHistoryAndLiveSave(jobs);
         engine::game::GameplayStateTestAccess::runtimeDeleteAndRestore(jobs);
+        engine::game::GameplayStateTestAccess::liveDeletionCleansPausedPhysics(jobs);
+        engine::game::GameplayStateTestAccess::collisionEventsRejectWorkerDispatch(jobs);
         engine::game::GameplayStateTestAccess::parallelPhysicsAndRecycledIds(jobs);
         engine::game::GameplayStateTestAccess::inspectorHistory(jobs);
         engine::game::GameplayStateTestAccess::styledReactLayoutAndInput();
+        engine::game::GameplayStateTestAccess::embeddedReactViewportLayoutAndInput();
+        engine::game::GameplayStateTestAccess::editorHudUsesViewport(jobs);
         engine::game::GameplayStateTestAccess::robloxInstanceLayoutAndSignals();
         engine::game::GameplayStateTestAccess::advancedReactVisualsAndControls();
         engine::game::GameplayStateTestAccess::canvasGroupsFlattenAndGateInput();
         engine::game::GameplayStateTestAccess::tweenedNativePresentation();
         engine::game::GameplayStateTestAccess::editablePlayRestoresSceneAndHistory(jobs);
         engine::game::GameplayStateTestAccess::standaloneUsesUnsavedSnapshot(jobs);
+        engine::game::GameplayStateTestAccess::importedScriptDemoHasEditableBehaviors(jobs);
         engine::game::GameplayStateTestAccess::scriptDemoLifecycleAndSceneHistory(jobs);
+        engine::game::GameplayStateTestAccess::scriptPropertiesPersistAndSpawn(jobs);
+        engine::game::GameplayStateTestAccess::renderedScriptPropertiesUseRealWidgets(jobs);
+        engine::game::GameplayStateTestAccess::scriptFieldWidgetsKeepBinaryKeysDistinct(jobs);
+        engine::game::GameplayStateTestAccess::nativeTextAndRootNamesPreserveBinaryStrings();
+        engine::game::GameplayStateTestAccess::renderedMaterialEditorCreatesSavesAndRejectsConflicts();
+        engine::game::GameplayStateTestAccess::dockResizeHandlesPreserveInspectorInput();
         engine::game::GameplayStateTestAccess::textInputDoesNotTriggerSceneShortcuts(jobs);
+        engine::game::GameplayStateTestAccess::networkTestUsesUnsavedReplicaScene(jobs);
+        engine::game::GameplayStateTestAccess::networkTestCsvPreservesSamples();
+        engine::game::GameplayStateTestAccess::networkTestSummaryCsvPreservesComparison();
+        engine::game::GameplayStateTestAccess::networkTestChangesOneLiveClient();
         engine::game::GameplayStateTestAccess::ribbonCommandsPreserveHistoryAndPlay(jobs);
         engine::game::GameplayStateTestAccess::ribbonPreferencesRoundTrip(jobs);
         engine::game::GameplayStateTestAccess::ribbonDockedGeometry(jobs);

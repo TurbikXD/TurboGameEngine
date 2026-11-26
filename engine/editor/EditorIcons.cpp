@@ -34,7 +34,12 @@ void fallback(const Id command, const float x, const float y, const float size, 
         draw->AddTriangleFilled(point(7, 4), point(7, 20), point(20, 12), playColor);
     } else if (command == Id::Pause) {
         draw->AddRectFilled(point(7, 5), point(10, 19), color); draw->AddRectFilled(point(14, 5), point(17, 19), color);
-    } else if (command == Id::Stop || command == Id::StopWindow) {
+    } else if (command == Id::StartNetworkTest) {
+        draw->AddRect(point(8, 3), point(16, 9), color, 1.0F * unit, 0, thickness);
+        line(12, 9, 12, 13); line(6, 13, 18, 13); line(6, 13, 6, 16); line(18, 13, 18, 16);
+        draw->AddRect(point(2, 16), point(10, 22), color, 1.0F * unit, 0, thickness);
+        draw->AddRect(point(14, 16), point(22, 22), color, 1.0F * unit, 0, thickness);
+    } else if (command == Id::Stop || command == Id::StopWindow || command == Id::StopNetworkTest) {
         draw->AddRectFilled(point(6, 6), point(18, 18), ImGui::GetColorU32(ImVec4(0.75F, 0.23F, 0.24F, enabled ? 1.0F : 0.35F)));
     } else if (command == Id::ToolSelect) {
         const ImVec2 points[]{point(4, 3), point(9, 21), point(13, 14), point(21, 10)};
@@ -68,12 +73,11 @@ void fallback(const Id command, const float x, const float y, const float size, 
         draw->AddRect(point(7, 3), point(17, 10), color, 0, 0, thickness);
         draw->AddRect(point(7, 14), point(17, 21), color, 0, 0, thickness);
     } else {
-        // A document/panel silhouette gives every command a graphical fallback.
         draw->AddRect(point(4, 3), point(20, 21), color, 1.0F * unit, 0, thickness);
         line(8, 8, 16, 8); line(8, 12, 16, 12); line(8, 16, 14, 16);
     }
 }
-} // namespace
+}
 
 std::string_view assetPath(const Id command) noexcept {
     switch (command) {
@@ -102,7 +106,7 @@ std::string_view assetPath(const Id command) noexcept {
     case Id::Play: return "editor/icons/RibbonPlaySmall.png";
     case Id::PlayWindow: return "editor/icons/RibbonClientSmall.png";
     case Id::Pause: return "editor/icons/RibbonPauseSmall.png";
-    case Id::Stop: case Id::StopWindow: return "editor/icons/RibbonStopActiveSmall.png";
+    case Id::Stop: case Id::StopWindow: case Id::StopNetworkTest: return "editor/icons/RibbonStopActiveSmall.png";
     case Id::StepTick: return "editor/icons/RibbonStepForwardSmall.png";
     case Id::Undo: return "editor/icons/RibbonBack.png";
     case Id::Redo: return "editor/icons/RibbonFwd.png";
@@ -160,4 +164,4 @@ void draw(const Icon icon, const float x, const float y, const float size, const
     } else { fallback(icon == Icon::RotateSnap ? Id::ToolRotate : icon == Icon::MoveSnap ? Id::ToolMove : Id::ToggleLocalSpace, x, y, size, enabled); }
 }
 
-} // namespace engine::editor::EditorIcons
+}

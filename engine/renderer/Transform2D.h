@@ -19,4 +19,4 @@ struct Transform2D final {
     }
 };
 
-} // namespace engine::renderer
+}

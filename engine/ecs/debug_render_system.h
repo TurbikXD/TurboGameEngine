@@ -15,4 +15,4 @@ public:
     void render(World& world, renderer::RenderAdapter& renderer, const glm::mat4& viewProjectionMatrix);
 };
 
-} // namespace engine::ecs
+}

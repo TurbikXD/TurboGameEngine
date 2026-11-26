@@ -1,7 +1,4 @@
 --!strict
--- Copyright (c) 2024 minimapletinytools. MIT; see LICENSE beside this file.
--- Source: https://github.com/minimapletinytools/react-lua-tutorial/blob/cd6a5c5f7e8e84e292190958b1e7c89872ec24c9/src/shared/Tutorial.lua
--- Selected source bodies are unmodified; only the package import and export table differ.
 local React = require("React")
 
 local function MyColorfulClickableSquare()
@@ -55,7 +52,6 @@ local function MyBoopMachine()
     })
 end
 
--- thanks boyned for this one https://blog.boyned.com/articles/things-i-learned-using-react/
 local function useToggleState(default: boolean): {
 	enabled: boolean,
 	enable: () -> (),

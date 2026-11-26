@@ -2,8 +2,9 @@
 
 #include <cstdint>
 #include <filesystem>
-#include <functional>
 #include <memory>
+#include <optional>
+#include <span>
 #include <string>
 #include <string_view>
 #include <chrono>
@@ -29,6 +30,7 @@
 #include "engine/resources/resource_manager.h"
 #include "engine/resources/shader_program.h"
 #include "engine/resources/texture.h"
+#include "engine/resources/material.h"
 #include "engine/renderer/Transform2D.h"
 
 namespace engine::platform {
@@ -38,7 +40,7 @@ class Window;
 
 namespace Diligent {
 class ImGuiImplDiligent;
-} // namespace Diligent
+}
 
 struct ImDrawList;
 
@@ -47,6 +49,11 @@ namespace engine::renderer {
 class UiCanvasCompositor;
 
 using AssetLoadingStats = resources::AssetLoadingStats;
+
+struct SceneLighting final {
+    glm::vec3 direction{-0.45F, -0.8F, 0.35F};
+    rhi::SceneLightingConstants constants;
+};
 
 struct ImGuiImplDiligentDeleter final {
     void operator()(Diligent::ImGuiImplDiligent* ptr) const;
@@ -67,6 +74,9 @@ public:
         bool vsync,
         const std::string& diligentDeviceType = "auto");
     void beginFrame(const glm::vec4& clearColor);
+    void setSceneLighting(const SceneLighting& lighting) { m_sceneLighting = lighting; }
+    void setSceneViewport(const glm::vec2& position, const glm::vec2& size);
+    void resetSceneViewport();
     void onEvent(const platform::Event& event);
     void beginImGuiFrame(float deltaSeconds);
     void renderImGui();
@@ -97,6 +107,17 @@ public:
         const glm::mat4& viewProjectionMatrix,
         const glm::vec4& tint,
         float lineThickness = 0.04F);
+    void drawMaterialMesh(const resources::Mesh& mesh, resources::Material& material,
+        const glm::mat4& model, const glm::mat4& viewProjection, const glm::vec4& tint,
+        const glm::vec2& uvScale, const glm::vec3& cameraPosition = glm::vec3(0.0F));
+    [[nodiscard]] std::optional<resources::MaterialBlend> prepareMaterialPreview(
+        const std::shared_ptr<resources::Material>& draft);
+    void drawMaterialPreviewMesh(const resources::Mesh& mesh, const glm::mat4& model,
+        const glm::mat4& viewProjection, const glm::vec4& tint, const glm::vec2& uvScale,
+        const glm::vec3& cameraPosition);
+    resources::MaterialLibrary& materialLibrary() { return m_materials; }
+    struct MaterialStats final { std::size_t draws{}, pipelineHits{}, pipelineCreates{}, errors{}; };
+    [[nodiscard]] const MaterialStats& materialStats() const { return m_materialStats; }
     std::unique_ptr<rhi::IBuffer> createGpuBuffer(const rhi::BufferDesc& desc, const void* initialData);
     std::unique_ptr<rhi::IImage> createGpuImage(const rhi::ImageDesc& desc, const void* initialData);
     std::shared_ptr<resources::ShaderProgram> createShaderProgramFromFiles(
@@ -105,22 +126,17 @@ public:
         const std::string& fragmentPath);
     std::shared_ptr<resources::Mesh> loadMesh(const std::string& path);
     std::shared_ptr<resources::Texture> loadTexture(const std::string& path);
-    // Project-local asynchronous UI images. Keeps borrowed views alive through
-    // submission, deduplicates aliases, and bounds requests/cache growth.
     UiImage resolveUiImage(std::string_view image);
-    // Host-only built-in editor assets, independent of the open project's root.
     UiImage resolveEditorIcon(std::string_view image);
+    UiImage resolveSteamFriendAvatar(const std::filesystem::path& path);
     UiImage resolveUiCanvas(const void* key, const ImDrawList& list,
                            float x, float y, float width, float height);
     std::shared_ptr<resources::ShaderProgram> loadShaderProgram(const std::string& path);
-    // Empty selects the engine's legacy assets. Project paths are resolved before
-    // cache lookup and worker dispatch; only known built-in assets may fall back.
     void setProjectAssetRoot(std::filesystem::path assetsRoot);
     [[nodiscard]] std::string resolveResourcePath(const std::string& id) const;
-    // The shared scheduler must outlive the renderer. Configure before init().
     void setJobSystem(core::JobSystem* jobs);
     void setAsyncLoadingEnabled(bool enabled);
-    void setGpuUploadEnabled(bool enabled); // before init(), controls device contexts
+    void setGpuUploadEnabled(bool enabled);
     void setUploadBudget(std::size_t maximumUploads, double milliseconds);
     void setAssetInFlightLimit(std::size_t maximumAssets);
     [[nodiscard]] AssetLoadingStats assetLoadingStats() const;
@@ -133,8 +149,10 @@ public:
     void shutdown();
 
 private:
+    friend struct MaterialGpuTestAccess;
     struct FrameContext final {
         std::vector<std::shared_ptr<resources::Texture>> uiImages;
+        std::vector<std::shared_ptr<rhi::IGraphicsPipeline>> pipelines;
         std::unique_ptr<rhi::ICommandBuffer> commandBuffer;
         std::unique_ptr<rhi::IFence> inFlight;
         std::unique_ptr<rhi::ISemaphore> imageAvailable;
@@ -142,7 +160,6 @@ private:
     };
 
     platform::Window* m_window{nullptr};
-    rhi::BackendType m_backend{rhi::BackendType::OpenGL};
     std::unique_ptr<rhi::IDevice> m_device;
     std::unique_ptr<rhi::ISwapchain> m_swapchain;
     rhi::IQueue* m_graphicsQueue{nullptr};
@@ -152,6 +169,31 @@ private:
     std::unique_ptr<rhi::IGraphicsPipeline> m_primitivePipeline;
     std::unique_ptr<rhi::IBuffer> m_primitiveVertexBuffer;
     resources::ResourceManager m_resourceManager;
+    resources::MaterialLibrary m_materials;
+    MaterialStats m_materialStats;
+    struct MaterialBinding final {
+        std::uint64_t revision{};
+        std::shared_ptr<resources::ShaderProgram> shader;
+        std::vector<std::shared_ptr<resources::Texture>> textures;
+        glm::vec4 tint{1.0F};
+        glm::vec2 uvScale{1.0F};
+        resources::MaterialBlend blend{resources::MaterialBlend::Opaque};
+        bool depthTest{true};
+        bool depthWrite{true};
+        std::string compileError;
+        std::string reportedError;
+    };
+    std::unordered_map<std::string, MaterialBinding> m_materialBindings;
+    struct MaterialPreview final {
+        std::string path;
+        std::weak_ptr<resources::Material> draft;
+        std::uint64_t revision{};
+        std::optional<MaterialBinding> pending;
+        MaterialBinding active;
+        std::shared_ptr<rhi::IGraphicsPipeline> pipeline;
+    };
+    MaterialPreview m_materialPreview;
+    std::unordered_map<std::string, std::weak_ptr<resources::ShaderProgram>> m_graphShaders;
     std::filesystem::path m_engineAssetRoot;
     std::filesystem::path m_projectAssetRoot;
     struct UiImageEntry final {
@@ -181,6 +223,7 @@ private:
     std::vector<FrameContext> m_frames;
     std::size_t m_currentFrameIndex{0};
     rhi::ICommandBuffer* m_activeCommandBuffer{nullptr};
+    SceneLighting m_sceneLighting;
     std::unique_ptr<Diligent::ImGuiImplDiligent, ImGuiImplDiligentDeleter> m_imgui;
     std::unique_ptr<UiCanvasCompositor> m_uiCanvases;
     bool m_imguiFrameOpen{false};
@@ -210,10 +253,21 @@ private:
     bool m_initialized{false};
 
     bool initializePrimitivePipeline();
+    void drawMeshInternal(const resources::Mesh& mesh, const resources::ShaderProgram& shader,
+        std::span<const resources::Texture* const> textures, const glm::mat4& model, const glm::mat4& viewProjection,
+        const glm::vec4& tint, const glm::vec2& uvScale, std::shared_ptr<rhi::IGraphicsPipeline> pipeline = {},
+        const glm::vec3& cameraPosition = glm::vec3(0.0F));
+    void updateMaterialBinding(MaterialBinding& binding, const resources::Material& material);
+    std::shared_ptr<rhi::IGraphicsPipeline> materialPipeline(const MaterialBinding& binding);
+    void drawMaterialBinding(const resources::Mesh& mesh, const MaterialBinding& binding,
+        std::shared_ptr<rhi::IGraphicsPipeline> pipeline, const glm::mat4& model,
+        const glm::mat4& viewProjection, const glm::vec4& tint, const glm::vec2& uvScale,
+        const glm::vec3& cameraPosition);
+    std::shared_ptr<resources::ShaderProgram> loadGraphShader(const std::string& path, const std::string& pixelSource);
     bool initializeResourceSubsystem();
     bool initializeImGui();
     void loadUiImageAliases();
-    UiImage resolveUiImagePath(const std::string& path);
+    UiImage resolveUiImagePath(const std::string& path, bool steamAvatar = false);
     bool reserveUiImageBytes(std::uint64_t bytes, const std::string& protectedKey, bool newEntry);
     std::shared_ptr<resources::Mesh> requestMeshLoadFromDisk(const std::string& path);
     std::shared_ptr<resources::Texture> requestTextureLoadFromDisk(const std::string& path);
@@ -228,7 +282,8 @@ private:
     std::shared_ptr<resources::ShaderProgram> createShaderProgram(
         const std::string& key,
         const std::string& vertexPath,
-        const std::string& fragmentPath);
+        const std::string& fragmentPath,
+        std::string_view fragmentSource = {});
     void registerShaderForHotReload(
         const std::string& cacheKey,
         const std::shared_ptr<resources::ShaderProgram>& program,
@@ -238,4 +293,4 @@ private:
     bool resolveShaderSources(resources::ShaderProgramSource& source, std::string* error) const;
 };
 
-} // namespace engine::renderer
+}

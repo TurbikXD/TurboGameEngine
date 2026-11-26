@@ -1,3 +1,4 @@
+#include <cmath>
 #include <cstdlib>
 #include <iostream>
 #include <stdexcept>
@@ -7,12 +8,199 @@
 
 #include "engine/core/JobSystem.h"
 #include "engine/ecs/components.h"
+#include "engine/ecs/render_interpolation.h"
 #include "engine/ecs/transform_batch.h"
 #include "engine/ecs/frustum.h"
 #include <glm/ext/matrix_clip_space.hpp>
 #include <glm/ext/matrix_transform.hpp>
 #include "engine/ecs/transform_utils.h"
 #include "engine/ecs/world.h"
+
+namespace {
+bool sameMatrix(const glm::mat4& actual, const glm::mat4& expected) {
+    for (int column = 0; column < 4; ++column) {
+        for (int row = 0; row < 4; ++row) {
+            if (!std::isfinite(actual[column][row]) || std::abs(actual[column][row] - expected[column][row]) > 1e-5F) return false;
+        }
+    }
+    return true;
+}
+
+bool renderPoses(engine::core::JobSystem& jobs) {
+    using namespace engine::ecs;
+    World world;
+    const auto parent = world.createEntity();
+    const auto child = world.createEntity();
+    auto& parentPose = world.addComponent<Transform>(parent);
+    auto& childPose = world.addComponent<Transform>(child);
+    auto& camera = world.addComponent<Camera>(child, Camera{1.0F});
+    world.addComponent<Hierarchy>(child, Hierarchy{parent});
+    childPose.rotationEulerRadians.y = glm::radians(179.0F);
+    world.addComponent<RenderPoseHistory>(parent, captureRenderPose(world, parent, parentPose));
+    auto& childHistory = world.addComponent<RenderPoseHistory>(child, captureRenderPose(world, child, childPose));
+
+    parentPose.position.x = 12.0F;
+    childPose.position.z = 4.0F;
+    childPose.rotationEulerRadians.y = glm::radians(-179.0F);
+    childPose.scale.x = 2.0F;
+    camera.verticalFovRadians = 2.0F;
+    Transform expectedParent, expectedChild;
+    expectedParent.position.x = 6.0F;
+    expectedChild.position.z = 2.0F;
+    expectedChild.rotationEulerRadians.y = glm::radians(180.0F);
+    expectedChild.scale.x = 1.5F;
+    const auto interpolated = expectedParent.toMatrix() * expectedChild.toMatrix();
+    const std::vector<EntityId> entities(1024U, child);
+    std::vector<glm::mat4> matrices(entities.size());
+    prepareWorldMatrices(world, entities, matrices, &jobs, 0.5F);
+    for (const auto& matrix : matrices) {
+        if (!sameMatrix(matrix, interpolated)) {
+            std::cerr << "Render batch lost interpolation through the parent or the short rotation arc\n";
+            return false;
+        }
+    }
+    if (!sameMatrix(computeWorldMatrix(world, child), parentPose.toMatrix() * childPose.toMatrix()) ||
+        childPose.position.z != 4.0F || camera.verticalFovRadians != 2.0F ||
+        sampleRenderCameraFov(world, child, camera.verticalFovRadians, 0.5F) != 1.5F) {
+        std::cerr << "Render interpolation changed simulation poses or failed to blend FOV\n";
+        return false;
+    }
+
+    childPose.position.z = 100.0F;
+    childHistory = captureRenderPose(world, child, childPose);
+    const auto snapped = computeWorldMatrix(world, child, 0.25F);
+    if (std::abs(snapped[3].z - 100.0F) > 1e-5F ||
+        sampleRenderCameraFov(world, child, camera.verticalFovRadians, 0.25F) != 2.0F) {
+        std::cerr << "Snapped render pose blended across a deliberate teleport\n";
+        return false;
+    }
+    return true;
+}
+
+bool hierarchyCyclesAndDepth(engine::core::JobSystem& jobs) {
+    using namespace engine::ecs;
+    World world;
+    const auto self = world.createEntity();
+    Transform local;
+    local.position = {3, 4, 5};
+    local.scale = {2, 2, 2};
+    world.addComponent<Transform>(self, local);
+    world.addComponent<Hierarchy>(self, Hierarchy{self});
+    if (!sameMatrix(computeWorldMatrix(world, self), local.toMatrix()) ||
+        !sameMatrix(computeParentWorldMatrix(world, self), glm::mat4(1.0F)) ||
+        isHierarchyParentValid(world, self, self)) {
+        std::cerr << "Self-parent applied its local transform more than once\n";
+        return false;
+    }
+
+    const auto first = world.createEntity();
+    const auto second = world.createEntity();
+    const auto child = world.createEntity();
+    Transform firstTransform, secondTransform;
+    firstTransform.position = {2, 0, 0};
+    secondTransform.rotationEulerRadians.z = 0.5F;
+    world.addComponent<Transform>(first, firstTransform);
+    world.addComponent<Transform>(second, secondTransform);
+    world.addComponent<Transform>(child, local);
+    world.addComponent<Hierarchy>(first, Hierarchy{second});
+    world.addComponent<Hierarchy>(second, Hierarchy{first});
+    world.addComponent<Hierarchy>(child, Hierarchy{first});
+    if (!sameMatrix(computeWorldMatrix(world, first), secondTransform.toMatrix() * firstTransform.toMatrix()) ||
+        !sameMatrix(computeWorldMatrix(world, child), secondTransform.toMatrix() * firstTransform.toMatrix() * local.toMatrix()) ||
+        isHierarchyParentValid(world, child, first) || isHierarchyParentValid(world, second, first)) {
+        std::cerr << "Cyclic hierarchy repeatedly multiplied an ancestor transform\n";
+        return false;
+    }
+
+    World deep;
+    EntityId leaf = kInvalidEntity;
+    EntityId root = kInvalidEntity;
+    for (int depth = 0; depth < 192; ++depth) {
+        const auto entity = deep.createEntity();
+        Transform transform;
+        transform.position.x = 1.0F;
+        deep.addComponent<Transform>(entity, transform);
+        deep.addComponent<Hierarchy>(entity, Hierarchy{leaf});
+        if (depth == 0) root = entity;
+        leaf = entity;
+    }
+    Transform expected;
+    expected.position.x = 192.0F;
+    if (!sameMatrix(computeWorldMatrix(deep, leaf), expected.toMatrix())) {
+        std::cerr << "Valid hierarchy lost ancestors beyond the old 64-parent limit\n";
+        return false;
+    }
+    if (isHierarchyParentValid(deep, root, leaf) || isHierarchyParentValid(deep, root, root) ||
+        !isHierarchyParentValid(deep, leaf, root) || !isHierarchyParentValid(deep, leaf, kInvalidEntity)) {
+        std::cerr << "Parent validation accepted a distant descendant/self or rejected a valid parent\n";
+        return false;
+    }
+    std::vector<EntityId> entities(1024U, leaf);
+    std::vector<glm::mat4> serial(entities.size()), parallel(entities.size());
+    prepareWorldMatrices(deep, entities, serial, nullptr);
+    prepareWorldMatrices(deep, entities, parallel, &jobs);
+    for (std::size_t index = 0; index < entities.size(); ++index) {
+        if (!sameMatrix(serial[index], expected.toMatrix()) || !sameMatrix(parallel[index], expected.toMatrix())) {
+            std::cerr << "Serial/parallel preparation truncated the deep hierarchy\n";
+            return false;
+        }
+    }
+    const auto outsider = deep.createEntity();
+    deep.getComponent<Hierarchy>(root)->parent = leaf;
+    if (isHierarchyParentValid(deep, outsider, leaf)) {
+        std::cerr << "Parent validation admitted an existing ancestor cycle beyond64levels\n";
+        return false;
+    }
+    return true;
+}
+
+bool parentBases() {
+    using namespace engine::ecs;
+    World world;
+    const auto root = world.createEntity();
+    const auto parent = world.createEntity();
+    const auto gap = world.createEntity();
+    const auto child = world.createEntity();
+    Transform rootTransform, parentTransform, local;
+    rootTransform.position = {5, 2, 1};
+    rootTransform.rotationEulerRadians.y = 0.3F;
+    rootTransform.scale = {2, 3, 4};
+    parentTransform.position = {1, 2, -3};
+    parentTransform.rotationEulerRadians.x = -0.4F;
+    parentTransform.scale = {3, 1, 2};
+    local.position = {4, -1, 2};
+    world.addComponent<Transform>(root, rootTransform);
+    world.addComponent<Transform>(parent, parentTransform);
+    world.addComponent<Transform>(child, local);
+    world.addComponent<Hierarchy>(parent, Hierarchy{root});
+    world.addComponent<Hierarchy>(gap, Hierarchy{parent});
+    world.addComponent<Hierarchy>(child, Hierarchy{gap});
+    const auto expected = rootTransform.toMatrix() * parentTransform.toMatrix();
+    Transform rootRotation, parentRotation;
+    rootRotation.rotationEulerRadians = rootTransform.rotationEulerRadians;
+    parentRotation.rotationEulerRadians = parentTransform.rotationEulerRadians;
+    const auto expectedRotation = rootRotation.toMatrix() * parentRotation.toMatrix();
+    if (!sameMatrix(computeParentWorldMatrix(world, child), expected) ||
+        !sameMatrix(computeWorldMatrix(world, child), expected * local.toMatrix()) ||
+        !sameMatrix(glm::mat4(computeParentWorldRotation(world, child)), expectedRotation)) {
+        std::cerr << "Parent bases lost an ancestor through a node without Transform or included scale in rotation\n";
+        return false;
+    }
+    world.getComponent<Transform>(root)->scale.x = 0.0F;
+    if (!sameMatrix(computeParentWorldMatrix(world, child), world.getComponent<Transform>(root)->toMatrix() * parentTransform.toMatrix())) {
+        std::cerr << "Parent basis silently changed a singular authored transform\n";
+        return false;
+    }
+    world.destroyEntity(parent);
+    if (!sameMatrix(computeParentWorldMatrix(world, child), glm::mat4(1.0F)) ||
+        !sameMatrix(glm::mat4(computeParentWorldRotation(world, child)), glm::mat4(1.0F)) ||
+        isHierarchyParentValid(world, child, parent)) {
+        std::cerr << "Parent basis or validation followed a dead parent handle\n";
+        return false;
+    }
+    return true;
+}
+}
 
 int main() {
     const auto projection = glm::perspectiveRH_ZO(glm::radians(60.0F), 16.0F/9.0F, 0.1F, 100.0F);
@@ -25,6 +213,7 @@ int main() {
     }
     engine::ecs::World world;
     engine::core::JobSystem jobs(true, 3U);
+    if (!hierarchyCyclesAndDepth(jobs) || !parentBases() || !renderPoses(jobs)) return EXIT_FAILURE;
     const auto root = world.createEntity();
     engine::ecs::Transform rootTransform;
     rootTransform.position = glm::vec3(2.0F, -3.0F, 1.0F);
@@ -81,7 +270,6 @@ int main() {
         }
     }
 
-    // Hierarchy has never been stored in this world. Worker reads must not create its pool.
     engine::ecs::World flatWorld;
     std::vector<engine::ecs::EntityId> flatIds;
     for (std::size_t i = 0; i < 2048U; ++i) {
@@ -97,7 +285,7 @@ int main() {
     flatWorld.destroyEntity(deleted);
     flatIds.push_back(deleted);
     flatIds.push_back(engine::ecs::kInvalidEntity);
-    flatIds.push_back(flatWorld.createEntity()); // Live entity without a Transform.
+    flatIds.push_back(flatWorld.createEntity());
     std::vector<glm::mat4> flatMatrices(flatIds.size());
     const auto beforeFlat = jobs.stats().submitted;
     engine::ecs::prepareWorldMatrices(flatWorld, flatIds, flatMatrices, &jobs);

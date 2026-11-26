@@ -103,4 +103,4 @@ bool StateStack::empty() const {
     return m_stack.empty();
 }
 
-} // namespace engine::game
+}

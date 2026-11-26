@@ -1,6 +1,3 @@
--- Black-box compatibility checks; all time comes from the owner-thread UI pump.
--- Roblox's contract is documented in TweenService, TweenBase and TweenInfo.
--- No native drawing, wall-clock sleeps or private tween state is used here.
 do
     local function runTweenServiceTests()
         local React = require("React")
@@ -16,8 +13,6 @@ do
                 (message or "Tween value differs") .. ": got " .. tostring(actual) .. ", expected " .. tostring(expected))
         end
 
-        -- Completed/property signals are deliberately deferred to a protected
-        -- pump; a zero-time drain must not consume animation time.
         local function drain()
             UI.pump(0)
             UI.pump(0)
@@ -82,8 +77,6 @@ do
                 for _, alpha in ipairs({ 0.125, 0.375, 0.625, 0.875 }) do
                     near(TweenService:GetValue(alpha, style, out),
                         1 - TweenService:GetValue(1 - alpha, style, Enum.EasingDirection.In), "In/Out easing symmetry failed")
-                    -- Back/Elastic use dedicated InOut overshoot/period
-                    -- constants, so their half curve need not equal In(2t)/2.
                     near(TweenService:GetValue(alpha, style, Enum.EasingDirection.InOut),
                         1 - TweenService:GetValue(1 - alpha, style, Enum.EasingDirection.InOut), "InOut easing symmetry failed")
                 end
@@ -115,8 +108,8 @@ do
                 and not pcall(function() tween.Instance = corner end)
                 and not pcall(function() tween.TweenInfo = info(5) end), "Read-only Tween properties were mutable")
             near(target.BackgroundTransparency, 0, "Create wrote to its target")
-            goals.BackgroundTransparency = 0.75 -- Create must snapshot the goal dictionary.
-            target.BackgroundTransparency = 0.2 -- Start values are captured by Play, not Create.
+            goals.BackgroundTransparency = 0.75
+            target.BackgroundTransparency = 0.2
             local completions, lastState, changes = 0, nil, 0
             local connection = tween.Completed:Connect(function(state) completions += 1; lastState = state end)
             local propertyConnection = target:GetPropertyChangedSignal("BackgroundTransparency"):Connect(function() changes += 1 end)
@@ -135,7 +128,7 @@ do
             near(target.BackgroundColor3.R, 0.5); near(target.BackgroundColor3.G, 0.5); near(target.BackgroundColor3.B, 0.375)
             near(corner.CornerRadius.Scale, 0.25); near(corner.CornerRadius.Offset, 10)
             near(gradient.Rotation, 90); near(gradient.Offset.X, 0); near(gradient.Offset.Y, 0.25)
-            tween:Play() -- An already active tween must not restart its timer.
+            tween:Play()
             UI.pump(1)
             drain()
             near(target.BackgroundTransparency, 1)
@@ -194,7 +187,7 @@ do
             assert(tween.PlaybackState == states.Delayed, "Pause must not pause a delayed Roblox tween")
             UI.pump(0.25)
             near(target.BackgroundTransparency, 0)
-            tween:Play() -- Repeated Play while delayed is also a no-op.
+            tween:Play()
             UI.pump(0.5)
             near(target.BackgroundTransparency, 0.25, "Delay consumed animation time or repeated Play restarted the delay")
             assert(tween.PlaybackState == states.Playing, "Delay did not transition to Playing")
@@ -225,7 +218,7 @@ do
             tween = TweenService:Create(target, info(0.5, 1, false, 0.25), { BackgroundTransparency = 1 })
             tween:Play()
             UI.pump(0.5); near(target.BackgroundTransparency, 0.5)
-            UI.pump(0.375) -- First cycle ended at .75; repeat is waiting until 1.0.
+            UI.pump(0.375)
             assert(tween.PlaybackState == states.Delayed, "Repeat cycles did not apply DelayTime")
             UI.pump(0.375); near(target.BackgroundTransparency, 0.5)
             UI.pump(0.25)
@@ -325,7 +318,7 @@ do
                 second.Completed:Connect(function(nextState) assert(nextState == states.Completed); secondCompletions += 1 end)
                 second:Play()
             end)
-            UI.pump(0) -- No completion before Play.
+            UI.pump(0)
             first:Play()
             UI.pump(0.5)
             drain()
@@ -359,7 +352,7 @@ do
             tween = TweenService:Create(target, info(1), { BackgroundTransparency = 1 })
             connection = tween.Completed:Connect(function() completed += 1 end)
             tween:Play()
-            tween:Cancel() -- Queued completion has not entered a protected pump.
+            tween:Cancel()
             tween:Destroy()
             drain()
             assert(completed == 0 and not connection.Connected, "Destroy retained a pending completion callback")
@@ -399,7 +392,6 @@ do
             tween:Play()
             UI.pump(0.5)
             near(target.Position.X.Offset, 50)
-            -- Value-equal new datatype objects are unchanged authored values.
             render(Color3.new(1, 0, 0), UDim2.fromOffset(0, 0))
             near(target.Position.X.Offset, 50, "Unrelated React commit rewound an imperative tween")
             UI.pump(0.25)
@@ -411,8 +403,6 @@ do
         end
 
         do
-            -- Bindings are continuous React-owned property writers. Rejecting
-            -- tween ownership is explicit; the two systems must not fight each frame.
             local binding, updateBinding = React.createBinding(0.2)
             local positionBinding, updatePosition = React.createBinding(UDim2.fromOffset(10, 0))
             local reference = React.createRef()
@@ -480,10 +470,6 @@ do
         end
 
         do
-            -- Destroying handlers run inside reset and can create detached UI.
-            -- Registry iteration order must not let that generation's animation
-            -- survive Stop. Several fixed cases cover different table slots;
-            -- animation time and the expected result are deterministic.
             local callbacks = 0
             for _ = 1, 16 do
                 local createdTarget, createdTween, connection
@@ -506,8 +492,6 @@ do
         end
 
         do
-            -- A bounded batch exercises the published capacity without an
-            -- unbounded stress loop or a wall-clock-dependent assertion.
             local capacity = 512
             local tweens, callbacks, connection = {}, 0, nil
             local specification = info(1, -1, true)

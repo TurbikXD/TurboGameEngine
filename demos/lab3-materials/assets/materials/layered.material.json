@@ -1,0 +1,15 @@
+{
+  "version": 2,
+  "name": "Layered Tile",
+  "graph": {
+    "nodes": [
+      {"id": 1, "type": "texture", "texture": "textures/checker.ppm", "position": [20, 30]},
+      {"id": 2, "type": "texture", "texture": "textures/copper_tile.ppm", "position": [20, 205]},
+      {"id": 3, "type": "channel", "value": "r", "inputs": {"value": 1}, "position": [230, 30]},
+      {"id": 4, "type": "lerp", "inputs": {"a": 1, "b": 2, "alpha": 3}, "position": [440, 80]},
+      {"id": 5, "type": "scalar", "value": 0.38, "position": [440, 250]}
+    ],
+    "outputs": {"baseColor": 4, "roughness": 5}
+  },
+  "uvScale": [1.0, 1.0]
+}

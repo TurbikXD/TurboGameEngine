@@ -20,7 +20,7 @@ void printErrors(const engine::scripting::ScriptingSystem& scripting) {
     for (const auto& message : scripting.output())
         if (message.kind == engine::scripting::ScriptMessage::Kind::Error) std::cerr << message.text << '\n';
 }
-} // namespace
+}
 
 int main() {
     using engine::scripting::ReactRuntime;

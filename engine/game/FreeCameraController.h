@@ -27,4 +27,4 @@ private:
     Settings m_settings{};
 };
 
-} // namespace engine::game
+}

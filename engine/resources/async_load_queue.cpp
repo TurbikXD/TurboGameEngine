@@ -31,11 +31,10 @@ void reportError(const AsyncLoadQueue::OnError& callback, const std::string& err
             callback(error);
         }
     } catch (...) {
-        // Shutdown/error cleanup cannot escape through a renderer destructor.
     }
 }
 
-} // namespace
+}
 
 struct AsyncLoadQueue::Completion final {
     std::shared_ptr<rhi::IUploadTicket> ticket;
@@ -55,6 +54,7 @@ AsyncLoadQueue::AsyncLoadQueue()
     : m_state(std::make_shared<State>()), m_owner(std::this_thread::get_id()) {}
 
 AsyncLoadQueue::~AsyncLoadQueue() {
+    m_destroying = true;
     stop();
 }
 
@@ -66,6 +66,13 @@ void AsyncLoadQueue::requireOwner() const {
 
 void AsyncLoadQueue::start(core::JobSystem* jobs) {
     requireOwner();
+    if (m_destroying) throw std::logic_error("Asset loading cannot restart during destruction");
+    if (m_starting) throw std::logic_error("Asset loading restart is already in progress");
+    m_starting = true;
+    struct StartingScope final {
+        bool& value;
+        ~StartingScope() { value = false; }
+    } starting{m_starting};
     stop();
     m_jobs = jobs;
     m_state = std::make_shared<State>();
@@ -106,9 +113,10 @@ std::size_t AsyncLoadQueue::inFlightLimit() const {
 void AsyncLoadQueue::submitPrepared(Prepare work, OnError onError) {
     ENGINE_PROFILE_ZONE("Asset Dispatch");
     requireOwner();
-    ++m_state->counters.submitted;
+    const auto state = m_state;
+    ++state->counters.submitted;
     if (m_stopped || !work) {
-        ++m_state->counters.failed;
+        ++state->counters.failed;
         reportError(onError, m_stopped ? "Asset loading stopped" : "Empty asset loading task");
         return;
     }
@@ -126,7 +134,12 @@ void AsyncLoadQueue::submitPrepared(Prepare work, OnError onError) {
         } catch (...) {
             completion->failure = std::current_exception();
         }
-        finalize(completion);
+        if (m_stopped || m_state != state) {
+            ++state->counters.cancelled;
+            reportError(completion->onError, "Asset loading cancelled during shutdown");
+            return;
+        }
+        finalize(completion, state);
         return;
     }
 
@@ -147,11 +160,7 @@ void AsyncLoadQueue::dispatchPending() {
         return;
     }
     std::erase_if(m_handles, [this](const auto& handle) { return m_jobs->isComplete(handle); });
-    // Keep far below enkiTS's task-pipe capacity: a saturated pipe may execute
-    // work inline in dispatch(), which would run asset IO on the render thread.
     const auto limit = inFlightLimit();
-    // Include decoded-but-not-uploaded records in the limit. This also bounds
-    // decoded staging memory while a slow GPU pump catches up.
     while (!m_waiting.empty() && m_completions.size() - m_waiting.size() < limit) {
         auto request = std::move(m_waiting.front());
         m_waiting.pop_front();
@@ -173,8 +182,6 @@ void AsyncLoadQueue::dispatchPending() {
                     } catch (...) {
                         completion->failure = std::current_exception();
                     }
-                    // Preallocated on the main thread: no queue allocation can
-                    // throw here or lose a completion/pendingCpu decrement.
                     completion->ready.store(true, std::memory_order_release);
                     state->pendingCpu.fetch_sub(1U, std::memory_order_release);
                 }, core::JobSystem::Priority::Low));
@@ -186,7 +193,7 @@ void AsyncLoadQueue::dispatchPending() {
     }
 }
 
-void AsyncLoadQueue::finalize(const std::shared_ptr<Completion>& completion) {
+void AsyncLoadQueue::finalize(const std::shared_ptr<Completion>& completion, const std::shared_ptr<State>& state) {
     ENGINE_PROFILE_ZONE("Asset GPU Finalize");
     bool loaded = false;
     std::string error;
@@ -199,18 +206,18 @@ void AsyncLoadQueue::finalize(const std::shared_ptr<Completion>& completion) {
         }
         if (completion->ticket) {
             completion->ticket->acquire();
-            ++m_state->counters.gpuUploads;
-            m_state->counters.gpuBytes += completion->bytes;
-            m_state->counters.lastGpuFence = std::max(m_state->counters.lastGpuFence, completion->ticket->value());
+            ++state->counters.gpuUploads;
+            state->counters.gpuBytes += completion->bytes;
+            state->counters.lastGpuFence = std::max(state->counters.lastGpuFence, completion->ticket->value());
         }
         loaded = completion->finalize();
     } catch (...) {
         error = currentError();
     }
     if (loaded) {
-        ++m_state->counters.loaded;
+        ++state->counters.loaded;
     } else {
-        ++m_state->counters.failed;
+        ++state->counters.failed;
         if (!error.empty()) {
             reportError(completion->onError, error);
         }
@@ -220,10 +227,11 @@ void AsyncLoadQueue::finalize(const std::shared_ptr<Completion>& completion) {
 void AsyncLoadQueue::pump() {
     ENGINE_PROFILE_ZONE("Asset Main Thread Tasks");
     requireOwner();
+    const auto state = m_state;
     const auto started = std::chrono::steady_clock::now();
-    m_state->counters.uploadedLastFrame = 0;
+    state->counters.uploadedLastFrame = 0;
     dispatchPending();
-    while (!m_stopped && m_state->counters.uploadedLastFrame < m_maximumUploads) {
+    while (!m_stopped && state->counters.uploadedLastFrame < m_maximumUploads) {
         const auto ready = std::find_if(m_completions.begin(), m_completions.end(), [](const auto& completion) {
             return completion->ready.load(std::memory_order_acquire) &&
                    (completion->failure || !completion->ticket || completion->ticket->isComplete());
@@ -233,17 +241,16 @@ void AsyncLoadQueue::pump() {
         }
         auto completion = std::move(*ready);
         m_completions.erase(ready);
-        finalize(completion);
-        ++m_state->counters.uploadedLastFrame;
-        // An individual driver upload is non-preemptible. The budget prevents
-        // starting another upload, but cannot interrupt a slow GPU API call.
+        finalize(completion, state);
+        ++state->counters.uploadedLastFrame;
+        if (m_state != state) return;
         const double elapsed = std::chrono::duration<double, std::milli>(
                                    std::chrono::steady_clock::now() - started).count();
         if (elapsed >= m_uploadBudgetMilliseconds) {
             break;
         }
     }
-    m_state->counters.lastPumpMilliseconds = std::chrono::duration<double, std::milli>(
+    state->counters.lastPumpMilliseconds = std::chrono::duration<double, std::milli>(
         std::chrono::steady_clock::now() - started).count();
     const auto current = stats();
     ENGINE_PROFILE_PLOT("Assets Pending CPU", static_cast<std::int64_t>(current.pendingCpu));
@@ -262,26 +269,31 @@ void AsyncLoadQueue::stop() {
         return;
     }
     m_stopped = true;
-    if (m_jobs != nullptr) {
-        for (const auto& handle : m_handles) {
+    const auto state = m_state;
+    auto* const jobs = m_jobs;
+    std::vector<core::JobSystem::Handle> handles;
+    handles.swap(m_handles);
+    std::deque<Pending> waiting;
+    waiting.swap(m_waiting);
+    std::deque<std::shared_ptr<Completion>> completions;
+    completions.swap(m_completions);
+    if (jobs != nullptr) {
+        for (const auto& handle : handles) {
             try {
-                m_jobs->wait(handle);
+                jobs->wait(handle);
             } catch (...) {
-                // Decoder exceptions already travel through Completion.failure.
-                // Keep joining all other jobs before renderer data is destroyed.
             }
         }
     }
-    m_handles.clear();
-    m_waiting.clear();
-    for (const auto& completion : m_completions) {
-        // Join above establishes CPU publication; never release payloads while
-        // the GPU still references them, even if the asset was cancelled.
+    handles.clear();
+    waiting.clear();
+    for (const auto& completion : completions) {
         if (completion->ticket) { completion->ticket->wait(); }
-        reportError(completion->onError, "Asset loading cancelled during shutdown");
-        ++m_state->counters.cancelled;
     }
-    m_completions.clear();
+    for (const auto& completion : completions) {
+        ++state->counters.cancelled;
+        reportError(completion->onError, "Asset loading cancelled during shutdown");
+    }
 }
 
 AssetLoadingStats AsyncLoadQueue::stats() const {
@@ -302,4 +314,4 @@ AssetLoadingStats AsyncLoadQueue::stats() const {
     return result;
 }
 
-} // namespace engine::resources
+}

@@ -13,6 +13,7 @@
 #include "engine/core/ProjectManager.h"
 #include "engine/core/PlaySession.h"
 #include "engine/game/StateStack.h"
+#include "engine/network/DatagramTransport.h"
 #include "engine/renderer/Renderer.h"
 #include "engine/rhi/Types.h"
 
@@ -25,14 +26,17 @@ namespace engine::resources {
 class Mesh;
 class ShaderProgram;
 class Texture;
-} // namespace engine::resources
+}
 namespace engine::editor { class ProjectLauncher; }
 
 namespace engine::core {
 
+class Lab5Session;
+
 class Application final {
 public:
-    explicit Application(rhi::BackendType backend, std::optional<PlayLaunch> standalone = {});
+    explicit Application(rhi::BackendType backend, std::optional<PlayLaunch> standalone = {},
+                         std::optional<net::Endpoint> networkArena = {}, Lab5Session* lab5 = nullptr);
     ~Application();
 
     bool init();
@@ -56,6 +60,10 @@ private:
     };
 
     void onEvent(const platform::Event& event);
+    [[nodiscard]] PlayLaunch playLaunchOptions(const std::filesystem::path& assets) const;
+    bool startOnlinePlay(const std::filesystem::path& executable, SceneNetworkRole role, bool steam,
+                         std::string_view address, unsigned maxPeers, std::string& error);
+    [[nodiscard]] PlaySession& onlinePlay(SceneNetworkRole role);
     void applyProjectSelection();
     void renderWorkspace(double frameDtSeconds);
     void renderWorkspaceUi(double frameDtSeconds);
@@ -72,8 +80,13 @@ private:
     EngineConfig m_config{};
     LabOptions m_labOptions{};
     std::optional<PlayLaunch> m_standalone;
+    std::unique_ptr<net::SteamInvites> m_steamRuntime;
+    std::optional<net::Endpoint> m_networkArena;
+    Lab5Session* m_lab5{};
     PlaySession m_playSession;
-    // Services outlive renderer/state consumers. There is one scheduler for engine CPU jobs.
+    PlaySession m_networkPlaySession;
+    PlaySession m_onlineServer;
+    PlaySession m_onlineClient;
     JobSystem m_jobs{};
     ProjectManager m_projects;
     std::optional<Project> m_activeProject;
@@ -103,4 +116,4 @@ private:
     bool m_logInitialized{false};
 };
 
-} // namespace engine::core
+}

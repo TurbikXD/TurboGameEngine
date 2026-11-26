@@ -1,7 +1,9 @@
 #include <algorithm>
 #include <array>
 #include <atomic>
+#include <chrono>
 #include <cstdlib>
+#include <exception>
 #include <iostream>
 #include <limits>
 #include <stdexcept>
@@ -253,6 +255,63 @@ void testStructuralGuards() {
     world.addComponent<Marker>(entity);
 }
 
+void testWorkerReadAdmission() {
+    World world;
+    const auto entity = world.createEntity();
+    world.addComponent<Position>(entity, Position{0, 42});
+    const World& readWorld = world;
+    std::array<bool, 7> rejected{};
+    std::thread unguarded([&] {
+        const auto check = [&](const std::size_t index, auto&& operation) {
+            try { operation(); } catch (const std::logic_error&) { rejected[index] = true; }
+        };
+        check(0U, [&] { (void)readWorld.isAlive(entity); });
+        check(1U, [&] { (void)readWorld.aliveCount(); });
+        check(2U, [&] { (void)world.getComponent<Position>(entity); });
+        check(3U, [&] { (void)readWorld.getComponent<Position>(entity); });
+        check(4U, [&] { (void)world.hasComponent<Missing>(entity); });
+        check(5U, [&] { readWorld.forEach<Position>([](EntityId, const Position&) {}); });
+        check(6U, [&] { readWorld.forEachEntity([](EntityId) {}); });
+    });
+    unguarded.join();
+    require(std::all_of(rejected.begin(), rejected.end(), [](bool value) { return value; }),
+            "Worker read ECS storage without an owner-held stable phase");
+
+    std::exception_ptr failure;
+    std::atomic_bool entered{false}, release{false};
+    std::jthread reader;
+    {
+        const auto phase = world.stablePhase();
+        reader = std::jthread([&](const std::stop_token stop) {
+            try {
+                require(readWorld.isAlive(entity) && readWorld.aliveCount() == 1U &&
+                        readWorld.getComponent<Position>(entity)->value == 42,
+                        "Owner-held phase rejected legitimate worker point reads");
+                readWorld.forEach<Position>([&](EntityId current, const Position& position) {
+                    require(current == entity && position.value == 42, "Worker view changed component identity");
+                    entered.store(true, std::memory_order_release);
+                    while (!release.load(std::memory_order_acquire) && !stop.stop_requested()) std::this_thread::yield();
+                });
+            } catch (...) {
+                failure = std::current_exception();
+                entered.store(true, std::memory_order_release);
+            }
+        });
+        const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+        while (!entered.load(std::memory_order_acquire) && std::chrono::steady_clock::now() < deadline) std::this_thread::yield();
+        require(entered.load(std::memory_order_acquire), "Guarded worker view never entered its callback");
+    }
+    bool blocked = false;
+    try { (void)world.createEntity(); } catch (const std::logic_error&) { blocked = true; }
+    release.store(true, std::memory_order_release);
+    reader.join();
+    if (failure) std::rethrow_exception(failure);
+    require(blocked, "Owner released the structure freeze while a worker traversal still held component references");
+    world.removeComponent<Position>(entity);
+    require(!world.hasComponent<Position>(entity) && world.isAlive(world.createEntity()),
+            "Worker traversal did not release its structure freeze after joining");
+}
+
 void testParallelViews(engine::core::JobSystem* jobs) {
     constexpr std::size_t count = 513U;
     World emptyWorld;
@@ -353,13 +412,14 @@ void testParallelViews(engine::core::JobSystem* jobs) {
     require(parallelWorld.isAlive(afterFailure), "Parallel exception left structural changes blocked");
 }
 
-} // namespace
+}
 
 int main() {
     try {
         testLifecycleAndComponents();
         testViewsAndEnumeration();
         testStructuralGuards();
+        testWorkerReadAdmission();
         testParallelViews(nullptr);
         engine::core::JobSystem disabled(false);
         testParallelViews(&disabled);

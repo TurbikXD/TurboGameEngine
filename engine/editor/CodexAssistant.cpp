@@ -113,7 +113,6 @@ std::filesystem::path discoverCodex() {
 }
 
 bool openAuthUrl(const std::string& url) {
-    // Only open the known OAuth browser destinations returned by the local server.
     if (!(url.starts_with("https://auth.openai.com/") || url.starts_with("https://chatgpt.com/") ||
           url.starts_with("https://auth.chatgpt.com/")) || url.size() > 8192U) return false;
     const int count = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, url.data(), static_cast<int>(url.size()), nullptr, 0);
@@ -123,7 +122,7 @@ bool openAuthUrl(const std::string& url) {
     return reinterpret_cast<std::intptr_t>(ShellExecuteW(nullptr, L"open", wide.c_str(), nullptr, nullptr, SW_SHOWNORMAL)) > 32;
 }
 #endif
-} // namespace
+}
 
 struct CodexAssistant::Impl final {
     struct Message final { std::string id; std::string title; std::string text; };
@@ -290,8 +289,6 @@ struct CodexAssistant::Impl final {
         selectedEffort.clear();
         restoreConfiguredModel = model.empty();
         restoreConfiguredEffort = model.empty();
-        // turn/start overrides persist on the server. Returning to config must re-inherit
-        // both settings, even when config does not expose a concrete model/effort.
         const bool restart = model.empty() && (configuredModel.empty() || configuredEffort.empty());
         const Model* selected = currentModel();
         if (restart || (!model.empty() && selected != nullptr && !supportsEffort(*selected, selected->defaultEffort))) {
@@ -327,8 +324,6 @@ struct CodexAssistant::Impl final {
     void refreshModels() {
         ++catalogGeneration;
         models.clear(); modelCursors.clear(); catalogLoaded = false; catalogLoading = true;
-        // Hidden entries remain valid for a model already selected in Codex config.
-        // They are not offered as new selections in this client's picker.
         if (!request("model/list", Json{{"limit", 100}, {"includeHidden", true}})) catalogLoading = false;
     }
 
@@ -433,8 +428,6 @@ struct CodexAssistant::Impl final {
                     {"cwd", pathUtf8(root)}, {"approvalPolicy", approvalPolicy}, {"approvalsReviewer", approvalsReviewer}, {"sandboxPolicy", std::move(sandbox)}};
         if (!selectedModel.empty()) params["model"] = selectedModel;
         else if (restoreConfiguredModel && !configuredModel.empty()) params["model"] = configuredModel;
-        // A model switch chooses that model's catalog default instead of carrying
-        // an incompatible effort from the previous model into the same thread.
         if (!selectedEffort.empty() || !selectedModel.empty() || restoreConfiguredEffort) {
             const auto effort = nextEffort();
             if (!effort.empty()) params["effort"] = effort;
@@ -505,7 +498,6 @@ struct CodexAssistant::Impl final {
                 else enqueue(Json{{"id", message["id"]}, {"result", Json{{"decision", "decline"}}}});
                 status = "Codex needs your approval.";
             } else {
-                // Fail closed for unsupported tools, elicitation, and permission requests.
                 enqueue(Json{{"id", message["id"]}, {"error", Json{{"code", -32601}, {"message", "This editor does not support this request; no action was approved."}}}});
                 status = "An unsupported Codex request was declined.";
             }
@@ -694,7 +686,6 @@ struct CodexAssistant::Impl final {
                 }
                 if (buffered.size() > kMaxLine) { transportFailed = true; break; }
             }
-            // Drain diagnostics so a noisy child cannot stall on its stderr pipe. Never expose credentials.
             if (PeekNamedPipe(diagnostics, nullptr, 0, nullptr, &available, nullptr) && available > 0) {
                 DWORD count = 0;
                 ReadFile(diagnostics, buffer, std::min<DWORD>(available, sizeof(buffer)), &count, nullptr);
@@ -768,7 +759,6 @@ struct CodexAssistant::Impl final {
     void stop() {
         stopRequested = true;
 #if defined(_WIN32)
-        // Kill only this client's private process tree; cancellation also unblocks a stalled pipe writer.
         closeHandle(job);
         if (worker.joinable()) CancelSynchronousIo(static_cast<HANDLE>(worker.native_handle()));
 #endif
@@ -817,8 +807,6 @@ void CodexAssistant::update() {
 void CodexAssistant::render(bool* open) {
     update();
     if (open != nullptr && !*open) return;
-    // A flat, docked assistant surface. Position and size belong to the editor's
-    // dock layout; these local styles never change the application's theme.
     const ImVec4 surface(25.0F / 255.0F, 26.0F / 255.0F, 31.0F / 255.0F, 1.0F);
     const ImVec4 border(48.0F / 255.0F, 51.0F / 255.0F, 59.0F / 255.0F, 1.0F);
     const ImVec4 muted(143.0F / 255.0F, 147.0F / 255.0F, 156.0F / 255.0F, 1.0F);
@@ -1131,4 +1119,4 @@ std::string CodexAssistantTestAccess::transcript(const CodexAssistant& assistant
 std::size_t CodexAssistantTestAccess::approvalCount(const CodexAssistant& assistant) { return assistant.m_impl->approvals.size(); }
 void CodexAssistantTestAccess::decide(CodexAssistant& assistant, const bool accept) { assistant.m_impl->decide(accept); }
 
-} // namespace engine::editor
+}

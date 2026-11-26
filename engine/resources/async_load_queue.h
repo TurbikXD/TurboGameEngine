@@ -17,7 +17,7 @@ struct AssetLoadingStats final {
     std::size_t submitted{0};
     std::size_t pendingCpu{0};
     std::size_t pendingUploads{0};
-    std::size_t pendingGpu{0}; // subset of pendingUploads waiting for a GPU fence
+    std::size_t pendingGpu{0};
     std::size_t gpuUploads{0};
     std::uint64_t gpuBytes{0};
     std::uint64_t lastGpuFence{0};
@@ -31,10 +31,6 @@ struct AssetLoadingStats final {
     std::size_t inFlightLimit{0};
 };
 
-// Called from the renderer/main thread only. Work may decode and submit to a
-// separate GPU transfer context. finalize/onError always run on the owner;
-// finalize is gated by an optional real GPU ticket. The shared JobSystem and
-// device must outlive this queue. stop() joins CPU and GPU, then cancels backlog.
 class AsyncLoadQueue final {
 public:
     using Finalize = std::function<bool()>;
@@ -55,10 +51,8 @@ public:
     void start(core::JobSystem* jobs);
     void setAsyncEnabled(bool enabled);
     void setUploadBudget(std::size_t maximumUploads, double milliseconds);
-    // 0 restores the workers-dependent default; explicit values are bounded to 16.
     void setInFlightLimit(std::size_t maximumAssets);
     void submit(Work work, OnError onError);
-    // Worker can submit transfer commands, but only the owner publishes assets.
     void submitPrepared(Prepare work, OnError onError);
     void pump();
     void stop();
@@ -82,11 +76,13 @@ private:
     double m_uploadBudgetMilliseconds{2.0};
     bool m_asyncEnabled{true};
     bool m_stopped{false};
+    bool m_destroying{false};
+    bool m_starting{false};
 
     void requireOwner() const;
     [[nodiscard]] std::size_t inFlightLimit() const;
     void dispatchPending();
-    void finalize(const std::shared_ptr<Completion>& completion);
+    void finalize(const std::shared_ptr<Completion>& completion, const std::shared_ptr<State>& state);
 };
 
-} // namespace engine::resources
+}

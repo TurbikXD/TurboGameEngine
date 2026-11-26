@@ -1,0 +1,6 @@
+{
+  "version": 1,
+  "name": "ЛР 3 — Спектр",
+  "assets": "assets",
+  "startupScene": "assets/scenes/materials.scene.json"
+}

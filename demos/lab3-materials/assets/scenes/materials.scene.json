@@ -1,0 +1,423 @@
+{
+    "cameraEntity": 2097161,
+    "entities": [
+        {
+            "camera": {
+                "active": true,
+                "farPlane": 100.0,
+                "nearPlane": 0.10000000149011612,
+                "verticalFovRadians": 0.9075711965560913
+            },
+            "sourceId": 2097161,
+            "tag": {
+                "value": "MaterialCamera"
+            },
+            "transform": {
+                "position": [
+                    3.4000000953674316,
+                    4.5,
+                    -13.0
+                ],
+                "rotationEulerRadians": [
+                    -0.23360003530979156,
+                    -0.17009997367858887,
+                    0.0
+                ],
+                "scale": [
+                    1.0,
+                    1.0,
+                    1.0
+                ]
+            }
+        },
+        {
+            "script": {
+                "enabled": true,
+                "fields": {
+                    "animate": true,
+                    "rounds": 6,
+                    "spinSpeed": 0.7,
+                    "title": "СПЕКТР / Лаборатория материалов"
+                },
+                "path": "scripts/MaterialLab.luau"
+            },
+            "sourceId": 2097160,
+            "tag": {
+                "value": "MaterialLabController"
+            },
+            "transform": {
+                "position": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "rotationEulerRadians": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "scale": [
+                    1.0,
+                    1.0,
+                    1.0
+                ]
+            }
+        },
+        {
+            "meshRenderer": {
+                "materialId": "materials/stage.json",
+                "meshId": "__diligent_cube__",
+                "primitiveType": 0,
+                "shaderId": "shaders_hlsl/textured.shader.json",
+                "textureId": "textures/white.ppm",
+                "tint": [
+                    1.0,
+                    1.0,
+                    1.0,
+                    1.0
+                ],
+                "uvScale": [
+                    1.0,
+                    1.0
+                ],
+                "visible": true
+            },
+            "sourceId": 2097159,
+            "tag": {
+                "value": "MaterialStage"
+            },
+            "transform": {
+                "position": [
+                    0.0,
+                    -1.100000023841858,
+                    4.0
+                ],
+                "rotationEulerRadians": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "scale": [
+                    12.0,
+                    0.20000000298023224,
+                    8.0
+                ]
+            }
+        },
+        {
+            "meshRenderer": {
+                "materialId": "materials/pedestal.json",
+                "meshId": "__diligent_cube__",
+                "primitiveType": 0,
+                "shaderId": "shaders_hlsl/textured.shader.json",
+                "textureId": "textures/white.ppm",
+                "tint": [
+                    1.0,
+                    1.0,
+                    1.0,
+                    1.0
+                ],
+                "uvScale": [
+                    1.0,
+                    1.0
+                ],
+                "visible": true
+            },
+            "sourceId": 2097158,
+            "tag": {
+                "value": "JadePedestal"
+            },
+            "transform": {
+                "position": [
+                    -3.0999999046325684,
+                    -0.6499999761581421,
+                    6.0
+                ],
+                "rotationEulerRadians": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "scale": [
+                    2.0999999046325684,
+                    0.699999988079071,
+                    2.0999999046325684
+                ]
+            }
+        },
+        {
+            "meshRenderer": {
+                "materialId": "materials/jade-gallery.json",
+                "meshId": "__diligent_sphere__",
+                "primitiveType": 0,
+                "shaderId": "shaders_hlsl/textured.shader.json",
+                "textureId": "textures/white.ppm",
+                "tint": [
+                    1.0,
+                    1.0,
+                    1.0,
+                    1.0
+                ],
+                "uvScale": [
+                    1.0,
+                    1.0
+                ],
+                "visible": true
+            },
+            "script": {
+                "enabled": true,
+                "fields": {
+                    "bobbing": true,
+                    "caption": "Нефрит / непрозрачность",
+                    "height": 0.16,
+                    "speed": 0.45
+                },
+                "path": "scripts/SampleMotion.luau"
+            },
+            "sourceId": 2097157,
+            "tag": {
+                "value": "JadePreview"
+            },
+            "transform": {
+                "position": [
+                    -3.0999999046325684,
+                    0.8500000238418579,
+                    6.0
+                ],
+                "rotationEulerRadians": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "scale": [
+                    1.350000023841858,
+                    1.350000023841858,
+                    1.350000023841858
+                ]
+            }
+        },
+        {
+            "meshRenderer": {
+                "materialId": "materials/pedestal.json",
+                "meshId": "__diligent_cube__",
+                "primitiveType": 0,
+                "shaderId": "shaders_hlsl/textured.shader.json",
+                "textureId": "textures/white.ppm",
+                "tint": [
+                    1.0,
+                    1.0,
+                    1.0,
+                    1.0
+                ],
+                "uvScale": [
+                    1.0,
+                    1.0
+                ],
+                "visible": true
+            },
+            "sourceId": 2097156,
+            "tag": {
+                "value": "AmberPedestal"
+            },
+            "transform": {
+                "position": [
+                    0.0,
+                    -0.6499999761581421,
+                    6.0
+                ],
+                "rotationEulerRadians": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "scale": [
+                    2.0999999046325684,
+                    0.699999988079071,
+                    2.0999999046325684
+                ]
+            }
+        },
+        {
+            "meshRenderer": {
+                "materialId": "materials/amber.json",
+                "meshId": "__diligent_sphere__",
+                "primitiveType": 0,
+                "shaderId": "shaders_hlsl/textured.shader.json",
+                "textureId": "textures/white.ppm",
+                "tint": [
+                    1.0,
+                    1.0,
+                    1.0,
+                    1.0
+                ],
+                "uvScale": [
+                    1.0,
+                    1.0
+                ],
+                "visible": true
+            },
+            "script": {
+                "enabled": true,
+                "fields": {
+                    "bobbing": true,
+                    "caption": "Янтарь / прозрачность",
+                    "height": 0.16,
+                    "speed": 0.65
+                },
+                "path": "scripts/SampleMotion.luau"
+            },
+            "sourceId": 2097155,
+            "tag": {
+                "value": "AmberPreview"
+            },
+            "transform": {
+                "position": [
+                    0.0,
+                    0.8500000238418579,
+                    6.0
+                ],
+                "rotationEulerRadians": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "scale": [
+                    1.350000023841858,
+                    1.350000023841858,
+                    1.350000023841858
+                ]
+            }
+        },
+        {
+            "meshRenderer": {
+                "materialId": "materials/pedestal.json",
+                "meshId": "__diligent_cube__",
+                "primitiveType": 0,
+                "shaderId": "shaders_hlsl/textured.shader.json",
+                "textureId": "textures/white.ppm",
+                "tint": [
+                    1.0,
+                    1.0,
+                    1.0,
+                    1.0
+                ],
+                "uvScale": [
+                    1.0,
+                    1.0
+                ],
+                "visible": true
+            },
+            "sourceId": 2097154,
+            "tag": {
+                "value": "VioletPedestal"
+            },
+            "transform": {
+                "position": [
+                    3.0999999046325684,
+                    -0.6499999761581421,
+                    6.0
+                ],
+                "rotationEulerRadians": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "scale": [
+                    2.0999999046325684,
+                    0.699999988079071,
+                    2.0999999046325684
+                ]
+            }
+        },
+        {
+            "meshRenderer": {
+                "materialId": "materials/violet.json",
+                "meshId": "__diligent_sphere__",
+                "primitiveType": 0,
+                "shaderId": "assets/shaders_hlsl/textured.shader.json",
+                "textureId": "textures/white.ppm",
+                "tint": [
+                    1.0,
+                    1.0,
+                    1.0,
+                    1.0
+                ],
+                "uvScale": [
+                    1.0,
+                    1.0
+                ],
+                "visible": true
+            },
+            "script": {
+                "enabled": true,
+                "fields": {
+                    "bobbing": true,
+                    "caption": "Аметист / свечение",
+                    "height": 0.16,
+                    "speed": 5.0
+                },
+                "path": "scripts/SampleMotion.luau"
+            },
+            "sourceId": 3145729,
+            "tag": {
+                "value": "VioletPreview"
+            },
+            "transform": {
+                "position": [
+                    3.0999999046325684,
+                    0.8500000238418579,
+                    6.0
+                ],
+                "rotationEulerRadians": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "scale": [
+                    1.350000023841858,
+                    1.350000023841858,
+                    1.350000023841858
+                ]
+            }
+        },
+        {
+            "meshRenderer": {
+                "materialId": "materials/layered.material.json",
+                "meshId": "__diligent_sphere__",
+                "visible": true
+            },
+            "sourceId": 3145730,
+            "tag": {
+                "value": "LayeredMaterialPreview"
+            },
+            "transform": {
+                "position": [0.0, 0.0, 2.0],
+                "rotationEulerRadians": [0.0, 0.0, 0.0],
+                "scale": [1.25, 1.25, 1.25]
+            }
+        },
+        {
+            "meshRenderer": {
+                "materialId": "materials/layered.material.json",
+                "meshId": "__diligent_sphere__",
+                "visible": true
+            },
+            "sourceId": 3145731,
+            "tag": {
+                "value": "LayeredMaterialReference"
+            },
+            "transform": {
+                "position": [2.0, 0.75, 2.0],
+                "rotationEulerRadians": [0.0, 0.0, 0.0],
+                "scale": [1.25, 1.25, 1.25]
+            }
+        }
+    ],
+    "selectedEntity": 3145729,
+    "showColliderDebug": false,
+    "showcaseSphereEntity": 0,
+    "showcaseSphereLaunched": false,
+    "spawnSequence": 0,
+    "strikerEntity": 0,
+    "version": 1
+}

@@ -1,0 +1,31 @@
+{
+  "name": "Lab3Violet",
+  "components": {
+    "tag": "Lab3Spawned",
+    "transform": {
+      "position": [
+        0,
+        0,
+        3
+      ],
+      "scale": [
+        0.48,
+        0.48,
+        0.48
+      ]
+    },
+    "meshRenderer": {
+      "meshId": "__diligent_sphere__",
+      "materialId": "materials/violet.json",
+      "textureId": "textures/white.ppm",
+      "shaderId": "shaders_hlsl/textured.shader.json",
+      "tint": [
+        1,
+        1,
+        1,
+        1
+      ],
+      "visible": true
+    }
+  }
+}

@@ -19,4 +19,4 @@ public:
     virtual Extent2D extent() const = 0;
 };
 
-} // namespace engine::rhi
+}

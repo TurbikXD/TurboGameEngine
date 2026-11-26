@@ -23,9 +23,9 @@ public:
         std::uint64_t submitted{};
         std::uint64_t completed{};
         std::uint64_t executedRanges{};
-        std::size_t pending{};       // Submitted task sets not yet complete.
-        std::size_t queueDepth{};    // Task sets whose first range has not started.
-        std::size_t running{};       // Executing ranges, including suspended nested callers.
+        std::size_t pending{};
+        std::size_t queueDepth{};
+        std::size_t running{};
     };
 
     class Handle final {
@@ -51,16 +51,11 @@ public:
     [[nodiscard]] bool enabled() const;
     [[nodiscard]] std::size_t workerCount() const;
 
-    // Submission and cooperative waits belong on the creator thread or a task of
-    // this scheduler. Callbacks must not mutate ECS structure or use GPU APIs.
-    // Wait only for child/independent work; do not create circular wait graphs.
     Handle dispatch(std::function<void()> job, Priority priority = Priority::Normal);
     Handle dispatchAfter(const std::vector<Handle>& prerequisites, std::function<void()> job,
                          Priority priority = Priority::Normal);
     [[nodiscard]] bool isComplete(const Handle& handle) const;
     void wait(const Handle& handle) const;
-    // Owner thread only. Drain outstanding work, including children spawned by it.
-    // Job exceptions are reported by wait(handle), not by these drain operations.
     void waitAll();
     void shutdown();
     [[nodiscard]] Stats stats() const;
@@ -91,4 +86,4 @@ void JobSystem::parallelFor(
         [sharedFunction](std::size_t begin, std::size_t end) { (*sharedFunction)(begin, end); });
 }
 
-} // namespace engine::core
+}

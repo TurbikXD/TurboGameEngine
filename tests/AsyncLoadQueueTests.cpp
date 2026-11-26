@@ -211,6 +211,159 @@ public:
     }
 };
 
+void testFinalizerRestartKeepsNewGenerationIsolated() {
+    JobSystem jobs(true, 2U);
+    AsyncLoadQueue queue;
+    queue.start(&jobs);
+    queue.setUploadBudget(8U, 1000.0);
+    auto oldTicket = std::make_shared<TestUploadTicket>();
+    oldTicket->completed.store(true);
+    auto newTicket = std::make_shared<TestUploadTicket>();
+    std::size_t newPublications = 0;
+    queue.submitPrepared([&]() -> AsyncLoadQueue::Prepared {
+        return {[&]() {
+            queue.start(&jobs);
+            queue.submitPrepared([&]() -> AsyncLoadQueue::Prepared {
+                return {[&]() { ++newPublications; return true; }, newTicket, 16};
+            }, {});
+            return true;
+        }, oldTicket, 64};
+    }, {});
+    waitForCpu(queue);
+    queue.pump();
+    const auto restarted = queue.stats();
+    expect(restarted.submitted == 1U && restarted.loaded == 0U && restarted.cancelled == 0U &&
+               restarted.uploadedLastFrame == 0U && newPublications == 0U,
+           "A retired pump/finalizer contaminated the restarted queue");
+    waitForCpu(queue);
+    queue.pump();
+    expect(newPublications == 0U && newTicket->acquires == 0U && queue.stats().pendingGpu == 1U,
+           "Restart published the new generation before GPU completion");
+    newTicket->completed.store(true, std::memory_order_release);
+    queue.pump();
+    const auto published = queue.stats();
+    expect(published.loaded == 1U && published.gpuUploads == 1U && published.gpuBytes == 16U &&
+               published.uploadedLastFrame == 1U && newPublications == 1U && newTicket->acquires == 1U,
+           "Restart lost or double-counted the new generation publication");
+}
+
+void testCancellationRestartPreservesNewRequests() {
+    JobSystem jobs(true, 2U);
+    AsyncLoadQueue queue;
+    queue.start(&jobs);
+    auto first = std::make_shared<TestUploadTicket>();
+    auto second = std::make_shared<TestUploadTicket>();
+    std::size_t cancellations = 0;
+    std::size_t newPublications = 0;
+    bool allDrainedAtNotification = true;
+    for (int index = 0; index < 2; ++index) {
+        const auto ticket = index == 0 ? first : second;
+        queue.submitPrepared([ticket]() -> AsyncLoadQueue::Prepared {
+            return {[]() { return true; }, ticket, 32};
+        }, [&, index](const std::string&) {
+            ++cancellations;
+            allDrainedAtNotification = allDrainedAtNotification && first->isComplete() && second->isComplete();
+            if (index == 0) {
+                queue.start(nullptr);
+                queue.submit([&]() -> AsyncLoadQueue::Finalize {
+                    return [&]() { ++newPublications; return true; };
+                }, {});
+            }
+        });
+    }
+    waitForCpu(queue);
+    queue.stop();
+    const auto current = queue.stats();
+    expect(allDrainedAtNotification && first->waits == 1U && second->waits == 1U &&
+               first->acquires == 0U && second->acquires == 0U,
+           "Cancellation callbacks ran before every retired GPU payload was drained");
+    expect(cancellations == 2U && newPublications == 1U && current.submitted == 1U &&
+               current.loaded == 1U && current.cancelled == 0U && current.pendingCpu == 0U && current.pendingUploads == 0U,
+           "Retired cancellation callbacks erased or contaminated the restarted queue");
+}
+
+void testSynchronousWorkCannotPublishAfterStopOrRestart() {
+    for (const bool restart : {false, true}) {
+        AsyncLoadQueue queue;
+        queue.start(nullptr);
+        bool retiredPublished = false;
+        std::size_t cancellations = 0;
+        queue.submit([&]() -> AsyncLoadQueue::Finalize {
+            queue.stop();
+            if (restart) {
+                queue.start(nullptr);
+                queue.submit([]() -> AsyncLoadQueue::Finalize { return []() { return true; }; }, {});
+            }
+            return [&]() { retiredPublished = true; return true; };
+        }, [&](const std::string& error) { if (error.find("cancelled") != std::string::npos) ++cancellations; });
+        const auto current = queue.stats();
+        expect(!retiredPublished && cancellations == 1U, "A synchronous prepare published after its generation was stopped");
+        expect(current.submitted == 1U && current.loaded == (restart ? 1U : 0U) &&
+                   current.cancelled == (restart ? 0U : 1U) && current.failed == 0U,
+               "Synchronous cancellation changed the wrong queue generation counters");
+    }
+}
+
+void testDestructionRejectsRestartFromCancellation() {
+    JobSystem jobs(true, 2U);
+    auto queue = std::make_unique<AsyncLoadQueue>();
+    queue->start(&jobs);
+    auto* const address = queue.get();
+    std::atomic_size_t resurrectedDecodes{0};
+    bool restartRejected = false;
+    queue->submit([]() -> AsyncLoadQueue::Finalize { return []() { return true; }; }, [&](const std::string&) {
+        try {
+            address->start(&jobs);
+            address->submit([&]() -> AsyncLoadQueue::Finalize {
+                resurrectedDecodes.fetch_add(1U);
+                return []() { return true; };
+            }, {});
+        } catch (const std::logic_error&) {
+            restartRejected = true;
+        }
+    });
+    waitForCpu(*queue);
+    queue.reset();
+    jobs.waitAll();
+    expect(restartRejected && resurrectedDecodes.load() == 0U,
+           "Cancellation restarted asset work beyond the queue owner lifetime");
+}
+
+void testNestedStartRejectsReplacementJobSystem() {
+    JobSystem firstJobs(true, 2U);
+    JobSystem replacementJobs(true, 1U);
+    AsyncLoadQueue queue;
+    queue.start(&firstJobs);
+    bool nestedRejected = false;
+    std::size_t cancellations = 0;
+    std::atomic_size_t replacementDecodes{0};
+    queue.submit([]() -> AsyncLoadQueue::Finalize { return []() { return true; }; }, [&](const std::string&) {
+        ++cancellations;
+        try {
+            queue.start(&replacementJobs);
+            queue.submit([&]() -> AsyncLoadQueue::Finalize {
+                replacementDecodes.fetch_add(1U);
+                return []() { return true; };
+            }, {});
+            replacementJobs.waitAll();
+        } catch (const std::logic_error& error) {
+            nestedRejected = std::string(error.what()).find("restart is already in progress") != std::string::npos;
+        }
+    });
+    waitForCpu(queue);
+    queue.start(&firstJobs);
+    const auto restarted = queue.stats();
+    expect(nestedRejected && cancellations == 1U && replacementDecodes.load() == 0U &&
+               restarted.submitted == 0U && restarted.loaded == 0U && restarted.cancelled == 0U &&
+               restarted.pendingCpu == 0U && restarted.pendingUploads == 0U && restarted.pendingGpu == 0U,
+           "A nested start replaced the outer restart's JobSystem or generation");
+    queue.submit([]() -> AsyncLoadQueue::Finalize { return []() { return true; }; }, {});
+    waitForCpu(queue);
+    queue.pump();
+    expect(queue.stats().submitted == 1U && queue.stats().loaded == 1U && queue.stats().cancelled == 0U,
+           "Queue could not use its intended JobSystem after rejecting a nested start");
+}
+
 void testDeferredGpuFenceAndNoHeadOfLineBlocking() {
     JobSystem jobs(true, 2U);
     AsyncLoadQueue queue;
@@ -314,7 +467,7 @@ void testMipChain() {
     expect(rejected, "Invalid mip source was accepted");
 }
 
-} // namespace
+}
 
 int main() {
     try {
@@ -324,6 +477,11 @@ int main() {
         testShutdownWithLiveJobsAndRestart();
         testSynchronousBaseline();
         testLongSessionWithMixedOutcomes();
+        testFinalizerRestartKeepsNewGenerationIsolated();
+        testCancellationRestartPreservesNewRequests();
+        testSynchronousWorkCannotPublishAfterStopOrRestart();
+        testDestructionRejectsRestartFromCancellation();
+        testNestedStartRejectsReplacementJobSystem();
         testDeferredGpuFenceAndNoHeadOfLineBlocking();
         testDeferredGpuShutdownAndSynchronousWait();
         testGpuCompletionBackpressure();

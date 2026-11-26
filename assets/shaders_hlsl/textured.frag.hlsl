@@ -1,11 +1,21 @@
 Texture2D g_Texture;
 SamplerState g_Texture_sampler;
 
+struct PointLight
+{
+    float4 positionRange;
+    float4 colorIntensity;
+};
+
 cbuffer PixelConstants
 {
     float4 g_TintColor;
     float4 g_LightDirection;
     float4 g_AmbientColor;
+    float4 g_CameraPosition;
+    float4 g_DirectionalColorIntensity;
+    float4 g_PointLightInfo;
+    PointLight g_PointLights[24];
 };
 
 struct PSInput
@@ -33,8 +43,20 @@ float4 main(PSInput input) : SV_TARGET
     const float rim = pow(1.0 - saturate(dot(normal, viewDir)), 3.0) * 0.08;
 
     const float3 ambient = lerp(float3(0.12, 0.13, 0.16), g_AmbientColor.rgb, hemi);
-    const float3 diffuse = albedo * (ambient + ndotl * 0.86);
-    const float3 litColor = diffuse + specular.xxx + rim.xxx;
+    const float3 sun = g_DirectionalColorIntensity.rgb * g_DirectionalColorIntensity.w;
+    float3 diffuseLight = ambient + ndotl * sun;
+    for (uint i = 0; i < (uint)g_PointLightInfo.x; ++i)
+    {
+        const PointLight lamp = g_PointLights[i];
+        const float3 offset = lamp.positionRange.xyz - input.WorldPosition;
+        const float distanceSquared = dot(offset, offset);
+        const float rangeSquared = lamp.positionRange.w * lamp.positionRange.w;
+        if (distanceSquared >= rangeSquared) continue;
+        const float fade = 1.0 - distanceSquared / rangeSquared;
+        const float incidence = saturate(dot(normal, offset * rsqrt(max(distanceSquared, 1e-6))));
+        diffuseLight += lamp.colorIntensity.rgb * lamp.colorIntensity.w * incidence * fade * fade / (1.0 + 0.3 * distanceSquared);
+    }
+    const float3 litColor = albedo * diffuseLight + specular * sun / 0.86 + rim.xxx;
 
     return float4(litColor, alpha);
 }
