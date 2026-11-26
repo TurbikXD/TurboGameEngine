@@ -1,4 +1,7 @@
 #include "app/Lab5Session.h"
+#if defined(_WIN32)
+#include "app/CrashReportClient.h"
+#endif
 #include "engine/core/Application.h"
 #include "engine/core/AtomicFile.h"
 #include "engine/core/CrashReport.h"
@@ -36,6 +39,9 @@ std::optional<std::uint64_t> parseNumber(std::string_view text) {
 int usage() {
     std::cerr << "Usage: app [--play-session manifest | --net-server [IPv4:port] | --net-client [IPv4:port]]\n"
                  "       app --build-info\n"
+#if defined(_WIN32)
+                 "       app [--crash-report | --send-crash-report] <report directory>\n"
+#endif
                  "       app --lab5 <Lab5Beacon.tgeproj> [--verify smoke|divide-by-zero|access-violation|assertion-failure]\n"
                  "       app --scene-server <project.tgeproj> [bind IPv4[:port]] [--max-clients N]\n"
                  "       app --scene-client <project.tgeproj> <host[:port]>\n"
@@ -97,6 +103,15 @@ int wmain(int argc, wchar_t** argv) {
 int main(int argc, char** argv) {
 #endif
     using namespace engine::core;
+#if defined(_WIN32)
+    if (argc > 1) {
+        const std::wstring_view command{argv[1]};
+        if (command == L"--crash-report" || command == L"--send-crash-report") {
+            if (argc != 3) return usage();
+            return engine::app::runCrashReportClient(argv[2], command == L"--send-crash-report");
+        }
+    }
+#endif
     CrashReport::install(ENGINE_BUILD_ID, ENGINE_BUILD_COMMIT);
     const struct DiagnosticsScope {
         ~DiagnosticsScope() { CrashReport::shutdown(); }
@@ -105,6 +120,9 @@ int main(int argc, char** argv) {
         std::optional<PlayLaunch> standalone;
         std::optional<engine::net::Endpoint> networkArena;
         std::optional<Lab5Session> lab5;
+#if defined(_WIN32)
+        bool offerCrashReport = true;
+#endif
         if (argc > 1) {
             const std::filesystem::path mode{argv[1]};
             const bool sceneServer = mode == "--scene-server" || mode == "--steam-server";
@@ -142,6 +160,9 @@ int main(int argc, char** argv) {
                 std::string error;
                 standalone = PlaySession::load(std::filesystem::path(argv[2]), error);
                 if (!standalone) { std::cerr << "Invalid Play session: " << error << '\n'; return 2; }
+#if defined(_WIN32)
+                offerCrashReport = standalone->networkRole == SceneNetworkRole::Offline;
+#endif
                 if (standalone->networkRole == SceneNetworkRole::Server) {
                     CrashReport::setScene(utf8Argument(standalone->project.scenePath.filename()));
                     return engine::game::runNetworkSceneServer(*standalone);
@@ -234,6 +255,9 @@ int main(int argc, char** argv) {
             }
         }
         if (standalone) CrashReport::setScene(utf8Argument(standalone->project.scenePath.filename()));
+#if defined(_WIN32)
+        if (offerCrashReport && (!lab5 || !lab5->verifying())) engine::app::enableCrashReportDialog();
+#endif
         constexpr const char* backendName = ENGINE_BACKEND_NAME;
         const engine::rhi::BackendType backend = engine::rhi::backendFromString(backendName);
 

@@ -60,6 +60,10 @@ struct Reporter {
     fs::path reportLog;
     fs::path legacyLog;
     fs::path logsDirectory;
+    fs::path dialogExecutable;
+    fs::path dialogWorkingDirectory;
+    std::wstring dialogCommand;
+    std::atomic<bool> dialogReady{};
     std::string logHeader;
     HANDLE runLog{INVALID_HANDLE_VALUE};
     DWORD runLogBytes{};
@@ -194,6 +198,18 @@ DWORD writeDump(Fault& fault) noexcept {
     return error;
 }
 
+void launchDialog() noexcept {
+    if (!reporter.dialogReady.load(std::memory_order_acquire)) return;
+    STARTUPINFOW startup{};
+    startup.cb = sizeof(startup);
+    PROCESS_INFORMATION process{};
+    if (CreateProcessW(reporter.dialogExecutable.c_str(), reporter.dialogCommand.data(), nullptr, nullptr, FALSE,
+            CREATE_NO_WINDOW, nullptr, reporter.dialogWorkingDirectory.c_str(), &startup, &process)) {
+        CloseHandle(process.hThread);
+        CloseHandle(process.hProcess);
+    }
+}
+
 unsigned __stdcall reportWorker(void*) noexcept {
     if (WaitForSingleObject(reporter.work, INFINITE) != WAIT_OBJECT_0 ||
         reporter.stopping.load(std::memory_order_acquire)) return 0;
@@ -214,8 +230,9 @@ unsigned __stdcall reportWorker(void*) noexcept {
             {"dumpError", dumpError}, {"logWritten", logWritten}
         };
         const auto json = metadata.dump(2, ' ', false, nlohmann::json::error_handler_t::replace);
-        if (writeFile(reporter.pendingMetadata.c_str(), json, CREATE_NEW)) {
-            MoveFileExW(reporter.pendingMetadata.c_str(), reporter.metadataPath.c_str(), MOVEFILE_WRITE_THROUGH);
+        if (writeFile(reporter.pendingMetadata.c_str(), json, CREATE_NEW) &&
+            MoveFileExW(reporter.pendingMetadata.c_str(), reporter.metadataPath.c_str(), MOVEFILE_WRITE_THROUGH)) {
+            launchDialog();
         }
     } catch (...) {
     }
@@ -399,6 +416,19 @@ void setAction(std::string_view action) noexcept {
     (void)action;
 #endif
 }
+
+#if defined(_WIN32)
+void enableDialog(const std::filesystem::path& executable) noexcept {
+    if (!reporter.worker || !executable.is_absolute() || reporter.dialogReady.load(std::memory_order_acquire)) return;
+    try {
+        reporter.dialogWorkingDirectory = executable.parent_path();
+        reporter.dialogExecutable = executable;
+        reporter.dialogCommand = L"\"" + executable.native() + L"\" --crash-report \"" + reporter.directory.native() + L"\"";
+        reporter.dialogReady.store(true, std::memory_order_release);
+    } catch (...) {
+    }
+}
+#endif
 
 void fatal(const char* detail) noexcept {
 #if defined(_WIN32)

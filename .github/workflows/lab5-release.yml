@@ -48,11 +48,25 @@ jobs:
             "-DENGINE_BUILD_ID=$env:TGE_BUILD_ID" "-DENGINE_BUILD_COMMIT=$env:TGE_BUILD_COMMIT"
           cmake --build $env:TGE_BUILD_DIRECTORY --config RelWithDebInfo --target app --parallel 4
 
-      - name: Build and verify both ZIPs
+      - name: Verify crash report delivery
         shell: pwsh
         run: |
+          $PSNativeCommandUseErrorActionPreference = $true
+          python tools/crash_reports/test_send.py "$env:TGE_BUILD_DIRECTORY/RelWithDebInfo/app.exe"
+
+      - name: Build and verify both ZIPs
+        shell: pwsh
+        env:
+          TGE_CRASH_REPORT_URL: ${{ vars.TGE_CRASH_REPORT_URL }}
+        run: |
+          $reportUrl = $env:TGE_CRASH_REPORT_URL
+          if ($env:GITHUB_REF_TYPE -eq 'tag' -and $env:GITHUB_REPOSITORY -ieq 'TurbikXD/TurboGameEngine') {
+            if (!$reportUrl) { $reportUrl = (Get-Content -Raw -LiteralPath tools/lab5/crash-report-url.txt).Trim() }
+            if ($reportUrl -notmatch '^https://') { throw 'Official releases require an HTTPS crash report URL.' }
+          }
           $package = ./tools/lab5/New-Lab5Package.ps1 -BuildDirectory $env:TGE_BUILD_DIRECTORY `
-            -OutputDirectory out/lab5 -ExpectedBuildId $env:TGE_BUILD_ID -ExpectedCommitSha $env:TGE_BUILD_COMMIT
+            -OutputDirectory out/lab5 -ExpectedBuildId $env:TGE_BUILD_ID -ExpectedCommitSha $env:TGE_BUILD_COMMIT `
+            -CrashReportUrl $reportUrl
           $cdb = (Get-Command cdb.exe -CommandType Application -ErrorAction SilentlyContinue).Source
           if (!$cdb) {
             $sdkDebugger = Join-Path ${env:ProgramFiles(x86)} 'Windows Kits/10/Debuggers/x64/cdb.exe'
@@ -61,7 +75,7 @@ jobs:
           $stackOptions = @{}
           if ($cdb) { $stackOptions = @{ CheckStack = $true; Cdb = $cdb } }
           ./tools/lab5/Test-Lab5Package.ps1 -GameZip $package.GameZip -SymbolsZip $package.SymbolsZip `
-            -EvidenceDirectory out/lab5 @stackOptions
+            -EvidenceDirectory out/lab5 -ExpectedCrashReportUrl $reportUrl @stackOptions
           $checks = Get-Content -Raw -LiteralPath out/lab5/verification.json | ConvertFrom-Json
           @"
           ### Lab 5 package verification
@@ -129,6 +143,7 @@ jobs:
           [GitHub Actions build](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/attempts/${GITHUB_RUN_ATTEMPT})
 
           Extract the Win64 ZIP into an empty directory and open Play-Lab5.cmd. The package includes TESTER.md.
+          After a crash, choose **Send Report** in the crash dialog. The game sends the dump, log, and build details together.
           EOF
           gh release create "$GITHUB_REF_NAME" "packages/$game" "packages/$symbols" \
             --repo "$GITHUB_REPOSITORY" --verify-tag \

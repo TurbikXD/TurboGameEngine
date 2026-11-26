@@ -6,6 +6,7 @@ param(
     [Parameter(Mandatory)]
     [string]$SymbolsZip,
     [string]$EvidenceDirectory,
+    [string]$ExpectedCrashReportUrl,
     [ValidateRange(5, 300)]
     [int]$TimeoutSeconds = 90,
     [switch]$CheckStack,
@@ -35,6 +36,13 @@ foreach ($entry in $Lab5GameFiles) { Assert-Lab5File (Join-Path $game $entry) }
 Assert-Lab5File (Join-Path $symbols 'app.pdb')
 if (Get-ChildItem -LiteralPath $game -Filter '*.pdb' -Recurse -File) {
     throw 'Symbol files were included in the game ZIP.'
+}
+if ($ExpectedCrashReportUrl) {
+    $reportUrlPath = Join-Path $game 'crash-report-url.txt'
+    Assert-Lab5File $reportUrlPath
+    if ((Get-Content -Raw -LiteralPath $reportUrlPath).Trim() -cne ([uri]$ExpectedCrashReportUrl).AbsoluteUri) {
+        throw 'The game ZIP contains a different crash report URL.'
+    }
 }
 $buildInfoPath = Join-Path $game 'build.json'
 $build = Get-Lab5BuildInfo $buildInfoPath

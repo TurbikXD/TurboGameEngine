@@ -586,6 +586,10 @@ target_compile_definitions(app PRIVATE
     ENGINE_BUILD_COMMIT="${ENGINE_BUILD_COMMIT}"
 )
 target_link_libraries(app PRIVATE engine_core engine_platform engine_renderer engine_game)
+if(WIN32)
+    target_sources(app PRIVATE app/CrashReportClient.cpp)
+    target_link_libraries(app PRIVATE bcrypt comctl32 winhttp)
+endif()
 if(ENGINE_PACKAGED_RUNTIME AND MSVC)
     target_link_options(app PRIVATE /DEBUG:FULL /INCREMENTAL:NO /PDBALTPATH:app.pdb)
 endif()

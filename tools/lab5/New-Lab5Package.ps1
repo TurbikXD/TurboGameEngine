@@ -8,12 +8,27 @@ param(
     [Parameter(Mandatory)]
     [string]$OutputDirectory,
     [string]$ExpectedBuildId,
-    [string]$ExpectedCommitSha
+    [string]$ExpectedCommitSha,
+    [string]$CrashReportUrl
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'Lab5PackageFiles.ps1')
+
+if ($CrashReportUrl) {
+    [uri]$endpoint = $null
+    if ($CrashReportUrl.Length -gt 2048 -or ![uri]::TryCreate($CrashReportUrl, [UriKind]::Absolute, [ref]$endpoint) -or
+        !$endpoint.IsWellFormedOriginalString() -or !$endpoint.Host -or $endpoint.Query -or $endpoint.Fragment -or
+        $CrashReportUrl -match '^https?://[^/]*@' -or
+        ($endpoint.Scheme -ne 'https' -and $CrashReportUrl -notmatch '^http://127\.0\.0\.1(?::[0-9]+)?(?:/|$)')) {
+        throw 'CrashReportUrl must use HTTPS or local HTTP at 127.0.0.1 and omit credentials, query and fragment.'
+    }
+    $CrashReportUrl = $endpoint.AbsoluteUri
+    if ($CrashReportUrl.Length -gt 2048 -or $CrashReportUrl -match '[^\x21-\x7E]') {
+        throw 'CrashReportUrl must be an escaped ASCII URL of at most 2048 characters.'
+    }
+}
 
 $source = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '../..')).Path
 $buildDirectory = (Resolve-Path -LiteralPath $BuildDirectory).Path
@@ -42,16 +57,19 @@ function Add-Lab5Tree($Files, [string]$Directory, [string]$EntryPrefix) {
     }
 }
 
-function Write-Lab5Zip([string]$Path, $Files) {
+function Write-Lab5Zip([string]$Path, $Files, [string]$ReportUrl) {
     $archive = [IO.Compression.ZipFile]::Open($Path, [IO.Compression.ZipArchiveMode]::Create)
     try {
         foreach ($entry in $Files.GetEnumerator()) {
             [void][IO.Compression.ZipFileExtensions]::CreateEntryFromFile(
                 $archive, $entry.Value, $entry.Key, [IO.Compression.CompressionLevel]::Optimal)
         }
-        $identity = $archive.CreateEntry('build.json')
-        $writer = [IO.StreamWriter]::new($identity.Open(), [Text.UTF8Encoding]::new($false))
-        try { $writer.WriteLine($buildInfoJson) } finally { $writer.Dispose() }
+        $metadata = [ordered]@{ 'build.json' = $buildInfoJson }
+        if ($ReportUrl) { $metadata['crash-report-url.txt'] = $ReportUrl }
+        foreach ($entry in $metadata.GetEnumerator()) {
+            $writer = [IO.StreamWriter]::new($archive.CreateEntry($entry.Key).Open(), [Text.UTF8Encoding]::new($false))
+            try { $writer.WriteLine($entry.Value) } finally { $writer.Dispose() }
+        }
     } finally {
         $archive.Dispose()
     }
@@ -112,7 +130,7 @@ if ((Test-Path -LiteralPath $gameZip) -or (Test-Path -LiteralPath $symbolsZip)) 
     throw "Output for build $($buildInfo['buildId']) already exists in $output"
 }
 $suffix = ".partial.$([guid]::NewGuid().ToString('N'))"
-Write-Lab5Zip ($gameZip + $suffix) $gameFiles
+Write-Lab5Zip ($gameZip + $suffix) $gameFiles $CrashReportUrl
 Write-Lab5Zip ($symbolsZip + $suffix) ([ordered]@{ 'app.pdb' = $pdb })
 [IO.File]::Move(($gameZip + $suffix), $gameZip)
 [IO.File]::Move(($symbolsZip + $suffix), $symbolsZip)

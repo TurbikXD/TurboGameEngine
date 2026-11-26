@@ -58,7 +58,7 @@ Dependencies and targets are declared in `CMakeLists.txt`: GLFW window/input, Di
 | Editor appearance | `engine/editor/EditorTheme.*`, `EditorIcons.*`, `assets/fonts/`, `assets/editor/icons/` | Flat theme and built-in icon assets. Renderer resolves trusted editor icons independently of project UI images and pins their GPU views per frame. Optional `.local/editor-fonts` is a local reference font override, excluded from distribution. |
 | AI assistant | `engine/editor/CodexAssistant.*` | Local `codex app-server` stdio/JSON-RPC process, auth UI, catalog/settings, chats, streaming and approvals. |
 | Live disk changes | `engine/core/LiveFileWatcher.*`, `AtomicFile.*` | Bounded debounced reads, content changes and atomic file replacement. Integration is in `GameplayState` and `ScriptingSystem`. |
-| Crash reports / Lab 5 releases | `engine/core/CrashReport.*`, `app/Lab5Session.*`, `.github/workflows/lab5-release.yml` | Per-process log snapshots, DbgHelp minidumps and build identity. Lab 5 uses an explicit standalone launcher, a project scene and matching game/symbol ZIPs. See `docs/lab5/README.md`. |
+| Crash reports / Lab 5 releases | `engine/core/CrashReport.*`, `app/CrashReportClient.*`, `tools/crash_reports/vercel`, `.github/workflows/lab5-release.yml` | DbgHelp dumps, user-confirmed upload to private Blob storage and matching game and symbol ZIPs. See `docs/crash-diagnostics.md` and `docs/lab5/README.md`. |
 | Examples / verification | `assets/scripts/`, `assets/prefabs/`, `tests/`, `tools/test_react_luau.py` | Real gameplay/UI scripts and C++/Luau regression scenarios. |
 
 Use `rg --files engine/<area>` to resolve exact filenames. Do not begin by scanning all of `third_party`, CMake dependency downloads, reports or build output.

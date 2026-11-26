@@ -1,0 +1,11 @@
+{
+  "name": "tge-beacon-crash-reports",
+  "private": true,
+  "engines": {
+    "node": "24.x"
+  },
+  "dependencies": {
+    "@vercel/blob": "2.9.0",
+    "yauzl": "3.4.0"
+  }
+}
